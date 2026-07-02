@@ -1,108 +1,39 @@
-CREATE PROCEDURE dbo.UPDATE_711_RECEPCION
-(
-    @t_Factura VARCHAR(4000)
-)
-AS
+create or replace PROCEDURE       "UPDATE_711_RECEPCION" 
+   ( t_Factura IN VARCHAR2 ) IS
+   CURSOR ScrDoc IS
+      SELECT 'TBD'            AS Row_ID   ,
+              FolioRecepcion  AS Entrada  ,
+              'INTERFACE'     AS CreadoPor,
+              SYSDATE         AS Creacion ,
+              FolioInterno    AS Var_1
+          FROM EAI.LDR_SHAREPOINT
+          WHERE UPPER( Tienda ) != 'TIENDA' ;
+   nUpdate   NUMBER(5) ;
+   nCount    NUMBER(5) ;
+   nInsert   NUMBER(5) ;
+   nRowID    NUMBER(10) ;
 BEGIN
-    SET NOCOUNT ON;
-
-    DECLARE @nInsert INT = 0;
-    DECLARE @nUpdate INT = 0;
-
-    BEGIN TRY
-
-        BEGIN TRANSACTION;
-
-        ------------------------------------------------------------------
-        -- UPDATE EXISTENTES
-        ------------------------------------------------------------------
-
-        UPDATE F
-           SET Modificacion = GETDATE()
-        FROM EAI.IFC_Folios_FE F
-        INNER JOIN EAI.LDR_SHAREPOINT S
-            ON F.Var_1 = S.FolioInterno
-        WHERE UPPER(S.Tienda) <> 'TIENDA';
-
-        SET @nUpdate = @@ROWCOUNT;
-
-        ------------------------------------------------------------------
-        -- INSERT NUEVOS
-        ------------------------------------------------------------------
-
-        ;WITH Nuevos AS
-        (
-            SELECT
-                S.FolioRecepcion AS Entrada,
-                'INTERFACE'      AS CreadoPor,
-                GETDATE()        AS Creacion,
-                S.FolioInterno   AS Var_1
-            FROM EAI.LDR_SHAREPOINT S
-            WHERE UPPER(S.Tienda) <> 'TIENDA'
-            AND NOT EXISTS
-            (
-                SELECT 1
-                FROM EAI.IFC_Folios_FE F
-                WHERE F.Var_1 = S.FolioInterno
-            )
-        )
-        INSERT INTO EAI.IFC_Folios_FE
-        (
-            Row_ID,
-            Entrada,
-            CreadoPor,
-            Creacion,
-            Var_1
-        )
-        SELECT
-            ROW_NUMBER() OVER(ORDER BY Var_1)
-            +
-            ISNULL(
-                (
-                    SELECT MAX(Row_ID)
-                    FROM EAI.IFC_Folios_FE
-                    WHERE Row_ID < 1000000000
-                ),
-                0
-            ),
-            Entrada,
-            CreadoPor,
-            Creacion,
-            Var_1
-        FROM Nuevos;
-
-        SET @nInsert = @@ROWCOUNT;
-
-        COMMIT TRANSACTION;
-
-        ------------------------------------------------------------------
-        -- Estadísticas
-        ------------------------------------------------------------------
-
-        PRINT 'Insert : ' + CAST(@nInsert AS VARCHAR(20));
-        PRINT 'Update : ' + CAST(@nUpdate AS VARCHAR(20));
-
-    END TRY
-    BEGIN CATCH
-
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-
-        DECLARE @ErrorMessage NVARCHAR(4000);
-        DECLARE @ErrorNumber INT;
-
-        SELECT
-            @ErrorMessage = ERROR_MESSAGE(),
-            @ErrorNumber = ERROR_NUMBER();
-
-        RAISERROR(
-            'UPDATE_711_RECEPCION Error [%d]: %s',
-            16,
-            1,
-            @ErrorNumber,
-            @ErrorMessage
-        );
-
-    END CATCH
-END
-GO
+   nUpdate := 0 ;       
+   nCount  := 0 ;
+   nInsert := 0 ;
+   FOR Doc IN ScrDoc LOOP    
+      UPDATE EAI.IFC_Folios_FE SET Modificacion = SYSDATE
+         WHERE Var_1 = Doc.Var_1 ;
+      nCount := SQL%ROWCOUNT ;
+      IF ( nCount = 0 ) THEN 
+         nInsert := nInsert + 1 ;
+         SELECT MAX( Row_ID + 1 ) INTO nRowID
+            FROM EAI.IFC_Folios_FE
+            WHERE Row_ID < 1000000000 ;
+         INSERT INTO EAI.IFC_Folios_FE  
+            ( Row_ID, Entrada, CreadoPor, Creacion, Var_1 )
+         VALUES
+            ( nRowID, Doc.Entrada, Doc.CreadoPor, Doc.Creacion, Doc.Var_1 ) ;
+      ELSE   
+         nUpdate := nUpdate + 1 ;
+      END IF ;
+   END LOOP ;     
+   DBMS_OUTPUT.PUT_LINE( 'Insert : ' || nInsert ) ;   
+   DBMS_OUTPUT.PUT_LINE( 'Update : ' || nUpdate ) ;   
+   COMMIT ;
+END UPDATE_711_RECEPCION ;

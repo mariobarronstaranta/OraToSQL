@@ -1,103 +1,53 @@
-CREATE PROCEDURE dbo.INSERT_EAI_MESSAGE_LOG
-(
-      @v_DIRECTION            VARCHAR(255)
-    , @v_ID                   VARCHAR(255)
-    , @v_MESSAGE              VARCHAR(MAX)
-    , @v_STATUS               VARCHAR(255)
-    , @v_QUEUE_NAME           VARCHAR(255)
-    , @v_SIEBEL_ERROR_MESSAGE VARCHAR(4000)
-    , @v_SOURCE               VARCHAR(255)
-    , @v_SIEBEL_ERROR_CODE    VARCHAR(255)
-    , @v_RETRY_COUNT          NUMERIC(18,0)
-    , @v_SEQUENCE             NUMERIC(18,0)
-    , @v_PARENT_ROW_ID        VARCHAR(255)
-    , @v_REFERENCE            VARCHAR(255)
-)
-AS
+create or replace PROCEDURE       "INSERT_EAI_MESSAGE_LOG" (
+   v_DIRECTION             IN VARCHAR2, 
+	 v_ID                    IN VARCHAR2, 
+	 v_MESSAGE               IN LONG    , 
+	 v_STATUS                IN VARCHAR2, 
+	 v_QUEUE_NAME            IN VARCHAR2, 
+	 v_SIEBEL_ERROR_MESSAGE  IN VARCHAR2, 
+	 v_SOURCE                IN VARCHAR2, 
+	 v_SIEBEL_ERROR_CODE     IN VARCHAR2, 
+	 v_RETRY_COUNT           IN NUMBER  , 
+	 v_SEQUENCE              IN NUMBER  , 
+   v_PARENT_ROW_ID         IN VARCHAR2,
+   v_REFERENCE             IN VARCHAR2
+   )
+IS
+   sMsg       VARCHAR2(500) ;   
+-- sXML       SYS.XMLTYPE   ;
 BEGIN
-    SET NOCOUNT ON;
+--
+-- v_Message
+-- sXML := XMLTYPE( v_Message ) ;   
+--   
+-- sXML := XMLTYPE( v_Message, NULL, 0, TRUE, NULL ) ;   
+--
+   INSERT INTO EAI_OWNER.MX_EAI_MESSAGE_LOG
+     ( DIRECTION          , ID           , CREATED               , MESSAGE        ,
+       REFERENCE          ,
+	     STATUS             , QUEUE_NAME   , SIEBEL_ERROR_MESSAGE  , SOURCE         , 
+	     SIEBEL_ERROR_CODE  , RETRY_COUNT  , SEQUENCE              , PARENT_ROW_ID   )
+   VALUES 
+     ( v_DIRECTION        , v_ID         , SYSDATE               , v_MESSAGE      ,
+       v_REFERENCE        ,
+       v_STATUS           , v_QUEUE_NAME , v_SIEBEL_ERROR_MESSAGE, v_SOURCE ,
+       v_SIEBEL_ERROR_CODE, v_RETRY_COUNT, v_SEQUENCE            , v_PARENT_ROW_ID ) ;
+   COMMIT ;
+EXCEPTION
+   WHEN OTHERS THEN
+      sMsg := SUBSTR( TO_CHAR(SQLCODE) || '-' || SQLERRM, 1, 250 ) ;
+      INSERT INTO EAI_OWNER.MX_EAI_MESSAGE_LOG
+        ( DIRECTION          , ID           , CREATED               , MESSAGE        ,
+          REFERENCE          ,
+	        STATUS             , QUEUE_NAME   , SIEBEL_ERROR_MESSAGE  , SOURCE         , 
+	        SIEBEL_ERROR_CODE  , RETRY_COUNT  , SEQUENCE              , PARENT_ROW_ID   )
+      VALUES 
+        ( v_DIRECTION        , v_ID         , SYSDATE               , sMsg           ,
+          v_REFERENCE        ,
+          v_STATUS           , v_QUEUE_NAME , NULL                  , 'PL/SQL'       ,
+          v_SIEBEL_ERROR_CODE, v_RETRY_COUNT, v_SEQUENCE            , v_PARENT_ROW_ID ) ;
+      COMMIT ;
+END Insert_EAI_Message_Log ;
 
-    BEGIN TRY
-
-        INSERT INTO EAI_OWNER.dbo.MX_EAI_MESSAGE_LOG
-        (
-              DIRECTION
-            , ID
-            , CREATED
-            , MESSAGE
-            , REFERENCE
-            , STATUS
-            , QUEUE_NAME
-            , SIEBEL_ERROR_MESSAGE
-            , SOURCE
-            , SIEBEL_ERROR_CODE
-            , RETRY_COUNT
-            , SEQUENCE
-            , PARENT_ROW_ID
-        )
-        VALUES
-        (
-              @v_DIRECTION
-            , @v_ID
-            , GETDATE()
-            , @v_MESSAGE
-            , @v_REFERENCE
-            , @v_STATUS
-            , @v_QUEUE_NAME
-            , @v_SIEBEL_ERROR_MESSAGE
-            , @v_SOURCE
-            , @v_SIEBEL_ERROR_CODE
-            , @v_RETRY_COUNT
-            , @v_SEQUENCE
-            , @v_PARENT_ROW_ID
-        );
-
-    END TRY
-    BEGIN CATCH
-
-        DECLARE @sMsg VARCHAR(250);
-
-        SET @sMsg =
-            LEFT(
-                CAST(ERROR_NUMBER() AS VARCHAR(20))
-                + '-'
-                + ERROR_MESSAGE(),
-                250
-            );
-
-        INSERT INTO EAI_OWNER.dbo.MX_EAI_MESSAGE_LOG
-        (
-              DIRECTION
-            , ID
-            , CREATED
-            , MESSAGE
-            , REFERENCE
-            , STATUS
-            , QUEUE_NAME
-            , SIEBEL_ERROR_MESSAGE
-            , SOURCE
-            , SIEBEL_ERROR_CODE
-            , RETRY_COUNT
-            , SEQUENCE
-            , PARENT_ROW_ID
-        )
-        VALUES
-        (
-              @v_DIRECTION
-            , @v_ID
-            , GETDATE()
-            , @sMsg
-            , @v_REFERENCE
-            , @v_STATUS
-            , @v_QUEUE_NAME
-            , NULL
-            , 'T-SQL'
-            , @v_SIEBEL_ERROR_CODE
-            , @v_RETRY_COUNT
-            , @v_SEQUENCE
-            , @v_PARENT_ROW_ID
-        );
-
-    END CATCH
-END;
-GO
+ 
+ 

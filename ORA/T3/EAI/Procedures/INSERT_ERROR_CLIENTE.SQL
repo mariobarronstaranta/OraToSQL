@@ -1,61 +1,28 @@
-CREATE OR ALTER PROCEDURE dbo.INSERT_ERROR_CLIENTE
-(
-      @pCliente_V3    VARCHAR(100),
-      @pCliente_SAP   VARCHAR(100),
-      @pErr_Msg       VARCHAR(500)
-)
-AS
+create or replace PROCEDURE     "INSERT_ERROR_CLIENTE" 
+   ( pCliente_V3    IN VARCHAR2,
+     pCliente_SAP   IN VARCHAR2,
+     pErr_Msg       IN VARCHAR2 )
+IS	 
+   nContador    NUMBER        ;
+   sMsg         VARCHAR2(500) ;
 BEGIN
-    SET NOCOUNT ON;
-
-    BEGIN TRY
-
-        INSERT INTO dbo.CUSTOMERS_T3_ERROR_LOG
-        (
-            Cust_ID,
-            SAP_Number,
-            Err_Description,
-            [SYSTEM],
-            LOG_DATE
-        )
-        VALUES
-        (
-            @pCliente_V3,
-            @pCliente_SAP,
-            @pErr_Msg,
-            'XML',
-            SYSDATETIME()
-        );
-
-    END TRY
-    BEGIN CATCH
-
-        INSERT INTO dbo.DEBUG_T3
-        (
-            Fecha,
-            Factura,
-            Pedido,
-            Cliente_SAP,
-            Comentario
-        )
-        VALUES
-        (
-            SYSDATETIME(),
-            'ErrCliente',
-            @pCliente_V3,
-            LEFT(@pCliente_SAP,10),
-            CONCAT(
-                'Error:',
-                ERROR_NUMBER(),
-                ' Proc:',
-                COALESCE(ERROR_PROCEDURE(),'N/A'),
-                ' Line:',
-                ERROR_LINE(),
-                ' Msg:',
-                ERROR_MESSAGE()
-            )
-        );
-
-    END CATCH
-END;
-GO
+   nContador := 0 ;
+--   SELECT COUNT( * )   INTO   nContador
+--      FROM EAI.CUSTOMERS_T3_ERROR_LOG
+--      WHERE CUST_ID                 = pCliente_V3
+--       AND RTRIM( ERR_DESCRIPTION ) = RTRIM( pErr_Msg );   
+   
+--   IF ( NVL( nContador, 0 ) = 0 ) THEN
+      INSERT INTO CUSTOMERS_T3_ERROR_LOG
+         ( Cust_ID, SAP_Number, Err_Description, SYSTEM, LOG_DATE )
+      VALUES
+          ( pCliente_V3, pCliente_SAP, pErr_Msg, 'XML', SYSDATE );
+--   END IF ;				
+--
+EXCEPTION
+   WHEN OTHERS THEN
+      sMsg := SUBSTR( TO_CHAR(SQLCODE) || '-' || SQLERRM, 1, 250) ;
+      INSERT INTO DEBUG_T3 ( Fecha, Factura, Pedido, Cliente_SAP, Comentario )
+         VALUES ( SYSDATE, 'ErrCliente', pCliente_V3, SUBSTR( pCliente_SAP, 1, 10), sMsg ) ;
+      COMMIT ;
+END INSERT_ERROR_CLIENTE ;

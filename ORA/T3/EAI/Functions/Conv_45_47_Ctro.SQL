@@ -1,82 +1,86 @@
-CREATE FUNCTION EAI.Conv_45_47_Ctro
-(
-    @sDist VARCHAR(3)
-)
-RETURNS CHAR(4)
-AS
+create or replace FUNCTION       "CONV_45_47_CTRO" 
+   ( sDist VARCHAR2 )  RETURN  VARCHAR2
+IS
+   sReturn VARCHAR2(4) ;
 BEGIN
-    DECLARE @sReturn CHAR(4);
-
-    SET @sReturn =
-        CASE @sDist
-            WHEN '011' THEN 'MX10'
-            WHEN '022' THEN 'MX11'
-            WHEN '023' THEN 'MX12'
-            WHEN '026' THEN 'MX13'
-            WHEN '050' THEN 'MX14'
-            WHEN '051' THEN 'MX15'
-            WHEN '061' THEN 'MX16'
-            WHEN '071' THEN 'MX17'
-            WHEN '083' THEN 'MX18'
-            WHEN '101' THEN 'MX19'
-            WHEN '102' THEN 'MX20'
-            WHEN '103' THEN 'MX21'
-            WHEN '110' THEN 'MX23'
-            WHEN '113' THEN 'MX22'
-            WHEN '125' THEN 'MX24'
-            WHEN '131' THEN 'MX25'
-            WHEN '141' THEN 'MX26'
-            WHEN '144' THEN 'MX27'
-            WHEN '145' THEN 'MX28'
-            WHEN '151' THEN 'MX29'
-            WHEN '165' THEN 'MX30'
-            WHEN '167' THEN 'MX31'
-            WHEN '170' THEN 'MX32'
-            WHEN '181' THEN 'MX33'
-            WHEN '182' THEN 'MX34'
-            WHEN '185' THEN 'MX35'
-            WHEN '186' THEN 'MX36'
-            WHEN '187' THEN 'MX37'
-            WHEN '193' THEN 'MX38'
-            WHEN '196' THEN 'MX39'
-            WHEN '197' THEN 'MX40'
-            WHEN '198' THEN 'MX41'
-            WHEN '202' THEN 'MX42'
-            WHEN '214' THEN 'MX43'
-            WHEN '221' THEN 'MX44'
-            WHEN '224' THEN 'MX45'
-            WHEN '230' THEN 'MX46'
-            WHEN '243' THEN 'MX47'
-            WHEN '251' THEN 'MX48'
-            WHEN '253' THEN 'MX49'
-            WHEN '255' THEN 'MX50'
-            WHEN '262' THEN 'MX51'
-            WHEN '264' THEN 'MX52'
-            WHEN '266' THEN 'MX53'
-            WHEN '271' THEN 'MX54'
-            WHEN '273' THEN 'MX55'
-            WHEN '281' THEN 'MX56'
-            WHEN '282' THEN 'MX57'
-            WHEN '283' THEN 'MX58'
-            WHEN '295' THEN 'MX59'
-            WHEN '302' THEN 'MX60'
-            WHEN '304' THEN 'MX61'
-            WHEN '305' THEN 'MX62'
-            WHEN '307' THEN 'MX63'
-            WHEN '310' THEN 'MX64'
-            WHEN '321' THEN 'MX65'
-            WHEN '333' THEN 'MX66'
-            WHEN '424' THEN 'MX67'
-            WHEN '441' THEN 'MX68'
-            WHEN '444' THEN 'MX69'
-            WHEN '500' THEN 'MX70'
-            WHEN '600' THEN 'MX71'
-            WHEN '631' THEN 'MX72'
-            WHEN '700' THEN 'MX73'
-            WHEN '730' THEN 'MX74'
-            ELSE '    '
-        END;
-
-    RETURN @sReturn;
-END;
-GO
+   SELECT CASE
+          WHEN sDist = '011' THEN 'MX10'
+          WHEN sDist = '022' THEN 'MX11'
+          WHEN sDist = '023' THEN 'MX12'
+          WHEN sDist = '026' THEN 'MX13'
+          WHEN sDist = '050' THEN 'MX14'
+          WHEN sDist = '051' THEN 'MX15'
+          WHEN sDist = '061' THEN 'MX16'
+          WHEN sDist = '071' THEN 'MX17'
+          WHEN sDist = '083' THEN 'MX18'
+          WHEN sDist = '101' THEN 'MX19'
+       --
+          WHEN sDist = '102' THEN 'MX20'
+          WHEN sDist = '103' THEN 'MX21'
+          WHEN sDist = '110' THEN 'MX23'
+          WHEN sDist = '113' THEN 'MX22'
+          WHEN sDist = '125' THEN 'MX24'
+          WHEN sDist = '131' THEN 'MX25'
+          WHEN sDist = '141' THEN 'MX26'
+          WHEN sDist = '144' THEN 'MX27'
+          WHEN sDist = '145' THEN 'MX28'
+          WHEN sDist = '151' THEN 'MX29'
+       --
+          WHEN sDist = '165' THEN 'MX30'
+          WHEN sDist = '167' THEN 'MX31'
+          WHEN sDist = '170' THEN 'MX32'
+          WHEN sDist = '181' THEN 'MX33'
+          WHEN sDist = '182' THEN 'MX34'
+          WHEN sDist = '185' THEN 'MX35'
+          WHEN sDist = '186' THEN 'MX36'
+          WHEN sDist = '187' THEN 'MX37'
+          WHEN sDist = '193' THEN 'MX38'
+          WHEN sDist = '196' THEN 'MX39'
+       --
+          WHEN sDist = '197' THEN 'MX40'
+          WHEN sDist = '198' THEN 'MX41'
+          WHEN sDist = '202' THEN 'MX42'
+          WHEN sDist = '214' THEN 'MX43'
+          WHEN sDist = '221' THEN 'MX44'
+          WHEN sDist = '224' THEN 'MX45'
+          WHEN sDist = '230' THEN 'MX46'
+          WHEN sDist = '243' THEN 'MX47'
+          WHEN sDist = '251' THEN 'MX48'
+          WHEN sDist = '253' THEN 'MX49'
+       --
+          WHEN sDist = '255' THEN 'MX50'
+          WHEN sDist = '262' THEN 'MX51'
+          WHEN sDist = '264' THEN 'MX52'
+          WHEN sDist = '266' THEN 'MX53'
+          WHEN sDist = '271' THEN 'MX54'
+          WHEN sDist = '273' THEN 'MX55'
+          WHEN sDist = '281' THEN 'MX56'
+          WHEN sDist = '282' THEN 'MX57'
+          WHEN sDist = '283' THEN 'MX58'
+          WHEN sDist = '295' THEN 'MX59'
+       --
+          WHEN sDist = '302' THEN 'MX60'
+          WHEN sDist = '304' THEN 'MX61'
+          WHEN sDist = '305' THEN 'MX62'
+          WHEN sDist = '307' THEN 'MX63'
+          WHEN sDist = '310' THEN 'MX64'
+          WHEN sDist = '321' THEN 'MX65'
+          WHEN sDist = '333' THEN 'MX66'
+          WHEN sDist = '424' THEN 'MX67'
+          WHEN sDist = '441' THEN 'MX68'
+          WHEN sDist = '444' THEN 'MX69'
+       --
+		  WHEN sDist = '500' THEN 'MX70'
+          WHEN sDist = '600' THEN 'MX71'
+          WHEN sDist = '631' THEN 'MX72'
+          WHEN sDist = '700' THEN 'MX73'
+          WHEN sDist = '730' THEN 'MX74'
+		  ELSE
+		     '    '
+		  END
+      INTO sReturn
+      FROM DUAL ;
+   RETURN sReturn ;
+END Conv_45_47_Ctro ;
+ 
+ 

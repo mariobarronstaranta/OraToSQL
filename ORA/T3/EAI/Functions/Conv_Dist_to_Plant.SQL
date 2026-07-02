@@ -1,20 +1,16 @@
-CREATE FUNCTION dbo.Conv_Dist_to_Plant
-(
-    @sDist VARCHAR(10)
-)
-RETURNS VARCHAR(4)
-AS
+create or replace FUNCTION     "CONV_DIST_TO_PLANT" 
+   ( sDist VARCHAR2 )  RETURN  VARCHAR2
+IS
+   sReturn     VARCHAR2(04) ;
+   sReturnRet  VARCHAR2(10) ;
 BEGIN
-    DECLARE @sReturn     VARCHAR(4);
-    DECLARE @sReturnRet  VARCHAR(10);
-
-    SELECT @sReturnRet = dbo.getConv('T3 Dist to Plant', @sDist);
-
-    IF (@sReturnRet = @sDist)
-        SET @sReturn = '    ';  -- cuatro espacios
-    ELSE
-        SET @sReturn = @sReturnRet;
-
-    RETURN @sReturn;
-END;
-GO
+   SELECT EAI_Owner.getConv( 'T3 Dist to Plant', sDist ) AS ConvCode
+      INTO sReturnRet
+      FROM DUAL ;
+   IF ( sReturnRet = sDist ) THEN
+      sReturn := '    '     ;
+   ELSE
+      sReturn := sReturnRet ;
+   END IF ;    
+   RETURN sReturn ;
+END Conv_Dist_to_Plant ;

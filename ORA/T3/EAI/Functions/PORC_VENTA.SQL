@@ -1,21 +1,26 @@
-CREATE OR ALTER FUNCTION EAI.PORC_VENTA
-(
-      @nValor1 DECIMAL(38,10),
-      @nValor2 DECIMAL(38,10),
-      @nValor3 INT
-)
-RETURNS DECIMAL(38,10)
-AS
+create or replace FUNCTION       "PORC_VENTA" (
+     nValor1  NUMBER  ,     -- Dividendo
+     nValor2  NUMBER  ,     -- Divisor
+     nValor3  NUMBER        -- Numero de Decimales
+   )
+RETURN NUMBER IS
+  nReturn NUMBER ;
 BEGIN
+   IF ( NVL( nValor2, 0 ) = 0 ) THEN
+      nReturn := 0 ;                                      -- Divisior  CERO
+   ELSIF ( NVL( nValor1, 0 ) = 0 ) THEN
+      nReturn := 0 ;                                      -- Dividendo CERO
+   ELSIF ( nValor1 < 0 ) THEN
+--    nReturn := 0 ;                                      -- Dividendo Negativo
+      nReturn := ROUND( nValor1 / nValor2, nValor3 ) ;
+   ELSIF ( nValor2 < 0 ) THEN
+--    nReturn := 0 ;                                      -- Dividendo Negativo
+      nReturn := ROUND( nValor1 / nValor2, nValor3 ) ;      
+   ELSIF ( nValor1 > 0 ) AND ( nValor2 > 0 ) THEN
+      nReturn := ROUND( nValor1 / nValor2, nValor3 ) ;    -- Ok
+   END IF ;
+   RETURN nReturn ;
+END ;
 
-    RETURN
-    (
-        CASE
-            WHEN COALESCE(@nValor1,0) = 0 THEN 0
-            WHEN COALESCE(@nValor2,0) = 0 THEN 0
-            ELSE ROUND(@nValor1 / @nValor2, @nValor3)
-        END
-    );
-
-END;
-GO
+ 
+ 

@@ -1,23 +1,16 @@
-CREATE OR ALTER FUNCTION EAI.ISNUMBER
-(
-    @sValue VARCHAR(8000)
-)
-RETURNS CHAR(1)
-AS
+create or replace FUNCTION       "ISNUMBER" ( sValue varchar2)
+RETURN VARCHAR2 IS
 BEGIN
+   IF ( sValue IS NULL ) THEN
+      RETURN 'F' ;
+   END IF ;
+   FOR Aux IN 1..LENGTH( sValue ) LOOP
+      IF NOT( ( ASCII( SUBSTR( sValue, Aux, 1 ) ) >= 48 ) AND ( ASCII( SUBSTR( sValue, Aux, 1 ) ) <= 57 ) ) THEN
+         RETURN 'F' ;
+      END IF ;
+   END LOOP ;
+   RETURN 'T' ;
+END ;
 
-    IF @sValue IS NULL
-        RETURN 'F';
-
-    RETURN
-    (
-        CASE
-            WHEN @sValue NOT LIKE '%[^0-9]%'
-                 AND LEN(@sValue) > 0
-            THEN 'T'
-            ELSE 'F'
-        END
-    );
-
-END
-GO
+ 
+ 

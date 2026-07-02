@@ -1,94 +1,43 @@
-CREATE OR ALTER PROCEDURE dbo.INSERT_ERR_CLIENTE
-(
-      @Cliente_V3      VARCHAR(255)
-    , @Cliente_SAP     VARCHAR(255)
-    , @Distribuidora   VARCHAR(255)
-    , @Err_Msg         VARCHAR(500)
-)
-AS
+create or replace PROCEDURE     "INSERT_ERR_CLIENTE" 
+   ( Cliente_V3    IN VARCHAR2,
+     Cliente_SAP   IN VARCHAR2,
+     Distribuidora IN VARCHAR2,
+     Err_Msg       IN VARCHAR2 )
+IS	 
+
+   nContador    NUMBER;	  
+   sMsg         VARCHAR2(500);
+
 BEGIN
-    SET NOCOUNT ON;
 
-    BEGIN TRY
+   nContador := 0;
 
-        IF NOT EXISTS
-        (
-            SELECT 1
-            FROM dbo.CUSTOMERS_T3_ERROR_LOG
-            WHERE CUST_ID = @Cliente_V3
-              --AND CTRO = @Distribuidora
-              AND RTRIM(ERR_DESCRIPTION) = RTRIM(@Err_Msg)
-        )
-        BEGIN
+   SELECT COUNT(*) INTO nContador
+   FROM CUSTOMERS_T3_ERROR_LOG
+   WHERE CUST_ID = Cliente_V3
+     --AND CTRO = Distribuidora
+	   AND RTRIM( ERR_DESCRIPTION ) = RTRIM( Err_Msg );   
+   
+   IF NVL( nContador, 0 ) = 0 THEN
+   	  	INSERT INTO CUSTOMERS_T3_ERROR_LOG
+		 		( Cust_ID, SAP_Number, Ctro, Err_Description, SYSTEM, LOG_DATE )
+		VALUES
+        ( Cliente_V3, Cliente_SAP, Distribuidora, Err_Msg, 'XML', SYSDATE );
+   ELSE
+   	    UPDATE CUSTOMERS_T3_ERROR_LOG
+		       SET LOG_DATE = SYSDATE,
+               CTRO     = Distribuidora
+         WHERE CUST_ID  = Cliente_V3
+		       --AND CTRO    = Distribuidora
+           AND RTRIM( ERR_DESCRIPTION ) = RTRIM( Err_Msg );   		  	
+	
+   END IF;				
+--
+EXCEPTION
+   WHEN OTHERS THEN
+      sMsg := SUBSTR( TO_CHAR(SQLCODE) || '-' || SQLERRM, 1, 250) ;
+      INSERT INTO DEBUG_T3 ( Fecha, Factura, Pedido, Cliente_SAP, Comentario )
+           VALUES ( SYSDATE, 'ErrCliente', Cliente_V3, SUBSTR( Cliente_SAP, 1, 10), sMsg ) ;
+      COMMIT ;
 
-            INSERT INTO dbo.CUSTOMERS_T3_ERROR_LOG
-            (
-                  Cust_ID
-                , SAP_Number
-                , Ctro
-                , Err_Description
-                , [SYSTEM]
-                , LOG_DATE
-            )
-            VALUES
-            (
-                  @Cliente_V3
-                , @Cliente_SAP
-                , @Distribuidora
-                , @Err_Msg
-                , 'XML'
-                , SYSDATETIME()
-            );
-
-        END
-        ELSE
-        BEGIN
-
-            UPDATE dbo.CUSTOMERS_T3_ERROR_LOG
-               SET LOG_DATE = SYSDATETIME(),
-                   CTRO     = @Distribuidora
-             WHERE CUST_ID = @Cliente_V3
-               --AND CTRO = @Distribuidora
-               AND RTRIM(ERR_DESCRIPTION) = RTRIM(@Err_Msg);
-
-        END
-
-    END TRY
-    BEGIN CATCH
-
-        DECLARE @sMsg VARCHAR(250);
-
-        SET @sMsg =
-            LEFT(
-                CAST(ERROR_NUMBER() AS VARCHAR(20))
-                + '-' +
-                ERROR_MESSAGE()
-            ,250);
-
-        BEGIN TRY
-
-            INSERT INTO dbo.DEBUG_T3
-            (
-                  Fecha
-                , Factura
-                , Pedido
-                , Cliente_SAP
-                , Comentario
-            )
-            VALUES
-            (
-                  SYSDATETIME()
-                , 'ErrCliente'
-                , @Cliente_V3
-                , LEFT(@Cliente_SAP,10)
-                , @sMsg
-            );
-
-        END TRY
-        BEGIN CATCH
-            -- Evita que falle el logging
-        END CATCH;
-
-    END CATCH
-END
-GO
+END Insert_Err_Cliente ;

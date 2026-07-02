@@ -1,22 +1,21 @@
-CREATE OR ALTER FUNCTION EAI.CONV_FECHA_MANTIS
-(
-    @dtFecha DATETIME
-)
-RETURNS VARCHAR(14)
-AS
+create or replace FUNCTION     "CONV_FECHA_MANTIS" 
+   ( dtFecha DATE  )  RETURN  VARCHAR2
+IS
+   dtReturn    DATE         ;
+   nReturn     NUMBER(14)   ;
+   sReturnRet  VARCHAR2(14) ;   
+   
 BEGIN
-
-    DECLARE @Resultado VARCHAR(14);
-
-    SELECT
-        @Resultado =
-            CAST(
-                Valor_Ref +
-                DATEDIFF(SECOND, Referencia, @dtFecha)
-            AS VARCHAR(14))
-    FROM Z_MANTIS_DATE_REF;
-
-    RETURN @Resultado;
-
-END;
-GO
+     SELECT 
+            Info.Ref_Fecha + Info.DifFecha                                           AS Fecha_Calculada ,
+            Info.Ref_Valor + ( Info.DifFecha * 86400 )                               AS Fecha_Mantis_Num
+        INTO dtReturn, nReturn    
+        FROM (
+               SELECT dtFecha                                                           AS Fecha    ,
+                      dtFecha - RD.Referencia                                           AS DifFecha ,
+                      RD.Referencia                                                     AS Ref_Fecha,
+                      RD.Valor_Ref                                                      AS Ref_Valor
+                  FROM Z_Mantis_Date_Ref RD ) Info ;
+     sReturnRet := TRIM( TO_CHAR( nReturn ) ) ;
+     RETURN sReturnRet ;
+END CONV_FECHA_MANTIS ;
