@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.INSERT_ERROR_CLIENTE
+CREATE OR ALTER PROCEDURE EAI.INSERT_ERROR_CLIENTE
 (
       @pCliente_V3    VARCHAR(100),
       @pCliente_SAP   VARCHAR(100),
@@ -10,7 +10,7 @@ BEGIN
 
     BEGIN TRY
 
-        INSERT INTO dbo.CUSTOMERS_T3_ERROR_LOG
+        INSERT INTO EAI.CUSTOMERS_T3_ERROR_LOG
         (
             Cust_ID,
             SAP_Number,
@@ -30,7 +30,7 @@ BEGIN
     END TRY
     BEGIN CATCH
 
-        INSERT INTO dbo.DEBUG_T3
+        INSERT INTO EAI.DEBUG_T3
         (
             Fecha,
             Factura,

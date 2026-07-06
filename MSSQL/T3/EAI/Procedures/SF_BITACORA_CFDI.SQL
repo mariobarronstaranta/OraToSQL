@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE [dbo].[SF_BITACORA_CFDI]
+CREATE OR ALTER PROCEDURE [EAI].[SF_BITACORA_CFDI]
     @nEtapa INT = 0
 AS
 BEGIN
@@ -33,7 +33,7 @@ BEGIN
         SET @sNULL = '     ';
         SET @v_ID = 'CEDIS.Clean';
 
-        UPDATE [CONTROL_REPORTE]
+        UPDATE [EAI].[CONTROL_REPORTE]
         SET INICIO = GETDATE(), FIN = NULL
         WHERE REPORTE = 'BITACORA CFDI - DETALLE';
 
@@ -182,7 +182,7 @@ BEGIN
             SET CB.Terr = SP.Terr
             FROM [EAI].[CFDI_Bitacora] CB
             INNER JOIN (
-                SELECT Bit.ROWID AS Bit_RowID,
+                SELECT Bit.ROW_ID AS Bit_RowID,
                        FG.Ctro,
                        E.Fecha_Trn,
                        FG.Fecha_Proc_BATMD,
@@ -192,7 +192,7 @@ BEGIN
                 INNER JOIN [T3].[Entrega] E ON Bit.Doc_Num = E.Factura
                 WHERE FG.Fecha_Cancelacion IS NULL
                   AND YEAR(ISNULL(FG.Fecha_Proc_BATMD, DATEADD(DAY, 366, GETDATE()))) = YEAR(GETDATE())
-            ) SP ON CB.ROWID = SP.Bit_RowID;
+            ) SP ON CB.ROW_ID = SP.Bit_RowID;
 
             SET @nProceso2 = @@ROWCOUNT;
         END
@@ -214,7 +214,7 @@ BEGIN
                 CB.Docto_Ind = 1
             FROM [EAI].[CFDI_Bitacora] CB
             INNER JOIN (
-                SELECT Bit.ROWID AS Bit_RowID,
+                SELECT Bit.ROW_ID AS Bit_RowID,
                        Doc.Nota_Venta,
                        Doc.Fecha_Liberacion,
                        Doc.Fecha_Envio,
@@ -225,7 +225,7 @@ BEGIN
                 FROM [EAI].[CFDI_Bitacora] Bit
                 INNER JOIN [T3].[CFDI_Documentos] Doc ON Bit.Doc_Num = Doc.Nota_Venta
                 WHERE Bit.Fecha_Proc_BATMD IS NOT NULL
-            ) SI ON CB.ROWID = SI.Bit_RowID;
+            ) SI ON CB.ROW_ID = SI.Bit_RowID;
         END
 
         -- Etapa 40: ScrAgrupado
@@ -247,7 +247,7 @@ BEGIN
                 CB.Doctos = CASE WHEN CHARINDEX(SA.Nota_Venta, CB.Doc_Num) = 0 THEN 0 ELSE SA.Doctos END
             FROM [EAI].[CFDI_Bitacora] CB
             INNER JOIN (
-                SELECT Bit.ROWID AS Bit_RowID,
+                SELECT Bit.ROW_ID AS Bit_RowID,
                        Agr.Fecha_Documento,
                        Agr.Doctos,
                        Doc.Nota_Venta,
@@ -263,7 +263,7 @@ BEGIN
                 INNER JOIN [T3].[CFDI_Documentos] Doc ON HDP.Nota_Venta_CFDI = Doc.Nota_Venta
                 WHERE Bit.Fecha_Proc_BATMD IS NOT NULL
                   AND HDP.Nota_Venta_CFDI != HDP.Nota_Venta
-            ) SA ON CB.ROWID = SA.Bit_RowID;
+            ) SA ON CB.ROW_ID = SA.Bit_RowID;
 
             SET @nProceso3 = @@ROWCOUNT;
         END
@@ -281,7 +281,7 @@ BEGIN
                        SUM(Info.Sticks) AS Sticks,
                        SUM(Info.Segunda_Cat) AS Segunda_Cat
                 FROM (
-                    SELECT Bit.ROWID AS Bit_ROWID,
+                    SELECT Bit.ROW_ID AS Bit_ROWID,
                            RFD.Material,
                            RFD.Cantidad_Vta,
                            CASE WHEN SUBSTRING(LTRIM(RFD.Material), 1, 1) = '1' 
@@ -302,7 +302,7 @@ BEGIN
                     INNER JOIN [T3].[Material] SKU ON RFD.Material = SKU.Material
                 ) Info
                 GROUP BY Info.Bit_ROWID
-            ) SV ON CB.ROWID = SV.Bit_ROWID;
+            ) SV ON CB.ROW_ID = SV.Bit_ROWID;
         END
 
         -- Etapa 90: SAP_Amount
@@ -313,7 +313,7 @@ BEGIN
             SET CB.SAP_Amount = SA.SAP_Amount
             FROM [EAI].[CFDI_Bitacora] CB
             INNER JOIN (
-                SELECT Bit.ROWID AS Bit_ROWID,
+                SELECT Bit.ROW_ID AS Bit_ROWID,
                        Bit.Doc_Num,
                        Bit.Factura_SAP,
                        CASE WHEN Bit.Tipo_Vta = 'Vta' THEN 1 ELSE -1 END *
@@ -321,7 +321,7 @@ BEGIN
                 FROM [EAI].[CFDI_Bitacora] Bit
                 INNER JOIN [EAI].[T3R_Sales_Docs_Old] SAP ON Bit.Doc_Num = SAP.Doc_Num_Ref2
                 WHERE SAP.Doc_Status NOT IN ('D', 'E')
-            ) SA ON CB.ROWID = SA.Bit_ROWID;
+            ) SA ON CB.ROW_ID = SA.Bit_ROWID;
         END
 
         -- Etapa 90: DESC_Amount
@@ -332,14 +332,14 @@ BEGIN
             SET CB.SAP_Amount = DA.SAP_Amount * -1 / 100
             FROM [EAI].[CFDI_Bitacora] CB
             INNER JOIN (
-                SELECT Bit.ROWID AS Bit_ROWID,
+                SELECT Bit.ROW_ID AS Bit_ROWID,
                        Bit.Doc_Num,
                        SUM(Det.Valor_Subt + Det.Valor_IVA) AS SAP_Amount
                 FROM [EAI].[CFDI_Bitacora] Bit
                 INNER JOIN [EAI_Owner].[tmp_Document_Detail] Det ON Bit.Factura_SAP = Det.ReferenceID
                 WHERE Bit.Doc_Num LIKE 'DESC%'
-                GROUP BY Bit.ROWID, Bit.Doc_Num
-            ) DA ON CB.ROWID = DA.Bit_ROWID;
+                GROUP BY Bit.ROW_ID, Bit.Doc_Num
+            ) DA ON CB.ROW_ID = DA.Bit_ROWID;
         END
 
         -- Actualizar RFC

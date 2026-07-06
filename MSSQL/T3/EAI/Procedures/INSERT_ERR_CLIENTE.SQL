@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.INSERT_ERR_CLIENTE
+CREATE OR ALTER PROCEDURE EAI.INSERT_ERR_CLIENTE
 (
       @Cliente_V3      VARCHAR(255)
     , @Cliente_SAP     VARCHAR(255)
@@ -14,14 +14,14 @@ BEGIN
         IF NOT EXISTS
         (
             SELECT 1
-            FROM dbo.CUSTOMERS_T3_ERROR_LOG
+            FROM EAI.CUSTOMERS_T3_ERROR_LOG
             WHERE CUST_ID = @Cliente_V3
               --AND CTRO = @Distribuidora
               AND RTRIM(ERR_DESCRIPTION) = RTRIM(@Err_Msg)
         )
         BEGIN
 
-            INSERT INTO dbo.CUSTOMERS_T3_ERROR_LOG
+            INSERT INTO EAI.CUSTOMERS_T3_ERROR_LOG
             (
                   Cust_ID
                 , SAP_Number
@@ -44,7 +44,7 @@ BEGIN
         ELSE
         BEGIN
 
-            UPDATE dbo.CUSTOMERS_T3_ERROR_LOG
+            UPDATE EAI.CUSTOMERS_T3_ERROR_LOG
                SET LOG_DATE = SYSDATETIME(),
                    CTRO     = @Distribuidora
              WHERE CUST_ID = @Cliente_V3
@@ -67,7 +67,7 @@ BEGIN
 
         BEGIN TRY
 
-            INSERT INTO dbo.DEBUG_T3
+            INSERT INTO EAI.DEBUG_T3
             (
                   Fecha
                 , Factura

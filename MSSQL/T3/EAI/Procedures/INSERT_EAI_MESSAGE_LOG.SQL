@@ -1,4 +1,4 @@
-CREATE PROCEDURE dbo.INSERT_EAI_MESSAGE_LOG
+CREATE PROCEDURE EAI.INSERT_EAI_MESSAGE_LOG
 (
       @v_DIRECTION            VARCHAR(255)
     , @v_ID                   VARCHAR(255)
@@ -19,7 +19,7 @@ BEGIN
 
     BEGIN TRY
 
-        INSERT INTO EAI_OWNER.dbo.MX_EAI_MESSAGE_LOG
+        INSERT INTO EAI_OWNER.MX_EAI_MESSAGE_LOG
         (
               DIRECTION
             , ID
@@ -65,7 +65,7 @@ BEGIN
                 250
             );
 
-        INSERT INTO EAI_OWNER.dbo.MX_EAI_MESSAGE_LOG
+        INSERT INTO EAI_OWNER.MX_EAI_MESSAGE_LOG
         (
               DIRECTION
             , ID

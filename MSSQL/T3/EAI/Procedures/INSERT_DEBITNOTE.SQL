@@ -1,4 +1,4 @@
-CREATE PROCEDURE dbo.INSERT_DEBITNOTE
+CREATE PROCEDURE EAI.INSERT_DEBITNOTE
 (
     @v_DebitNote        VARCHAR(255),
     @v_Fecha_Proc_BATMD VARCHAR(19),
@@ -10,7 +10,7 @@ BEGIN
 
     BEGIN TRY
 
-        INSERT INTO dbo.CANCELA_DEBIT_NOTE
+        INSERT INTO EAI.CANCELA_DEBIT_NOTE
         (
             DebitNote,
             Fecha_Proc_BATMD

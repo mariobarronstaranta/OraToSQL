@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.WA_ENABLE_REMISION_OBD
+ALTER PROCEDURE EAI.WA_ENABLE_REMISION_OBD
 (
     @sCustomerSAP VARCHAR(20)
 )
@@ -27,7 +27,7 @@ BEGIN
         IF NOT EXISTS
         (
             SELECT 1
-            FROM EAI_Owner.dbo.MX_Hashtable
+            FROM EAI_Owner.MX_Hashtable
             WHERE [Type] = 'Genera Remision'
               AND [Source] = @sCustomer
         )
@@ -36,7 +36,7 @@ BEGIN
             --------------------------------------------------------------
             -- Alta configuración
             --------------------------------------------------------------
-            INSERT INTO EAI_Owner.dbo.MX_Hashtable
+            INSERT INTO EAI_Owner.MX_Hashtable
             (
                 [Type],
                 [Source],
@@ -52,7 +52,7 @@ BEGIN
             --------------------------------------------------------------
             -- Auditoría
             --------------------------------------------------------------
-            INSERT INTO EAI_Owner.dbo.WA_Logging
+            INSERT INTO EAI_Owner.WA_Logging
             (
                 Fecha,
                 Usuario,

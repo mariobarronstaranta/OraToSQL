@@ -1,4 +1,4 @@
-CREATE PROCEDURE dbo.INSERT_RECEIVE_MESSAGE
+CREATE PROCEDURE EAI.INSERT_RECEIVE_MESSAGE
 (
       @v_MESSAGE     VARCHAR(MAX),
       @v_QUEUE_NAME  VARCHAR(500)
@@ -31,7 +31,7 @@ BEGIN
         SET @sRow_ID =
             FORMAT(SYSDATETIME(),'yyyyMMddHHmmssffff');
 
-        INSERT INTO EAI_OWNER.dbo.MX_RECEIVE_MESSAGE_LOG
+        INSERT INTO EAI_OWNER.MX_RECEIVE_MESSAGE_LOG
         (
             ROW_ID,
             CREATED,
@@ -54,7 +54,7 @@ BEGIN
             SET @sRow_ID =
                 FORMAT(SYSDATETIME(),'yyyyMMddHHmmssffff');
 
-            INSERT INTO EAI_OWNER.dbo.MX_RECEIVE_MESSAGE_LOG
+            INSERT INTO EAI_OWNER.MX_RECEIVE_MESSAGE_LOG
             (
                 ROW_ID,
                 CREATED,
@@ -88,7 +88,7 @@ BEGIN
                 250
             );
 
-        INSERT INTO EAI_OWNER.dbo.MX_EAI_MESSAGE_LOG
+        INSERT INTO EAI_OWNER.MX_EAI_MESSAGE_LOG
         (
             DIRECTION,
             ID,

@@ -1,164 +1,207 @@
-CREATE PROCEDURE [dbo].[SF_CFDI_VENTA]
+CREATE OR ALTER PROCEDURE [EAI].[SF_CFDI_VENTA]
     @nEtapa INT = 0
 AS
 BEGIN
     SET NOCOUNT ON;
-    SET XACT_ABORT ON;  -- Rollback automático en error
+    SET XACT_ABORT ON;
 
-    -- DECLARACIONES
-    DECLARE @dtInicio DATETIME2 = GETDATE();
-    DECLARE @nProceso INT = 921;
-    DECLARE @nPID INT;
-    DECLARE @sErrorCode VARCHAR(20);
-    DECLARE @sMsg VARCHAR(250);
-    DECLARE @sFactura VARCHAR(20);
-    DECLARE @v_ID VARCHAR(50) = 'CFDI_UUID_VENTA';
-    DECLARE @nProceso1 INT = 0;
-    DECLARE @nProceso2 INT = 0;
-    DECLARE @nProceso3 INT = 0;
-    DECLARE @nProceso4 INT = 0;
+    DECLARE
+        @sMsg       VARCHAR(500),
+        @v_ID       VARCHAR(50) = 'CEDIS.Clean',
+        @sErrorCode VARCHAR(20),
+        @dtInicio   DATETIME2(0),
+        @nPID       BIGINT,
+        @nProceso   INT = 921,
+        @nProceso1  INT = 0,
+        @nProceso2  INT = 0,
+        @nProceso3  INT = 0,
+        @nProceso4  INT = 0;
 
     BEGIN TRY
-        -- ========== INICIO DE PROCESO ==========
-        -- Obtener PID (Asumo IDENTITY o SEQUENCE disponible)
-        INSERT INTO [T3].[RF_PROCESOS_LOG] (Proceso, Fecha_Proc_BATMD, Inicio)
-            VALUES (@nProceso, NULL, @dtInicio);
-        
-        SET @nPID = SCOPE_IDENTITY();
+        SET @dtInicio = SYSDATETIME();
+        SET @nPID = NEXT VALUE FOR [EAI_OWNER].[ProcessID];
 
-        -- ========== ETAPA 0: LIMPIAR E INSERTAR DATOS BASE ==========
-        IF (@nEtapa <= 0)
+        EXEC [EAI_OWNER].[Log_Start] @nProceso;
+
+        INSERT INTO [T3].[RF_PROCESOS_LOG]
+        (
+            PID,
+            Proceso,
+            Fecha_Proc_BATMD,
+            Inicio
+        )
+        VALUES
+        (
+            @nPID,
+            @nProceso,
+            NULL,
+            @dtInicio
+        );
+
+        SET @v_ID = 'CFDI_UUID_VENTA';
+
+        IF ISNULL(@nEtapa, 0) <= 0
         BEGIN
             DELETE FROM [EAI].[CFDI_UUID_VENTA];
 
             INSERT INTO [EAI].[CFDI_UUID_VENTA]
-                (Ctro, Fecha_Venta, Nota_Venta, RFC, Cliente_SAP, Importe_Vta, Saldo_SAP)
-            SELECT 
+            (
+                Ctro,
+                Fecha_Venta,
+                Nota_Venta,
+                RFC,
+                Cliente_SAP,
+                Importe_Vta,
+                Saldo_SAP
+            )
+            SELECT
                 Doc.Ctro,
-                Doc.Invc_dt AS Fecha_Venta,
-                Doc.Doc_Num AS Nota_Venta,
+                Doc.Invc_dt,
+                Doc.Doc_Num,
                 Doc.RFC,
                 Doc.Cliente_SAP,
-                ISNULL(Doc.Valor_Subt, 0) +
-                ISNULL(Doc.Envio_Subt, 0) +
-                ISNULL(Doc.Credito_Subt, 0) +
-                ISNULL(Doc.Valor_IVA, 0) +
-                ISNULL(Doc.Envio_IVA, 0) +
-                ISNULL(Doc.Credito_IVA, 0) AS Importe_Vta,
-                ISNULL(DOI.Saldo_SAP, 0) AS Saldo_SAP
-            FROM [EAI].[CFDI_Bitacora] Doc
-            LEFT JOIN (
-                SELECT 
+                ISNULL(Doc.Valor_Subt, 0)
+                    + ISNULL(Doc.Envio_Subt, 0)
+                    + ISNULL(Doc.Credito_Subt, 0)
+                    + ISNULL(Doc.Valor_IVA, 0)
+                    + ISNULL(Doc.Envio_IVA, 0)
+                    + ISNULL(Doc.Credito_IVA, 0),
+                ISNULL(DOI.Saldo_SAP, 0)
+            FROM [EAI].[CFDI_Bitacora] AS Doc
+            LEFT JOIN
+            (
+                SELECT
                     SAP.Referencia AS Nota_Venta,
                     MAX(SAP.Cliente) AS Cliente_SAP,
                     MIN(SAP.Fecha_Doc) AS Fecha_Doc,
                     SUM(ISNULL(SAP.Monto, 0)) AS Saldo_SAP
-                FROM [EAI].[T3R_Cartera_SAP_OLD] SAP
+                FROM [EAI].[T3R_Cartera_SAP_OLD] AS SAP
                 GROUP BY SAP.Referencia
-            ) DOI ON Doc.Doc_Num = DOI.Nota_Venta
+            ) AS DOI
+                ON Doc.Doc_Num = DOI.Nota_Venta
             WHERE Doc.Tipo_Vta = 'Vta'
-              AND Doc.RFC != 'XAXX010101000';
+              AND ISNULL(Doc.RFC, '') <> 'XAXX010101000';
+        END;
 
-            COMMIT;
-        END
+        SET @v_ID = 'ScrPrompt';
 
-        -- ========== ETAPA 1: ACTUALIZAR COBRANZAS (OPTIMIZADO) ==========
-        -- **MEJORA CLAVE**: En lugar de cursores anidados + UPDATE en loop,
-        -- usar UPDATE con JOIN directo. Esto es 1000x más rápido.
-        IF (@nEtapa <= 10)
+        IF ISNULL(@nEtapa, 0) <= 10
         BEGIN
-            UPDATE [EAI].[CFDI_UUID_VENTA]
-            SET 
-                Importe        = Cobza_Agg.Importe,
-                Efectivo       = Cobza_Agg.Efectivo,
-                Agrupado       = Cobza_Agg.Agrupado,
-                Aplica_NC      = Cobza_Agg.Aplica_NC,
-                Incobrable     = Cobza_Agg.Incobrable,
-                Efectivo_UUID  = Cobza_Agg.Efectivo_UUID,
-                Agrupado_UUID  = Cobza_Agg.Agrupado_UUID,
-                Aplica_NC_UUID = Cobza_Agg.Aplica_NC_UUID,
-                Importe_UUID   = Cobza_Agg.Importe_UUID,
-                Metodo_Pago    = CFD.Metodo_Pago
-            FROM [EAI].[CFDI_UUID_VENTA] Vta_Main
-            INNER JOIN (
-                SELECT 
-                    Cobza.Factura,
-                    SUM(Cobza.Importe) AS Importe,
-                    SUM(Cobza.Efectivo) AS Efectivo,
-                    SUM(Cobza.Agrupado) AS Agrupado,
-                    SUM(Cobza.Aplica_NC) AS Aplica_NC,
-                    SUM(Cobza.Incobrable) AS Incobrable,
-                    SUM(Cobza.Efectivo * Cobza.Timbrado) AS Efectivo_UUID,
-                    SUM(Cobza.Agrupado * Cobza.Timbrado) AS Agrupado_UUID,
-                    SUM(Cobza.Aplica_NC * Cobza.Timbrado) AS Aplica_NC_UUID,
-                    SUM(Cobza.Importe * Cobza.Timbrado) AS Importe_UUID
-                FROM (
-                    SELECT 
+            ;WITH Cobza AS
+            (
+                SELECT
+                    Base.Factura,
+                    SUM(Base.Importe) AS Importe,
+                    SUM(Base.Efectivo) AS Efectivo,
+                    SUM(Base.Agrupado) AS Agrupado,
+                    SUM(Base.Aplica_NC) AS Aplica_NC,
+                    SUM(Base.Incobrable) AS Incobrable,
+                    SUM(Base.Efectivo * Base.Timbrado) AS Efectivo_UUID,
+                    SUM(Base.Agrupado * Base.Timbrado) AS Agrupado_UUID,
+                    SUM(Base.Aplica_NC * Base.Timbrado) AS Aplica_NC_UUID,
+                    SUM(Base.Importe * Base.Timbrado) AS Importe_UUID
+                FROM
+                (
+                    SELECT
                         C.Factura,
-                        C.Asignacion_ID,
-                        C.Importe,
-                        C.Via_Pago,
-                        C.Nota_Credito,
-                        CASE WHEN C.Via_Pago = '01' THEN C.Importe ELSE 0 END AS Efectivo,
-                        CASE WHEN C.Via_Pago IN ('02', '03') THEN C.Importe ELSE 0 END AS Agrupado,
-                        CASE WHEN C.Via_Pago = 'CM' THEN C.Importe ELSE 0 END AS Aplica_NC,
-                        CASE WHEN C.Via_Pago = 'AI' THEN C.Importe ELSE 0 END AS Incobrable,
-                        CASE 
-                            WHEN P.Folio_Fiscal IS NOT NULL THEN 1
-                            WHEN Agr.Folio_Fiscal IS NOT NULL THEN 1
-                            WHEN N.Folio_Fiscal IS NOT NULL THEN 1
-                            ELSE 0
-                        END AS Timbrado
-                    FROM [T3].[CFDI_Cobranza] C
-                    LEFT JOIN [T3].[CFDI_Documentos] P ON C.Asignacion_ID = P.Nota_Venta
-                    LEFT JOIN [T3].[CFDI_Agrupacion_Pago] AgrP ON C.Asignacion_ID = AgrP.Asignacion_ID
-                    LEFT JOIN [T3].[CFDI_Documentos] Agr ON CAST(AgrP.Agrupacion AS VARCHAR(20)) = Agr.Nota_Venta
-                    LEFT JOIN [T3].[CFDI_Documentos] N ON C.Nota_Credito = N.Nota_Venta
-                ) Cobza
-                GROUP BY Cobza.Factura
-            ) Cobza_Agg ON Vta_Main.Nota_Venta = Cobza_Agg.Factura
-            LEFT JOIN [T3].[CFDI_Documentos] CFD ON Vta_Main.Nota_Venta = CFD.Nota_Venta
-            WHERE [EAI].[CFDI_UUID_VENTA].Nota_Venta = Cobza_Agg.Factura;
+                        ISNULL(C.Importe, 0) AS Importe,
+                        CASE WHEN C.Via_Pago = '01'
+                             THEN ISNULL(C.Importe, 0) ELSE 0 END AS Efectivo,
+                        CASE WHEN C.Via_Pago IN ('02', '03')
+                             THEN ISNULL(C.Importe, 0) ELSE 0 END AS Agrupado,
+                        CASE WHEN C.Via_Pago = 'CM'
+                             THEN ISNULL(C.Importe, 0) ELSE 0 END AS Aplica_NC,
+                        CASE WHEN C.Via_Pago = 'AI'
+                             THEN ISNULL(C.Importe, 0) ELSE 0 END AS Incobrable,
+                        CASE WHEN Pago.Folio_Fiscal IS NULL THEN 0 ELSE 1 END
+                            + CASE WHEN Agr.Folio_Fiscal IS NULL THEN 0 ELSE 1 END
+                            + CASE WHEN Nota.Folio_Fiscal IS NULL THEN 0 ELSE 1 END AS Timbrado
+                    FROM [T3].[CFDI_Cobranza] AS C
+                    LEFT JOIN [T3].[CFDI_Documentos] AS Pago
+                        ON C.Asignacion_ID = Pago.Nota_Venta
+                    LEFT JOIN [T3].[CFDI_Agrupacion_Pago] AS AgrP
+                        ON C.Asignacion_ID = AgrP.Asignacion_ID
+                    LEFT JOIN [T3].[CFDI_Documentos] AS Agr
+                        ON CONVERT(VARCHAR(30), AgrP.Agrupacion) = Agr.Nota_Venta
+                    LEFT JOIN [T3].[CFDI_Documentos] AS Nota
+                        ON C.Nota_Credito = Nota.Nota_Venta
+                ) AS Base
+                GROUP BY Base.Factura
+            )
+            UPDATE Vta
+               SET Importe = Cobza.Importe,
+                   Efectivo = Cobza.Efectivo,
+                   Agrupado = Cobza.Agrupado,
+                   Aplica_NC = Cobza.Aplica_NC,
+                   Incobrable = Cobza.Incobrable,
+                   Efectivo_UUID = Cobza.Efectivo_UUID,
+                   Agrupado_UUID = Cobza.Agrupado_UUID,
+                   Aplica_NC_UUID = Cobza.Aplica_NC_UUID,
+                   Importe_UUID = Cobza.Importe_UUID,
+                   Metodo_Pago = CFD.Metodo_Pago
+            FROM [EAI].[CFDI_UUID_VENTA] AS Vta
+            INNER JOIN Cobza
+                ON Vta.Nota_Venta = Cobza.Factura
+            LEFT JOIN [T3].[CFDI_Documentos] AS CFD
+                ON Vta.Nota_Venta = CFD.Nota_Venta;
 
             SET @nProceso1 = @@ROWCOUNT;
-            COMMIT;
-        END
+        END;
 
-        -- ========== FINALIZACIÓN ==========
-        UPDATE [EAI_OWNER].[MX_COMPONENTS] 
-            SET Status = 1 
-            WHERE Component = @nProceso;
+        UPDATE [EAI_OWNER].[MX_COMPONENTS]
+           SET Status = 1
+         WHERE Component = @nProceso;
 
-        UPDATE [T3].[RF_PROCESOS_LOG] 
-            SET Fin = GETDATE(), 
-                Proceso_1 = @nProceso1,
-                Proceso_2 = @nProceso2,
-                Proceso_3 = @nProceso3,
-                Proceso_4 = @nProceso4
-            WHERE PID = @nPID;
-
-        COMMIT;
-
+        UPDATE [T3].[RF_PROCESOS_LOG]
+           SET Fin = GETDATE(),
+               Proceso_1 = @nProceso1,
+               Proceso_2 = @nProceso2,
+               Proceso_3 = @nProceso3,
+               Proceso_4 = @nProceso4
+         WHERE PID = @nPID;
     END TRY
     BEGIN CATCH
-        -- MANEJO DE ERRORES
-        IF XACT_STATE() <> 0
-            ROLLBACK;
-
-        SET @sErrorCode = 'SQL-' + CAST(ERROR_NUMBER() AS VARCHAR(10));
-        SET @sMsg = SUBSTRING(
-            CAST(ERROR_NUMBER() AS VARCHAR(10)) + '-' + ERROR_MESSAGE(), 
-            1, 250);
+        SET @sErrorCode = 'ERR-' + CAST(ERROR_NUMBER() AS VARCHAR(10));
+        SET @sMsg = SUBSTRING(CAST(ERROR_NUMBER() AS VARCHAR(10)) + '-' + ERROR_MESSAGE(), 1, 250);
 
         INSERT INTO [EAI_OWNER].[MX_EAI_MESSAGE_LOG]
-            (DIRECTION, REFERENCE, CREATED, MESSAGE, JOB_PID, STATUS, QUEUE_NAME, 
-             SIEBEL_ERROR_MESSAGE, SOURCE, SIEBEL_ERROR_CODE)
-        VALUES 
-            ('Job Logging', @v_ID, GETDATE(), NULL, @nPID, 'Error', 'SF_CFDI_VENTA',
-             @sMsg, 'T-SQL', @sErrorCode);
+        (
+            DIRECTION,
+            REFERENCE,
+            CREATED,
+            MESSAGE,
+            JOB_PID,
+            STATUS,
+            QUEUE_NAME,
+            SIEBEL_ERROR_MESSAGE,
+            SOURCE,
+            SIEBEL_ERROR_CODE,
+            RETRY_COUNT,
+            SEQUENCE,
+            PARENT_ROW_ID
+        )
+        VALUES
+        (
+            'Job Logging',
+            @v_ID,
+            GETDATE(),
+            NULL,
+            @nPID,
+            'Error',
+            'SF_CFDI_VENTA',
+            @sMsg,
+            'T-SQL',
+            @sErrorCode,
+            NULL,
+            NULL,
+            NULL
+        );
 
-        COMMIT;
+        PRINT '----------------------------------';
+        PRINT '**** Error en SF_CFDI_VENTA *****';
+        PRINT @sMsg;
 
-        RAISERROR(@sMsg, 16, 1);  -- Lanzar error para logging en aplicación
-    END CATCH
+        THROW;
+    END CATCH;
 END;
+GO

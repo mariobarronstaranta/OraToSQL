@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.EXECUTE_TRUNCATE
+CREATE OR ALTER PROCEDURE EAI.EXECUTE_TRUNCATE
 (
     @pTableName VARCHAR(255)
 )
@@ -18,7 +18,7 @@ BEGIN
         IF EXISTS
         (
             SELECT 1
-            FROM EAI_OWNER.dbo.EAI_TRUNC_TABLE
+            FROM EAI_OWNER.EAI_TRUNC_TABLE
             WHERE UPPER(Table_Name) = @TableName
         )
         BEGIN
@@ -27,7 +27,7 @@ BEGIN
 
             EXEC(@SQL);
 
-            INSERT INTO EAI_OWNER.dbo.EAI_TRUNC_LOG
+            INSERT INTO EAI_OWNER.EAI_TRUNC_LOG
             (
                 TABLE_NAME,
                 EXECUTED,
@@ -61,7 +61,7 @@ BEGIN
                 250
             );
 
-        INSERT INTO EAI_OWNER.dbo.MX_EAI_MESSAGE_LOG
+        INSERT INTO EAI_OWNER.MX_EAI_MESSAGE_LOG
         (
             DIRECTION,
             REFERENCE,
