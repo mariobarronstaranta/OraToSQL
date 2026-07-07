@@ -74,8 +74,38 @@ Necesito que propongas una correccion minima y segura.
 Restricciones:
 - No cambies la logica de negocio.
 - Mantener nombres de tablas y columnas.
+- Usar schema SQL Server esperado: `[EAI]`, `[EAI_OWNER]` o `[T3]`; evitar `dbo` si no esta justificado.
+- Usar logging de procesos con `[EAI_OWNER].[ProcessID]`, `[EAI_OWNER].[Log_Start]` y `[T3].[RF_PROCESOS_LOG]` cuando aplique.
+- Usar logging de errores con `[EAI_OWNER].[MX_EAI_MESSAGE_LOG]` y `TRY/CATCH`.
+- No dejar `COMMIT` o `ROLLBACK` sin `BEGIN TRANSACTION`.
 - Explicar cada cambio.
 - Marcar cualquier supuesto.
 - Proponer una prueba SQL para validar el cambio.
 ```
 
+## Generar version SQL Server de un procedure
+
+```text
+Genera una version compatible con SQL Server del procedimiento Oracle indicado.
+
+Antes de convertir:
+1. Lee el archivo Oracle completo.
+2. Revisa si ya existe un archivo equivalente en MSSQL.
+3. Compara ambos antes de reemplazar.
+
+Reglas de conversion:
+- Crear el objeto como `CREATE OR ALTER PROCEDURE [EAI].[NombreObjeto]` si el origen esta en `ORA/T3/EAI/Procedures`.
+- Usar nombres calificados con corchetes: `[EAI].[Tabla]`, `[T3].[Tabla]`, `[EAI_OWNER].[Objeto]`.
+- Convertir `NVL` a `ISNULL` o `COALESCE`, `DECODE` a `CASE`, `(+)` a `LEFT JOIN`, `SYSDATE` a `GETDATE()` o `SYSDATETIME()`.
+- Si el Oracle usa `EAI_Owner.ProcessID.NextVal`, usar `NEXT VALUE FOR [EAI_OWNER].[ProcessID]`.
+- Si el Oracle usa `EAI_Owner.Log_Start`, usar `EXEC [EAI_OWNER].[Log_Start] @nProceso`.
+- Registrar inicio/fin en `[T3].[RF_PROCESOS_LOG]` si el origen lo hace.
+- Registrar errores en `[EAI_OWNER].[MX_EAI_MESSAGE_LOG]`, con `TRY/CATCH` y `THROW`.
+- No usar `dbo` salvo que exista una razon documentada.
+- No copiar `COMMIT` sueltos de Oracle; usar transaccion explicita solo cuando sea necesaria.
+- Preferir operaciones set-based sobre cursores cuando el cursor solo agrupa/actualiza por llave.
+
+Al terminar:
+- Ejecuta una revision estatica buscando restos Oracle o patrones riesgosos.
+- Indica que no se ejecuto contra SQL Server si no hay conexion disponible.
+```

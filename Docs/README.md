@@ -22,6 +22,7 @@ La documentacion busca servir para:
 - [AI_CONTEXT.md](AI_CONTEXT.md): contexto breve para entregar a una IA antes de pedir ayuda.
 - [INVENTORY.md](INVENTORY.md): inventario inicial de carpetas, objetos y hallazgos.
 - [DOCUMENTATION_PLAN.md](DOCUMENTATION_PLAN.md): plan sugerido para ampliar la documentacion.
+- [CONVERSION_RULES.md](CONVERSION_RULES.md): reglas y convenciones usadas al convertir Oracle PL/SQL a SQL Server T-SQL.
 - [PROMPTS.md](PROMPTS.md): prompts utiles para pedir analisis o conversion asistida por IA.
 
 ## Estructura del repositorio
@@ -71,3 +72,11 @@ Para cada objeto importante conviene documentar:
 - Reglas de negocio visibles.
 - Diferencias conocidas entre Oracle y SQL Server.
 - Riesgos, pendientes y pruebas sugeridas.
+
+## Convenciones aplicadas en las conversiones recientes
+
+- Los procedimientos Oracle del esquema `EAI` se generan como `CREATE OR ALTER PROCEDURE [EAI].[NombreObjeto]`.
+- Las tablas se referencian con schema explicito y corchetes, por ejemplo `[EAI].[CFDI_Bitacora]`.
+- El logging de procesos usa `[EAI_OWNER].[ProcessID]`, `[EAI_OWNER].[Log_Start]` y `[T3].[RF_PROCESOS_LOG]` cuando el origen Oracle usa `EAI_Owner.ProcessID.NextVal` y `EAI_Owner.Log_Start`.
+- El logging de errores usa `[EAI_OWNER].[MX_EAI_MESSAGE_LOG]` con `TRY/CATCH` y `THROW`.
+- No se deben dejar `COMMIT` o `ROLLBACK` sueltos si no existe una transaccion explicita en T-SQL.

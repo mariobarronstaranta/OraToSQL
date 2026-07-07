@@ -37,6 +37,7 @@ Antes de proponer cambios:
 5. Si el equivalente SQL Server no existe, marcar el objeto como pendiente de transformacion.
 6. Si el equivalente SQL Server existe, compararlo contra Oracle antes de sugerir cambios.
 7. Marcar cualquier conversion dudosa como pendiente en lugar de inventar reglas.
+8. Aplicar las convenciones documentadas en `Docs/CONVERSION_RULES.md` cuando se genere o corrija T-SQL.
 
 ## Diferencias Oracle -> SQL Server que suelen importar
 
@@ -51,6 +52,10 @@ Antes de proponer cambios:
 - Manejo de transacciones y errores: `EXCEPTION` en PL/SQL vs `TRY/CATCH` en T-SQL.
 - Secuencias: Oracle `sequence.NEXTVAL` vs SQL Server `NEXT VALUE FOR`.
 - Cursores y variables pueden requerir ajustes de alcance y tipo.
+- Evitar `dbo` si el objeto pertenece a `EAI`; preferir `[EAI].[Objeto]`.
+- Usar `[EAI_OWNER].[ProcessID]`, `[EAI_OWNER].[Log_Start]` y `[T3].[RF_PROCESOS_LOG]` para procesos que en Oracle usan `EAI_Owner.ProcessID.NextVal`.
+- Usar `[EAI_OWNER].[MX_EAI_MESSAGE_LOG]` para errores de job cuando el Oracle original registra en `MX_EAI_MESSAGE_LOG`.
+- No dejar `COMMIT` o `ROLLBACK` sueltos sin `BEGIN TRANSACTION`.
 
 ## Preguntas utiles para cada objeto
 
@@ -70,3 +75,4 @@ Antes de proponer cambios:
 - Hay 32 procedimientos SQL Server bajo `MSSQL/T3/EAI/Procedures`.
 - Tambien existen 32 procedimientos bajo `MSSQL/T3/EAI_OWNER/Procedures`; validar si corresponden a transformaciones separadas de `EAI_OWNER` o a una organizacion alternativa de los scripts SQL Server.
 - El archivo `ORA/T3/EAI_OWNER/Tables/A51_OL_CLIENTES.SQL` esta ubicado en `Tables`, pero su contenido inicia como una funcion `CONV_45_47_CTRO`; debe revisarse antes de documentarlo como tabla.
+- Se han ajustado conversiones recientes con el patron anterior: `SF_BITACORA_CFDI_RESUMEN`, `SF_BITACORA_CFDI_VENTA_SF`, `SF_CFDI_OPEN_ITEMS`, `SF_CFDI_VENTA` y `T3R_REPLICA_SALESDOC`.

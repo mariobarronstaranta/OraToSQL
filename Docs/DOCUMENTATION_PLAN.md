@@ -73,6 +73,8 @@ Docs/MIGRATION_MATRIX.md
 
 ## Fase 4: reglas de conversion
 
+Estado: iniciado.
+
 Documentar reglas comunes del proyecto:
 
 - Tipos de datos.
@@ -89,6 +91,8 @@ Archivo sugerido:
 ```text
 Docs/CONVERSION_RULES.md
 ```
+
+Estado actual: creado con reglas de schema, equivalencias Oracle/T-SQL, logging, transacciones y validacion estatica.
 
 ## Fase 5: flujos de negocio
 
