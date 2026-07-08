@@ -7,6 +7,7 @@ Este documento resume las convenciones usadas en las conversiones del proyecto. 
 - Origen Oracle: `ORA/T3/<SCHEMA>/<Tipo>/<Objeto>.SQL`.
 - Destino SQL Server: `MSSQL/T3/<SCHEMA>/<Tipo>/<Objeto>.SQL`.
 - Los objetos Oracle bajo `ORA/T3/EAI/Procedures` deben generarse normalmente como `[EAI].[NombreObjeto]`.
+- Las funciones Oracle bajo `ORA/T3/EAI_OWNER/Functions` deben generarse normalmente como `[EAI_OWNER].[NombreObjeto]` y mantener el mismo nombre de archivo en `MSSQL/T3/EAI_OWNER/Functions`.
 - Evitar `dbo` salvo que exista una razon funcional documentada.
 - Usar nombres calificados y con corchetes: `[EAI].[Tabla]`, `[EAI_OWNER].[Objeto]`, `[T3].[Tabla]`.
 
@@ -23,6 +24,15 @@ Este documento resume las convenciones usadas en las conversiones del proyecto. 
 | Outer join `(+)` | `LEFT JOIN` |
 | `DBMS_OUTPUT.PUT_LINE` | `PRINT` |
 | `EXCEPTION WHEN OTHERS` | `BEGIN TRY / BEGIN CATCH` |
+
+## Funciones escalares
+
+- Usar `CREATE OR ALTER FUNCTION [schema].[NombreFuncion]`.
+- No usar `TRY/CATCH`, SQL dinamico, tablas temporales ni operaciones con efectos secundarios dentro de funciones escalares T-SQL.
+- Cuando Oracle usa `EXCEPTION WHEN OTHERS` en una funcion, emular el comportamiento con validaciones previas y retornos conservadores.
+- Preferir reemplazar cursores de solo lectura por `SELECT`, `EXISTS`, `JOIN` o agregados.
+- Cuidar semantica de `NULL`: en Oracle `''` se trata como `NULL`, mientras SQL Server distingue cadena vacia de `NULL`.
+- Si Oracle usa `ROWID`, validar si la tabla SQL Server conserva una columna equivalente. Si no existe, documentar el identificador usado como sustituto.
 
 ## Logging de procesos
 
@@ -131,6 +141,12 @@ Despues de convertir un procedure, buscar restos de Oracle o patrones riesgosos:
 rg -n "SCOPE_IDENTITY|COMMIT|ROLLBACK|ROWID|\(\+\)|SYSDATE|NVL|TO_CHAR|TO_DATE|RAISERROR|\bdbo\.|EAI_Owner" MSSQL\T3\EAI\Procedures\<Objeto>.SQL
 ```
 
+Despues de convertir una funcion, aplicar una revision equivalente sobre el archivo destino:
+
+```powershell
+rg -n "create or replace|VARCHAR2|\bNVL\b|\bDECODE\b|\bSUBSTR\b|\bINSTR\b|\bLENGTH\b|EAI_Owner|User_Jobs|:=|ELSIF|END IF" MSSQL\T3\EAI_OWNER\Functions\<Objeto>.SQL
+```
+
 Nota: `SYSDATETIME()` puede aparecer en la busqueda por contener `SYSDATE`; eso es valido en SQL Server.
 
 ## Objetos convertidos con este patron
@@ -140,3 +156,4 @@ Nota: `SYSDATETIME()` puede aparecer en la busqueda por contener `SYSDATE`; eso 
 - `SF_CFDI_OPEN_ITEMS`
 - `SF_CFDI_VENTA`
 - `T3R_REPLICA_SALESDOC`
+- Funciones `EAI_OWNER` bajo `ORA/T3/EAI_OWNER/Functions` convertidas a `MSSQL/T3/EAI_OWNER/Functions`.

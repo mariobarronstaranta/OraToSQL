@@ -20,10 +20,12 @@ Los objetos principales estan relacionados con integraciones y procesos del domi
 - `ORA/T3/EAI/Functions`: funciones Oracle originales del esquema `EAI`.
 - `ORA/T3/EAI/Procedures`: procedimientos Oracle originales del esquema `EAI`.
 - `ORA/T3/EAI/Tables`: definicion de tablas Oracle del esquema `EAI`.
+- `ORA/T3/EAI_OWNER/Functions`: funciones Oracle originales del esquema `EAI_OWNER`.
 - `ORA/T3/EAI_OWNER/Tables`: tablas Oracle originales del esquema `EAI_OWNER`.
 - `MSSQL/T3/EAI/Functions`: funciones transformadas a SQL Server.
 - `MSSQL/T3/EAI/Procedures`: procedimientos transformados a SQL Server.
 - `MSSQL/T3/EAI/Tablas`: definicion de tablas transformadas a SQL Server.
+- `MSSQL/T3/EAI_OWNER/Functions`: funciones SQL Server asociadas a `EAI_OWNER`.
 - `MSSQL/T3/EAI_OWNER/Procedures`: transformacion SQL Server asociada a objetos `EAI_OWNER`.
 
 ## Reglas de trabajo para la IA
@@ -53,9 +55,11 @@ Antes de proponer cambios:
 - Secuencias: Oracle `sequence.NEXTVAL` vs SQL Server `NEXT VALUE FOR`.
 - Cursores y variables pueden requerir ajustes de alcance y tipo.
 - Evitar `dbo` si el objeto pertenece a `EAI`; preferir `[EAI].[Objeto]`.
+- Evitar `dbo` si el objeto pertenece a `EAI_OWNER`; preferir `[EAI_OWNER].[Objeto]`.
 - Usar `[EAI_OWNER].[ProcessID]`, `[EAI_OWNER].[Log_Start]` y `[T3].[RF_PROCESOS_LOG]` para procesos que en Oracle usan `EAI_Owner.ProcessID.NextVal`.
 - Usar `[EAI_OWNER].[MX_EAI_MESSAGE_LOG]` para errores de job cuando el Oracle original registra en `MX_EAI_MESSAGE_LOG`.
 - No dejar `COMMIT` o `ROLLBACK` sueltos sin `BEGIN TRANSACTION`.
+- En funciones escalares T-SQL no usar `TRY/CATCH`; emular excepciones Oracle con validaciones y retornos conservadores cuando aplique.
 
 ## Preguntas utiles para cada objeto
 
@@ -71,8 +75,12 @@ Antes de proponer cambios:
 ## Hallazgos iniciales
 
 - Hay 9 funciones Oracle y 9 funciones SQL Server bajo `EAI`.
+- Hay 14 funciones Oracle bajo `ORA/T3/EAI_OWNER/Functions`, ya convertidas con el mismo nombre de archivo bajo `MSSQL/T3/EAI_OWNER/Functions`.
+- Hay 36 funciones SQL Server bajo `MSSQL/T3/EAI_OWNER/Functions`; 22 no tienen archivo homonimo en el folder Oracle actual y deben validarse contra su origen.
 - Hay 32 procedimientos Oracle bajo `ORA/T3/EAI/Procedures`.
-- Hay 32 procedimientos SQL Server bajo `MSSQL/T3/EAI/Procedures`.
-- Tambien existen 32 procedimientos bajo `MSSQL/T3/EAI_OWNER/Procedures`; validar si corresponden a transformaciones separadas de `EAI_OWNER` o a una organizacion alternativa de los scripts SQL Server.
+- Hay 32 scripts de procedimiento SQL Server bajo `MSSQL/T3/EAI/Procedures`, mas el auxiliar `Procedures.slnx`.
+- Tambien existen 32 objetos de procedimiento bajo `MSSQL/T3/EAI_OWNER/Procedures`; validar si corresponden a transformaciones separadas de `EAI_OWNER` o a una organizacion alternativa de los scripts SQL Server.
 - El archivo `ORA/T3/EAI_OWNER/Tables/A51_OL_CLIENTES.SQL` esta ubicado en `Tables`, pero su contenido inicia como una funcion `CONV_45_47_CTRO`; debe revisarse antes de documentarlo como tabla.
 - Se han ajustado conversiones recientes con el patron anterior: `SF_BITACORA_CFDI_RESUMEN`, `SF_BITACORA_CFDI_VENTA_SF`, `SF_CFDI_OPEN_ITEMS`, `SF_CFDI_VENTA` y `T3R_REPLICA_SALESDOC`.
+- Se convirtieron recientemente las funciones `EAI_OWNER`: `GET_CLEARING_STATUS`, `GET_T3_ENABLE_EXECUTE`, `IC_MOVEMENT_TYPE`, `LETTER_TO_NUMBER`, `LINE_ITEM_TEXT`, `LOG_AUDIT_UPDATED`, `MX_CENTRO_COBZA`, `NUMBER_TO_LETTER`, `PHONE_SINTAXIS`, `SF_PAYMENT_ALLOC`, `SPECIAL_CHARS`, `SPECIAL_CHARS_EDP`, `SPECIAL_CHARS_NEW` y `WA_DN_SKU`.
+- En `LOG_AUDIT_UPDATED`, el `ROWID` Oracle se mapeo a `TICKET_REFERENCIA` porque las tablas log SQL Server migradas no exponen una columna `ROWID`.

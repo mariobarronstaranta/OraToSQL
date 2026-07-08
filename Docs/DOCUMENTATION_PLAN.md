@@ -2,7 +2,7 @@
 
 ## Fase 1: mapa del repositorio
 
-Estado: iniciado.
+Estado: actualizado.
 
 Objetivo: que una IA o desarrollador entienda rapidamente que `ORA` contiene los fuentes Oracle de `EAI` y `EAI_OWNER`, y que `MSSQL` contiene la transformacion hacia SQL Server.
 
@@ -11,6 +11,8 @@ Entregables:
 - `README.md`
 - `AI_CONTEXT.md`
 - `INVENTORY.md`
+
+Estado actual: creados y actualizados para incluir funciones `EAI_OWNER`.
 
 ## Fase 2: ficha por objeto
 
@@ -93,6 +95,7 @@ Docs/CONVERSION_RULES.md
 ```
 
 Estado actual: creado con reglas de schema, equivalencias Oracle/T-SQL, logging, transacciones y validacion estatica.
+Incluye reglas especificas para funciones escalares y para el caso `ROWID` Oracle sin columna equivalente directa en SQL Server.
 
 ## Fase 5: flujos de negocio
 
@@ -113,7 +116,7 @@ Docs/BUSINESS_FLOWS.md
 
 ## Orden recomendado
 
-1. Documentar funciones auxiliares primero.
+1. Documentar funciones auxiliares primero. Las 14 funciones de `ORA/T3/EAI_OWNER/Functions` ya tienen equivalente en `MSSQL/T3/EAI_OWNER/Functions`; falta generar ficha detallada por objeto.
 2. Documentar procedimientos CCEA.
 3. Documentar procedimientos CFDI.
 4. Documentar tablas mas usadas.

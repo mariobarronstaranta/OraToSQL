@@ -20,7 +20,7 @@ La documentacion busca servir para:
 ## Documentos iniciales
 
 - [AI_CONTEXT.md](AI_CONTEXT.md): contexto breve para entregar a una IA antes de pedir ayuda.
-- [INVENTORY.md](INVENTORY.md): inventario inicial de carpetas, objetos y hallazgos.
+- [INVENTORY.md](INVENTORY.md): inventario de carpetas, objetos y hallazgos.
 - [DOCUMENTATION_PLAN.md](DOCUMENTATION_PLAN.md): plan sugerido para ampliar la documentacion.
 - [CONVERSION_RULES.md](CONVERSION_RULES.md): reglas y convenciones usadas al convertir Oracle PL/SQL a SQL Server T-SQL.
 - [PROMPTS.md](PROMPTS.md): prompts utiles para pedir analisis o conversion asistida por IA.
@@ -35,6 +35,7 @@ ORA/
       Procedures/
       Tables/
     EAI_OWNER/
+      Functions/
       Tables/
 
 MSSQL/
@@ -44,7 +45,9 @@ MSSQL/
       Procedures/
       Tablas/
     EAI_OWNER/
+      Functions/
       Procedures/
+      Tables/
 
 Docs/
 ```
@@ -76,7 +79,10 @@ Para cada objeto importante conviene documentar:
 ## Convenciones aplicadas en las conversiones recientes
 
 - Los procedimientos Oracle del esquema `EAI` se generan como `CREATE OR ALTER PROCEDURE [EAI].[NombreObjeto]`.
+- Las funciones Oracle bajo `ORA/T3/EAI_OWNER/Functions` se generan como `CREATE OR ALTER FUNCTION [EAI_OWNER].[NombreObjeto]` y se guardan con el mismo nombre de archivo bajo `MSSQL/T3/EAI_OWNER/Functions`.
 - Las tablas se referencian con schema explicito y corchetes, por ejemplo `[EAI].[CFDI_Bitacora]`.
 - El logging de procesos usa `[EAI_OWNER].[ProcessID]`, `[EAI_OWNER].[Log_Start]` y `[T3].[RF_PROCESOS_LOG]` cuando el origen Oracle usa `EAI_Owner.ProcessID.NextVal` y `EAI_Owner.Log_Start`.
 - El logging de errores usa `[EAI_OWNER].[MX_EAI_MESSAGE_LOG]` con `TRY/CATCH` y `THROW`.
 - No se deben dejar `COMMIT` o `ROLLBACK` sueltos si no existe una transaccion explicita en T-SQL.
+- En funciones escalares de SQL Server, las excepciones Oracle se deben convertir a validaciones y retornos controlados, porque `TRY/CATCH` no es valido dentro de UDFs escalares.
+- Si Oracle usa `ROWID` pero la tabla migrada no conserva esa columna, documentar el identificador SQL Server usado como sustituto antes de asumir equivalencia.

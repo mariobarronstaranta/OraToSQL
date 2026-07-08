@@ -109,3 +109,29 @@ Al terminar:
 - Ejecuta una revision estatica buscando restos Oracle o patrones riesgosos.
 - Indica que no se ejecuto contra SQL Server si no hay conexion disponible.
 ```
+
+## Generar version SQL Server de una funcion
+
+```text
+Genera una version compatible con SQL Server de la funcion Oracle indicada.
+
+Antes de convertir:
+1. Lee el archivo Oracle completo.
+2. Revisa si ya existe un archivo equivalente en MSSQL.
+3. Si existe, comparalo contra Oracle antes de reemplazar.
+
+Reglas de conversion:
+- Crear el objeto como `CREATE OR ALTER FUNCTION [EAI_OWNER].[NombreObjeto]` si el origen esta en `ORA/T3/EAI_OWNER/Functions`.
+- Guardar el archivo destino con el mismo nombre bajo `MSSQL/T3/EAI_OWNER/Functions`.
+- Usar nombres calificados con corchetes: `[EAI_OWNER].[Tabla]`, `[T3].[Tabla]`, `[EAI].[Tabla]`.
+- Convertir `NVL` a `ISNULL` o `COALESCE`, `DECODE` a `CASE`, `SUBSTR` a `SUBSTRING`, `INSTR` a `CHARINDEX`, `LENGTH` a `LEN`.
+- No usar `TRY/CATCH`, SQL dinamico, tablas temporales ni operaciones con efectos secundarios dentro de funciones escalares T-SQL.
+- Cuando Oracle use `EXCEPTION WHEN OTHERS`, emular el comportamiento con validaciones y retornos conservadores.
+- Preferir consultas set-based sobre cursores de solo lectura.
+- Si Oracle usa `ROWID`, validar si existe una columna SQL Server equivalente; si no existe, documentar el identificador sustituto usado.
+- No usar `dbo` salvo que exista una razon documentada.
+
+Al terminar:
+- Ejecuta una revision estatica buscando restos Oracle o patrones riesgosos.
+- Indica que no se ejecuto contra SQL Server si no hay conexion disponible.
+```

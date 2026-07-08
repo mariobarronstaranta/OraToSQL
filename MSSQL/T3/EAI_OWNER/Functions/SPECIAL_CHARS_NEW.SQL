@@ -1,0 +1,31 @@
+CREATE OR ALTER FUNCTION [EAI_OWNER].[SPECIAL_CHARS_NEW]
+(
+    @pSTRING VARCHAR(1000)
+)
+RETURNS VARCHAR(1000)
+AS
+BEGIN
+    DECLARE @sSTRING VARCHAR(1000) = @pSTRING;
+
+    SET @sSTRING = REPLACE(@sSTRING, 'ñ', 'n');
+    SET @sSTRING = REPLACE(@sSTRING, 'Ñ', 'N');
+    SET @sSTRING = REPLACE(@sSTRING, 'á', 'a');
+    SET @sSTRING = REPLACE(@sSTRING, 'Á', 'A');
+    SET @sSTRING = REPLACE(@sSTRING, 'é', 'e');
+    SET @sSTRING = REPLACE(@sSTRING, 'É', 'E');
+    SET @sSTRING = REPLACE(@sSTRING, 'í', 'i');
+    SET @sSTRING = REPLACE(@sSTRING, 'Í', 'I');
+    SET @sSTRING = REPLACE(@sSTRING, 'ó', 'o');
+    SET @sSTRING = REPLACE(@sSTRING, 'Ó', 'O');
+    SET @sSTRING = REPLACE(@sSTRING, 'ú', 'u');
+    SET @sSTRING = REPLACE(@sSTRING, 'Ú', 'U');
+    SET @sSTRING = REPLACE(@sSTRING, '|', ' ');
+    SET @sSTRING = REPLACE(@sSTRING, '°', 'o');
+    SET @sSTRING = REPLACE(@sSTRING, 'º', 'o');
+    SET @sSTRING = REPLACE(@sSTRING, 'ª', 'a');
+    SET @sSTRING = REPLACE(@sSTRING, 'Ò', 'O');
+    SET @sSTRING = REPLACE(@sSTRING, 'À', 'A');
+
+    RETURN @sSTRING;
+END;
+GO
