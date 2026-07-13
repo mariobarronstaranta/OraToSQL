@@ -8,6 +8,7 @@ Este documento resume las convenciones usadas en las conversiones del proyecto. 
 - Destino SQL Server: `MSSQL/T3/<SCHEMA>/<Tipo>/<Objeto>.SQL`.
 - Los objetos Oracle bajo `ORA/T3/EAI/Procedures` deben generarse normalmente como `[EAI].[NombreObjeto]`.
 - Las funciones Oracle bajo `ORA/T3/EAI_OWNER/Functions` deben generarse normalmente como `[EAI_OWNER].[NombreObjeto]` y mantener el mismo nombre de archivo en `MSSQL/T3/EAI_OWNER/Functions`.
+- Los procedimientos Oracle bajo `ORA/T3/EAI_OWNER/Procedures` deben generarse normalmente como `[EAI_OWNER].[NombreObjeto]` y mantener el mismo nombre de archivo en `MSSQL/T3/EAI_OWNER/Procedures`.
 - Evitar `dbo` salvo que exista una razon funcional documentada.
 - Usar nombres calificados y con corchetes: `[EAI].[Tabla]`, `[EAI_OWNER].[Objeto]`, `[T3].[Tabla]`.
 
@@ -25,6 +26,17 @@ Este documento resume las convenciones usadas en las conversiones del proyecto. 
 | `DBMS_OUTPUT.PUT_LINE` | `PRINT` |
 | `EXCEPTION WHEN OTHERS` | `BEGIN TRY / BEGIN CATCH` |
 
+## Preservacion de semantica Oracle
+
+- En Oracle una cadena vacia (`''`) se trata como `NULL`; SQL Server distingue ambos valores. Agregar validaciones explicitas cuando esta diferencia afecte filtros o SQL dinamico.
+- `LENGTH` de Oracle cuenta espacios finales. `LEN` de SQL Server no los cuenta. Para un `VARCHAR`, puede usarse `LEN(valor + '#') - 1`; tratar `NULL` y cadena vacia por separado cuando aplique.
+- No agregar `ISNULL` o `COALESCE` automaticamente a parametros. Un parametro omitido usa su valor default, pero un `NULL` enviado explicitamente puede tener otra semantica en Oracle.
+- `LPAD(valor, longitud, relleno)` tambien recorta el valor cuando excede la longitud. Una conversion basada solamente en `RIGHT` puede conservar el extremo equivocado.
+- Los CTE de SQL Server solo existen para la sentencia inmediatamente posterior. Si el mismo conjunto alimenta varios `INSERT` o `UPDATE`, materializarlo en una tabla temporal o variable de tabla.
+- Capturar `@@ROWCOUNT` inmediatamente despues de la sentencia relevante. Para SQL dinamico, capturarlo dentro del mismo lote ejecutado por `sp_executesql`.
+- Cuando una expresion devuelve `sql_variant`, por ejemplo `CONNECTIONPROPERTY`, usar `CONVERT` explicito al tipo y longitud de la columna destino.
+- No introducir `DISTINCT` al reemplazar un cursor sin comprobar si Oracle genera efectos secundarios por cada fila duplicada.
+
 ## Funciones escalares
 
 - Usar `CREATE OR ALTER FUNCTION [schema].[NombreFuncion]`.
@@ -33,6 +45,7 @@ Este documento resume las convenciones usadas en las conversiones del proyecto. 
 - Preferir reemplazar cursores de solo lectura por `SELECT`, `EXISTS`, `JOIN` o agregados.
 - Cuidar semantica de `NULL`: en Oracle `''` se trata como `NULL`, mientras SQL Server distingue cadena vacia de `NULL`.
 - Si Oracle usa `ROWID`, validar si la tabla SQL Server conserva una columna equivalente. Si no existe, documentar el identificador usado como sustituto.
+- No asumir que existe una columna `Row_ID` solo porque Oracle consulta el pseudocampo `ROWID`. Revisar el DDL SQL Server; cuando no haya llave equivalente, generar un identificador para el destino o conservar el conjunto mediante bloqueos y filtros documentados.
 
 ## Logging de procesos
 
@@ -74,7 +87,7 @@ Usar `[EAI_OWNER].[MX_EAI_MESSAGE_LOG]` cuando el origen registre errores de pro
 
 ```sql
 BEGIN CATCH
-    SET @sErrorCode = 'ERR-' + CAST(ERROR_NUMBER() AS VARCHAR(10));
+    SET @sErrorCode = 'SQL-' + CAST(ERROR_NUMBER() AS VARCHAR(10));
     SET @sMsg = SUBSTRING(CAST(ERROR_NUMBER() AS VARCHAR(10)) + '-' + ERROR_MESSAGE(), 1, 250);
 
     INSERT INTO [EAI_OWNER].[MX_EAI_MESSAGE_LOG]
@@ -110,11 +123,13 @@ BEGIN CATCH
         NULL
     );
 
-    THROW;
+    -- Agregar THROW solo si el procedimiento Oracle propaga la excepcion.
 END CATCH;
 ```
 
 Si el procedure no genera `@nPID`, puede usarse `NULL` en `JOB_PID`, dejando documentado el motivo.
+
+La presencia de `WHEN OTHERS` no implica por si sola que SQL Server deba ejecutar `THROW`. Si Oracle inserta el error, hace `COMMIT` y finaliza sin `RAISE`, el homologo debe terminar sin relanzar para conservar el contrato del llamador. Si Oracle no captura la excepcion o la vuelve a lanzar, usar `THROW`.
 
 ## Transacciones
 
@@ -122,6 +137,8 @@ Si el procedure no genera `@nPID`, puede usarse `NULL` en `JOB_PID`, dejando doc
 - Si se usa `COMMIT TRANSACTION`, debe existir `BEGIN TRANSACTION`.
 - Si el proceso solo ejecuta operaciones independientes, puede omitirse la transaccion explicita y usar `SET XACT_ABORT ON`.
 - En `CATCH`, ejecutar `ROLLBACK TRANSACTION` solo si `XACT_STATE() <> 0`.
+- Conservar los limites de confirmacion funcionales. Si Oracle confirma cada iteracion, una unica transaccion para todo el procedimiento puede cambiar que trabajo permanece ante un error intermedio.
+- No ejecutar `ROLLBACK` en un procedimiento que no abrio su propia transaccion: podria revertir trabajo perteneciente al invocador.
 
 ## Cursores
 
@@ -148,6 +165,12 @@ rg -n "create or replace|VARCHAR2|\bNVL\b|\bDECODE\b|\bSUBSTR\b|\bINSTR\b|\bLENG
 ```
 
 Nota: `SYSDATETIME()` puede aparecer en la busqueda por contener `SYSDATE`; eso es valido en SQL Server.
+
+Para procedimientos `EAI_OWNER`, ejecutar tambien la validacion sobre su carpeta destino y revisar especialmente declaraciones accidentales en `dbo`:
+
+```powershell
+rg -n "create or replace|VARCHAR2|:=|ELSIF|END IF|SYSDATE|NVL|TO_CHAR|TO_DATE|\bdbo\." MSSQL\T3\EAI_OWNER\Procedures\<Objeto>.SQL
+```
 
 ## Objetos convertidos con este patron
 

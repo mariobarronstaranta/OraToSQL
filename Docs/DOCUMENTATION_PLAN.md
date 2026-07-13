@@ -12,7 +12,7 @@ Entregables:
 - `AI_CONTEXT.md`
 - `INVENTORY.md`
 
-Estado actual: creados y actualizados para incluir funciones `EAI_OWNER`.
+Estado actual: creados y actualizados para incluir 39 procedimientos Oracle `EAI_OWNER` con par SQL Server, ademas de 49 procedimientos SQL Server cuyo origen aun debe identificarse.
 
 ## Fase 2: ficha por objeto
 
@@ -117,8 +117,9 @@ Docs/BUSINESS_FLOWS.md
 ## Orden recomendado
 
 1. Documentar funciones auxiliares primero. Las 14 funciones de `ORA/T3/EAI_OWNER/Functions` ya tienen equivalente en `MSSQL/T3/EAI_OWNER/Functions`; falta generar ficha detallada por objeto.
-2. Documentar procedimientos CCEA.
-3. Documentar procedimientos CFDI.
-4. Documentar tablas mas usadas.
-5. Crear matriz de diferencias.
-6. Validar con pruebas o consultas de control.
+2. Documentar los 39 procedimientos `EAI_OWNER` que ya tienen par Oracle/SQL Server.
+3. Identificar el origen de los 49 procedimientos que existen solo en `MSSQL/T3/EAI_OWNER/Procedures`.
+4. Documentar procedimientos CCEA y CFDI del schema `EAI`.
+5. Documentar tablas mas usadas.
+6. Crear matriz de diferencias.
+7. Validar con pruebas o consultas de control.

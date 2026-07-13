@@ -14,12 +14,13 @@ Nota de alcance: los conteos de objetos SQL no incluyen carpetas internas de her
 | `ORA/T3/EAI/Procedures` | 32 | 31 | Procedimientos Oracle; `SF_CFDI_NOTA_CREDITO` existe con y sin extension |
 | `ORA/T3/EAI/Tables` | 1 | 1 | Script consolidado de tablas Oracle |
 | `ORA/T3/EAI_OWNER/Functions` | 14 | 14 | Funciones Oracle originales del esquema `EAI_OWNER` |
+| `ORA/T3/EAI_OWNER/Procedures` | 39 | 39 | Procedimientos Oracle originales de `EAI_OWNER`; todos tienen archivo homonimo en SQL Server |
 | `ORA/T3/EAI_OWNER/Tables` | 4 | 4 | Tablas Oracle de `EAI_OWNER`, con un archivo a revisar |
 | `MSSQL/T3/EAI/Functions` | 9 | 9 | Funciones SQL Server |
 | `MSSQL/T3/EAI/Procedures` | 33 | 31 | 32 scripts de procedimiento mas `Procedures.slnx`; `SF_CFDI_NOTA_CREDITO` existe con y sin extension |
 | `MSSQL/T3/EAI/Tablas` | 1 | 1 | Script consolidado de tablas SQL Server |
 | `MSSQL/T3/EAI_OWNER/Functions` | 36 | 36 | Funciones SQL Server de `EAI_OWNER`; 14 corresponden al folder Oracle actual y 22 son preexistentes sin archivo par en `ORA/T3/EAI_OWNER/Functions` |
-| `MSSQL/T3/EAI_OWNER/Procedures` | 33 | 32 | Procedimientos transformados asociados a `EAI_OWNER`; incluye `LOGSTART` |
+| `MSSQL/T3/EAI_OWNER/Procedures` | 88 | 88 | 39 tienen archivo homonimo en el origen Oracle actual y 49 requieren validar su fuente Oracle |
 | `MSSQL/T3/EAI_OWNER/Tables` | 1 | 1 | Script consolidado de tablas SQL Server para `EAI_OWNER` |
 | `Docs` | 9 | N/A | Documentacion y archivos Excel de soporte |
 
@@ -100,13 +101,55 @@ WA_ENABLE_REMISION_OBD
 
 Nota: el conteo de scripts de procedimiento es 32, pero hay 31 objetos distintos porque `SF_CFDI_NOTA_CREDITO` aparece con y sin extension `.SQL`. La carpeta `MSSQL/T3/EAI/Procedures` tambien contiene el archivo auxiliar `Procedures.slnx`.
 
-## Procedimientos EAI_OWNER SQL Server
+## Procedimientos EAI_OWNER
 
-`MSSQL/T3/EAI_OWNER/Procedures` contiene una copia transformada de los procedimientos EAI y un procedimiento adicional:
+La carpeta ya no representa una copia de los procedimientos `EAI`. Los duplicados de `EAI` fueron retirados y se incorporo el conjunto propio de `EAI_OWNER`.
 
-- Los 31 objetos listados en la seccion anterior.
-- `SF_CFDI_NOTA_CREDITO` tambien aparece con y sin extension `.SQL`.
-- `LOGSTART` existe solo bajo `MSSQL/T3/EAI_OWNER/Procedures/LOGSTART.SQL`.
+Los 39 procedimientos con par homonimo Oracle/SQL Server son:
+
+```text
+INVOICE_TO_PREVENTA
+INVOICE_TO_PREVENTA_NEW
+JOB_INTERVAL
+JOB_MANAGE
+JOB_NEXT_DATE
+JOB_NEXT_RUN
+JOB_REFRESH
+PROC_RECEIVE_REFERENCE
+PURGE_COMPONENT_LOG
+PURGE_DOCUMENT_HEADER
+PURGE_MESSAGE_LOG
+PURGE_RECEIVE_LOG
+SF_INCONSISTENCIAS
+SF_JOB_MANAGE
+SF_JOB_MANAGE_EOD
+SF_PROC_CENTRAL_EXECUTE
+SF_PROC_CENTRAL_EXECUTE_NEW
+SF_PROC_CENTRAL_INCOBRABLE
+SF_PROC_CENTRAL_PAYALLOC
+SF_PROC_CENTRAL_PAYMENT_CM
+SF_PROC_CUSTOMER
+SF_PROC_CUSTOMER_N
+SF_PROC_CUSTOMER_O
+SF_PROC_PREINVOICE_INTER
+SF_PROC_REPLENISHMENT
+SF_SAMPLES_GETINFO
+WA_ASIGNACION_PAGO
+WA_ASIGNA_INCOBRABLE
+WA_ASIGNA_NOTACARGO
+WA_BAT_PRODUCTORA
+WA_DEPURA_MESSAGE_LOG
+WA_DIF_IVA_SAP_T3
+WA_ERR_CUSTOMER_AMPERSAND
+WA_ERR_INTERCOMPANY
+WA_RESEND_CFDI
+WA_RUN_STATEMENTS
+WA_SEARCH_INVOICE_CANCEL
+WA_TSEQ_HIST
+WA_ZZ_TRASH
+```
+
+Ademas, `MSSQL/T3/EAI_OWNER/Procedures` contiene 49 procedimientos sin archivo homonimo en `ORA/T3/EAI_OWNER/Procedures`. Deben conservarse como conversiones SQL Server existentes, pero su origen y equivalencia funcional quedan pendientes de validacion.
 
 ## Tablas
 
@@ -139,14 +182,15 @@ SQL Server:
 
 ## Hallazgos a revisar
 
-- Revisar si `MSSQL/T3/EAI/Procedures` y `MSSQL/T3/EAI_OWNER/Procedures` deben mantenerse como transformaciones separadas o si representan duplicidad funcional.
+- Validar el origen Oracle de los 49 procedimientos que existen solo bajo `MSSQL/T3/EAI_OWNER/Procedures`.
 - Existen archivos `SF_CFDI_NOTA_CREDITO` con y sin extension `.SQL`.
-- `LOGSTART.SQL` existe en `MSSQL/T3/EAI_OWNER/Procedures`, pero no tiene contraparte bajo `ORA/T3/EAI/Procedures` ni `MSSQL/T3/EAI/Procedures`.
 - `Procedures.slnx` es un archivo auxiliar de solucion y no un objeto SQL.
 - El archivo `A51_OL_CLIENTES.SQL` no parece corresponder a una tabla por su contenido inicial.
 - En `LOG_AUDIT_UPDATED`, Oracle filtra tablas log por `ROWID`; la version SQL Server usa `TICKET_REFERENCIA` porque es el identificador disponible en las tablas migradas.
 - Hay 22 funciones SQL Server en `MSSQL/T3/EAI_OWNER/Functions` que no tienen archivo homonimo en `ORA/T3/EAI_OWNER/Functions`; validar su origen documental.
 - Algunos objetos usan `dbo` en SQL Server aunque su origen esta bajo `EAI`; validar convencion de schema esperada.
+- `CURRENCY_TEXT` y `GET_4428_REFERENCE` fueron ajustadas para declararse en el schema `EAI_OWNER`.
+- `EXECUTE_TRUNCATE` pertenece a `EAI_OWNER`, pero no tiene archivo homonimo en el origen Oracle actualmente incorporado.
 
 ## Conversiones revisadas recientemente
 
@@ -178,3 +222,48 @@ SPECIAL_CHARS_EDP
 SPECIAL_CHARS_NEW
 WA_DN_SKU
 ```
+
+Procedimientos `EAI_OWNER` revisados recientemente contra su fuente Oracle:
+
+```text
+SF_JOB_MANAGE
+SF_JOB_MANAGE_EOD
+SF_PROC_CENTRAL_EXECUTE_NEW
+SF_PROC_CENTRAL_INCOBRABLE
+SF_PROC_CENTRAL_PAYALLOC
+SF_PROC_CENTRAL_PAYMENT_CM
+SF_PROC_CUSTOMER
+SF_PROC_CUSTOMER_N
+SF_PROC_CUSTOMER_O
+SF_PROC_PREINVOICE_INTER
+SF_PROC_REPLENISHMENT
+SF_SAMPLES_GETINFO
+WA_ASIGNACION_PAGO
+WA_ASIGNA_INCOBRABLE
+WA_ASIGNA_NOTACARGO
+WA_BAT_PRODUCTORA
+WA_DEPURA_MESSAGE_LOG
+WA_DIF_IVA_SAP_T3
+WA_ERR_CUSTOMER_AMPERSAND
+WA_ERR_INTERCOMPANY
+WA_RESEND_CFDI
+WA_RUN_STATEMENTS
+WA_SEARCH_INVOICE_CANCEL
+WA_TSEQ_HIST
+WA_ZZ_TRASH
+```
+
+La revision realizada es estatica. Estos procedimientos aun requieren pruebas de compilacion y ejecucion en una instancia SQL Server con datos controlados.
+
+Consideraciones funcionales documentadas durante la revision:
+
+| Objeto | Consideracion conservada en SQL Server |
+| --- | --- |
+| `WA_ERR_CUSTOMER_AMPERSAND` | Oracle usa `ROWID`; SQL Server genera un identificador de 32 caracteres para el registro de recepcion porque `MX_EAI_MESSAGE_LOG` no tiene `Row_ID`. |
+| `WA_ERR_INTERCOMPANY` | Solo concatena 39 bloques de 3900 caracteres, aunque Oracle calcula una fase 40 que no utiliza. |
+| `WA_RESEND_CFDI` | Conserva duplicados del cursor, la semantica de `LENGTH` y `nIndice = 0`; por ello `pOutput` no imprime documentos. |
+| `WA_RUN_STATEMENTS` | Ejecuta SQL dinamico autorizado, captura `@@ROWCOUNT` dentro del lote y confirma cada paso de forma independiente. |
+| `WA_SEARCH_INVOICE_CANCEL` | `sSAPInvoice` se conserva en la firma, pero Oracle no lo utiliza. |
+| `WA_TSEQ_HIST` | Excluye la fila de encabezado con `Name = 'NAME'` y usa una fecha comun para el lote historico. |
+
+Estas diferencias reproducen el codigo Oracle disponible. Cualquier cambio para corregir comportamientos heredados debe tratarse como una decision funcional separada de la migracion tecnica.

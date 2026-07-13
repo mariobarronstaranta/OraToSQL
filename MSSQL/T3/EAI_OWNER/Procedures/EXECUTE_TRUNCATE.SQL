@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.EXECUTE_TRUNCATE
+CREATE PROCEDURE EAI_OWNER.EXECUTE_TRUNCATE
 (
     @pTableName VARCHAR(255)
 )
@@ -6,28 +6,51 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    DECLARE @ErrorCode VARCHAR(500);
-    DECLARE @Msg VARCHAR(500);
-    DECLARE @TableName VARCHAR(255);
-    DECLARE @SQL NVARCHAR(MAX);
+    DECLARE
+        @v_ID           VARCHAR(255),
+        @SQL            NVARCHAR(MAX),
+        @ErrorCode      VARCHAR(50),
+        @ErrorMessage   VARCHAR(500);
 
     BEGIN TRY
 
-        SET @TableName = UPPER(@pTableName);
+        SET @v_ID = UPPER(@pTableName);
 
+        ------------------------------------------------------------------
+        -- Validar tabla autorizada
+        ------------------------------------------------------------------
         IF EXISTS
         (
             SELECT 1
-            FROM EAI_OWNER.dbo.EAI_TRUNC_TABLE
-            WHERE UPPER(Table_Name) = @TableName
+            FROM EAI_OWNER.EAI_TRUNC_TABLE
+            WHERE UPPER(Table_Name) = @v_ID
         )
         BEGIN
 
-            SET @SQL = N'TRUNCATE TABLE ' + @TableName;
+            ------------------------------------------------------------------
+            -- Construcción segura del TRUNCATE
+            ------------------------------------------------------------------
 
-            EXEC(@SQL);
+            DECLARE
+                @SchemaName SYSNAME,
+                @TableOnly  SYSNAME;
 
-            INSERT INTO EAI_OWNER.dbo.EAI_TRUNC_LOG
+            SET @SchemaName = PARSENAME(@v_ID,2);
+            SET @TableOnly  = PARSENAME(@v_ID,1);
+
+            SET @SQL =
+                N'TRUNCATE TABLE '
+                + QUOTENAME(@SchemaName)
+                + N'.'
+                + QUOTENAME(@TableOnly);
+
+            EXEC sp_executesql @SQL;
+
+            ------------------------------------------------------------------
+            -- Auditoría
+            ------------------------------------------------------------------
+
+            INSERT INTO EAI_OWNER.EAI_TRUNC_LOG
             (
                 TABLE_NAME,
                 EXECUTED,
@@ -38,30 +61,35 @@ BEGIN
             )
             VALUES
             (
-                @TableName,
+                @v_ID,
                 GETDATE(),
-                SCHEMA_NAME(),
                 SUSER_SNAME(),
-                CONVERT(VARCHAR(100),
-                        CONNECTIONPROPERTY('client_net_address')),
+                ORIGINAL_LOGIN(),
+                CAST(CONNECTIONPROPERTY('client_net_address') AS VARCHAR(100)),
                 HOST_NAME()
             );
         END
 
     END TRY
+
     BEGIN CATCH
 
-        SET @ErrorCode = CAST(ERROR_NUMBER() AS VARCHAR(50));
+        SET @ErrorCode =
+            CONCAT('SQL-', ERROR_NUMBER());
 
-        SET @Msg =
-            LEFT(
-                CAST(ERROR_NUMBER() AS VARCHAR(50))
-                + ' - '
-                + ERROR_MESSAGE(),
+        SET @ErrorMessage =
+            LEFT
+            (
+                CONCAT
+                (
+                    ERROR_NUMBER(),
+                    '-',
+                    ERROR_MESSAGE()
+                ),
                 250
             );
 
-        INSERT INTO EAI_OWNER.dbo.MX_EAI_MESSAGE_LOG
+        INSERT INTO EAI_OWNER.MX_EAI_MESSAGE_LOG
         (
             DIRECTION,
             REFERENCE,
@@ -79,19 +107,22 @@ BEGIN
         VALUES
         (
             'TRUNCATE',
-            @TableName,
+            @v_ID,
             GETDATE(),
             NULL,
             'Error',
             'EXECUTE_TRUNCATE',
-            @Msg,
-            'TSQL',
+            @ErrorMessage,
+            'T-SQL',
             @ErrorCode,
             NULL,
             NULL,
             NULL
         );
 
+        THROW;
+
     END CATCH
-END;
+
+END
 GO

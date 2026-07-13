@@ -36,6 +36,7 @@ ORA/
       Tables/
     EAI_OWNER/
       Functions/
+      Procedures/
       Tables/
 
 MSSQL/
@@ -80,9 +81,10 @@ Para cada objeto importante conviene documentar:
 
 - Los procedimientos Oracle del esquema `EAI` se generan como `CREATE OR ALTER PROCEDURE [EAI].[NombreObjeto]`.
 - Las funciones Oracle bajo `ORA/T3/EAI_OWNER/Functions` se generan como `CREATE OR ALTER FUNCTION [EAI_OWNER].[NombreObjeto]` y se guardan con el mismo nombre de archivo bajo `MSSQL/T3/EAI_OWNER/Functions`.
+- Los procedimientos Oracle bajo `ORA/T3/EAI_OWNER/Procedures` se generan bajo el schema `[EAI_OWNER]` y se guardan con el mismo nombre de archivo bajo `MSSQL/T3/EAI_OWNER/Procedures`.
 - Las tablas se referencian con schema explicito y corchetes, por ejemplo `[EAI].[CFDI_Bitacora]`.
 - El logging de procesos usa `[EAI_OWNER].[ProcessID]`, `[EAI_OWNER].[Log_Start]` y `[T3].[RF_PROCESOS_LOG]` cuando el origen Oracle usa `EAI_Owner.ProcessID.NextVal` y `EAI_Owner.Log_Start`.
-- El logging de errores usa `[EAI_OWNER].[MX_EAI_MESSAGE_LOG]` con `TRY/CATCH` y `THROW`.
+- El logging de errores usa `[EAI_OWNER].[MX_EAI_MESSAGE_LOG]` con `TRY/CATCH`. Usar `THROW` solo cuando Oracle propaga la excepcion; si Oracle la registra y termina, conservar ese contrato sin relanzarla.
 - No se deben dejar `COMMIT` o `ROLLBACK` sueltos si no existe una transaccion explicita en T-SQL.
 - En funciones escalares de SQL Server, las excepciones Oracle se deben convertir a validaciones y retornos controlados, porque `TRY/CATCH` no es valido dentro de UDFs escalares.
 - Si Oracle usa `ROWID` pero la tabla migrada no conserva esa columna, documentar el identificador SQL Server usado como sustituto antes de asumir equivalencia.

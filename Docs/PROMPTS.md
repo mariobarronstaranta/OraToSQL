@@ -100,7 +100,7 @@ Reglas de conversion:
 - Si el Oracle usa `EAI_Owner.ProcessID.NextVal`, usar `NEXT VALUE FOR [EAI_OWNER].[ProcessID]`.
 - Si el Oracle usa `EAI_Owner.Log_Start`, usar `EXEC [EAI_OWNER].[Log_Start] @nProceso`.
 - Registrar inicio/fin en `[T3].[RF_PROCESOS_LOG]` si el origen lo hace.
-- Registrar errores en `[EAI_OWNER].[MX_EAI_MESSAGE_LOG]`, con `TRY/CATCH` y `THROW`.
+- Registrar errores en `[EAI_OWNER].[MX_EAI_MESSAGE_LOG]` con `TRY/CATCH`; usar `THROW` solamente si el Oracle original propaga la excepcion.
 - No usar `dbo` salvo que exista una razon documentada.
 - No copiar `COMMIT` sueltos de Oracle; usar transaccion explicita solo cuando sea necesaria.
 - Preferir operaciones set-based sobre cursores cuando el cursor solo agrupa/actualiza por llave.

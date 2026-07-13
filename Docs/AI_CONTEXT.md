@@ -21,6 +21,7 @@ Los objetos principales estan relacionados con integraciones y procesos del domi
 - `ORA/T3/EAI/Procedures`: procedimientos Oracle originales del esquema `EAI`.
 - `ORA/T3/EAI/Tables`: definicion de tablas Oracle del esquema `EAI`.
 - `ORA/T3/EAI_OWNER/Functions`: funciones Oracle originales del esquema `EAI_OWNER`.
+- `ORA/T3/EAI_OWNER/Procedures`: procedimientos Oracle originales del esquema `EAI_OWNER` disponibles actualmente.
 - `ORA/T3/EAI_OWNER/Tables`: tablas Oracle originales del esquema `EAI_OWNER`.
 - `MSSQL/T3/EAI/Functions`: funciones transformadas a SQL Server.
 - `MSSQL/T3/EAI/Procedures`: procedimientos transformados a SQL Server.
@@ -79,8 +80,11 @@ Antes de proponer cambios:
 - Hay 36 funciones SQL Server bajo `MSSQL/T3/EAI_OWNER/Functions`; 22 no tienen archivo homonimo en el folder Oracle actual y deben validarse contra su origen.
 - Hay 32 procedimientos Oracle bajo `ORA/T3/EAI/Procedures`.
 - Hay 32 scripts de procedimiento SQL Server bajo `MSSQL/T3/EAI/Procedures`, mas el auxiliar `Procedures.slnx`.
-- Tambien existen 32 objetos de procedimiento bajo `MSSQL/T3/EAI_OWNER/Procedures`; validar si corresponden a transformaciones separadas de `EAI_OWNER` o a una organizacion alternativa de los scripts SQL Server.
+- Hay 39 procedimientos Oracle bajo `ORA/T3/EAI_OWNER/Procedures`, todos con archivo homonimo en `MSSQL/T3/EAI_OWNER/Procedures`.
+- Hay 88 procedimientos SQL Server bajo `MSSQL/T3/EAI_OWNER/Procedures`; 49 no tienen archivo homonimo en el origen Oracle actualmente incorporado y requieren validar su fuente.
+- Los procedimientos duplicados de `EAI` fueron retirados de `MSSQL/T3/EAI_OWNER/Procedures`; ambos schemas deben documentarse como conjuntos separados.
 - El archivo `ORA/T3/EAI_OWNER/Tables/A51_OL_CLIENTES.SQL` esta ubicado en `Tables`, pero su contenido inicia como una funcion `CONV_45_47_CTRO`; debe revisarse antes de documentarlo como tabla.
 - Se han ajustado conversiones recientes con el patron anterior: `SF_BITACORA_CFDI_RESUMEN`, `SF_BITACORA_CFDI_VENTA_SF`, `SF_CFDI_OPEN_ITEMS`, `SF_CFDI_VENTA` y `T3R_REPLICA_SALESDOC`.
 - Se convirtieron recientemente las funciones `EAI_OWNER`: `GET_CLEARING_STATUS`, `GET_T3_ENABLE_EXECUTE`, `IC_MOVEMENT_TYPE`, `LETTER_TO_NUMBER`, `LINE_ITEM_TEXT`, `LOG_AUDIT_UPDATED`, `MX_CENTRO_COBZA`, `NUMBER_TO_LETTER`, `PHONE_SINTAXIS`, `SF_PAYMENT_ALLOC`, `SPECIAL_CHARS`, `SPECIAL_CHARS_EDP`, `SPECIAL_CHARS_NEW` y `WA_DN_SKU`.
 - En `LOG_AUDIT_UPDATED`, el `ROWID` Oracle se mapeo a `TICKET_REFERENCIA` porque las tablas log SQL Server migradas no exponen una columna `ROWID`.
+- `CURRENCY_TEXT` y `GET_4428_REFERENCE` ya se declaran bajo el schema `EAI_OWNER`; evitar reintroducir `dbo`.
