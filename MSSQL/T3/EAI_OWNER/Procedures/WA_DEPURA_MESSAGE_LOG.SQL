@@ -8,8 +8,8 @@
     Importante:
       @pDias no representa una antiguedad minima. Igual que en Oracle, limita
       la revision a registros creados DESPUES del inicio del dia calculado.
-      Las eliminaciones se realizan por conjuntos; @@ROWCOUNT sustituye el
-      conteo fila por fila realizado por los cursores de Oracle.
+      Los ROW_ID candidatos de MX_EAI_MESSAGE_LOG se materializan antes de cada
+      DELETE; @@ROWCOUNT sustituye el conteo fila por fila de los cursores.
 */
 CREATE OR ALTER PROCEDURE [EAI_OWNER].[WA_DEPURA_MESSAGE_LOG]
     @pDias   INT = 4,
@@ -29,6 +29,16 @@ BEGIN
         @nProceso4   INT = 0,
         @FechaCorte  DATETIME2(0),
         @Fecha7Dias  DATETIME2(0);
+
+    /*
+        Cambio homologado ROW_ID:
+        @MessageLogRows conserva las llaves de las filas origen seleccionadas
+        por cada regla de depuracion antes de ejecutar su DELETE.
+    */
+    DECLARE @MessageLogRows TABLE
+    (
+        ROW_ID BIGINT NOT NULL PRIMARY KEY
+    );
 
     SET @FechaCorte = CAST(CAST(DATEADD(DAY, -@pDias, SYSDATETIME()) AS date) AS datetime2(0));
     SET @Fecha7Dias = DATEADD(DAY, -7, SYSDATETIME());
@@ -54,7 +64,11 @@ BEGIN
         ----------------------------------------------------------------------
         SET @sRow_ID = 'ErrReceivePayment';
 
-        DELETE Err
+        DELETE FROM @MessageLogRows;
+
+        /* Cambio homologado ROW_ID: materializar las filas candidatas. */
+        INSERT INTO @MessageLogRows (ROW_ID)
+        SELECT DISTINCT Err.ROW_ID
         FROM [EAI_OWNER].[MX_EAI_MESSAGE_LOG] Err
         CROSS APPLY
         (
@@ -80,6 +94,12 @@ BEGIN
           AND Err.Status    <> 'Processed'
           AND D.DocumentType = 'BK';
 
+        /* Cambio homologado ROW_ID: eliminar solo las filas materializadas. */
+        DELETE Err
+        FROM [EAI_OWNER].[MX_EAI_MESSAGE_LOG] Err
+        INNER JOIN @MessageLogRows RowsToDelete
+            ON RowsToDelete.ROW_ID = Err.ROW_ID;
+
         SET @nRegistros = @@ROWCOUNT;
         SET @nProceso4 += @nRegistros;
 
@@ -93,6 +113,8 @@ BEGIN
         -- 2. ErrTaOPaymentInbound
         ----------------------------------------------------------------------
         SET @sRow_ID = 'ErrTaOPaymentInbound';
+
+        DELETE FROM @MessageLogRows;
 
         ;WITH Cobza AS
         (
@@ -113,7 +135,9 @@ BEGIN
             LEFT JOIN [T3].[Preventa_General] PG
                 ON AccHead.ReferenceDocNumber = PG.Referencia
         )
-        DELETE ELog
+        /* Cambio homologado ROW_ID: materializar las filas candidatas. */
+        INSERT INTO @MessageLogRows (ROW_ID)
+        SELECT DISTINCT ELog.ROW_ID
         FROM [EAI_OWNER].[MX_EAI_MESSAGE_LOG] ELog
         LEFT JOIN [EAI_OWNER].[MX_SEND_MESSAGE_LOG] SendLog
             ON ELog.Reference = SendLog.Row_ID
@@ -122,6 +146,12 @@ BEGIN
         WHERE ELog.Created    > @FechaCorte
           AND ELog.Status    <> 'Processed'
           AND ELog.Queue_Name = 'TaO Payment Inbound';
+
+        /* Cambio homologado ROW_ID: eliminar solo las filas materializadas. */
+        DELETE ELog
+        FROM [EAI_OWNER].[MX_EAI_MESSAGE_LOG] ELog
+        INNER JOIN @MessageLogRows RowsToDelete
+            ON RowsToDelete.ROW_ID = ELog.ROW_ID;
 
         SET @nRegistros = @@ROWCOUNT;
         SET @nProceso4 += @nRegistros;
@@ -137,7 +167,11 @@ BEGIN
         ----------------------------------------------------------------------
         SET @sRow_ID = 'ErrInsertingT3';
 
-        DELETE ELog
+        DELETE FROM @MessageLogRows;
+
+        /* Cambio homologado ROW_ID: materializar las filas candidatas. */
+        INSERT INTO @MessageLogRows (ROW_ID)
+        SELECT DISTINCT ELog.ROW_ID
         FROM [EAI_OWNER].[MX_EAI_MESSAGE_LOG] ELog
         LEFT JOIN [EAI_OWNER].[MX_SEND_MESSAGE_LOG] SendLog
             ON ELog.Reference = SendLog.Row_ID
@@ -148,6 +182,12 @@ BEGIN
           AND ELog.Direction  = 'Inserting'
           AND ELog.Queue_Name = 'Invoice'
           AND FG.Fecha_Trn    > @FechaCorte;
+
+        /* Cambio homologado ROW_ID: eliminar solo las filas materializadas. */
+        DELETE ELog
+        FROM [EAI_OWNER].[MX_EAI_MESSAGE_LOG] ELog
+        INNER JOIN @MessageLogRows RowsToDelete
+            ON RowsToDelete.ROW_ID = ELog.ROW_ID;
 
         SET @nRegistros = @@ROWCOUNT;
         SET @nProceso4 += @nRegistros;
@@ -165,7 +205,11 @@ BEGIN
         ----------------------------------------------------------------------
         SET @sRow_ID = 'ErrBankDeposit_I';
 
-        DELETE ELog
+        DELETE FROM @MessageLogRows;
+
+        /* Cambio homologado ROW_ID: materializar las filas candidatas. */
+        INSERT INTO @MessageLogRows (ROW_ID)
+        SELECT ELog.ROW_ID
         FROM [EAI_OWNER].[MX_EAI_MESSAGE_LOG] ELog
         WHERE ELog.Created    > @FechaCorte
           AND ELog.Status    <> 'Processed'
@@ -197,6 +241,12 @@ BEGIN
                           ) = 'BK'
                 )
           );
+
+        /* Cambio homologado ROW_ID: eliminar solo las filas materializadas. */
+        DELETE ELog
+        FROM [EAI_OWNER].[MX_EAI_MESSAGE_LOG] ELog
+        INNER JOIN @MessageLogRows RowsToDelete
+            ON RowsToDelete.ROW_ID = ELog.ROW_ID;
 
         SET @nRegistros = @@ROWCOUNT;
         SET @nProceso4 += @nRegistros;
@@ -500,7 +550,11 @@ BEGIN
         ----------------------------------------------------------------------
         SET @sRow_ID = 'ErrIntercompany';
 
-        DELETE Err
+        DELETE FROM @MessageLogRows;
+
+        /* Cambio homologado ROW_ID: materializar las filas candidatas. */
+        INSERT INTO @MessageLogRows (ROW_ID)
+        SELECT DISTINCT Err.ROW_ID
         FROM [EAI_OWNER].[MX_EAI_MESSAGE_LOG] Err
         CROSS APPLY
         (
@@ -531,6 +585,12 @@ BEGIN
           AND Err.Status <> 'Processed'
           AND Err.Created > @FechaCorte;
 
+        /* Cambio homologado ROW_ID: eliminar solo las filas materializadas. */
+        DELETE Err
+        FROM [EAI_OWNER].[MX_EAI_MESSAGE_LOG] Err
+        INNER JOIN @MessageLogRows RowsToDelete
+            ON RowsToDelete.ROW_ID = Err.ROW_ID;
+
         SET @nRegistros = @@ROWCOUNT;
         SET @nProceso4 += @nRegistros;
 
@@ -545,7 +605,11 @@ BEGIN
         ----------------------------------------------------------------------
         SET @sRow_ID = 'ErrInvoice';
 
-        DELETE Err
+        DELETE FROM @MessageLogRows;
+
+        /* Cambio homologado ROW_ID: materializar las filas candidatas. */
+        INSERT INTO @MessageLogRows (ROW_ID)
+        SELECT DISTINCT Err.ROW_ID
         FROM [EAI_OWNER].[MX_EAI_MESSAGE_LOG] Err
         CROSS APPLY
         (
@@ -585,6 +649,12 @@ BEGIN
                 )
           );
 
+        /* Cambio homologado ROW_ID: eliminar solo las filas materializadas. */
+        DELETE Err
+        FROM [EAI_OWNER].[MX_EAI_MESSAGE_LOG] Err
+        INNER JOIN @MessageLogRows RowsToDelete
+            ON RowsToDelete.ROW_ID = Err.ROW_ID;
+
         SET @nRegistros = @@ROWCOUNT;
         SET @nProceso4 += @nRegistros;
 
@@ -599,12 +669,22 @@ BEGIN
         ----------------------------------------------------------------------
         SET @sRow_ID = 'ErrReplenishment';
 
-        DELETE Err
+        DELETE FROM @MessageLogRows;
+
+        /* Cambio homologado ROW_ID: materializar las filas candidatas. */
+        INSERT INTO @MessageLogRows (ROW_ID)
+        SELECT DISTINCT Err.ROW_ID
         FROM [EAI_OWNER].[MX_EAI_MESSAGE_LOG] Err
         INNER JOIN [EAI_OWNER].[tmp_Document_Header] Delv
             ON Err.Reference = Delv.ReferenceID
         WHERE Err.Queue_Name = 'VanReplenishment'
           AND Err.Created > @FechaCorte;
+
+        /* Cambio homologado ROW_ID: eliminar solo las filas materializadas. */
+        DELETE Err
+        FROM [EAI_OWNER].[MX_EAI_MESSAGE_LOG] Err
+        INNER JOIN @MessageLogRows RowsToDelete
+            ON RowsToDelete.ROW_ID = Err.ROW_ID;
 
         SET @nRegistros = @@ROWCOUNT;
         SET @nProceso4 += @nRegistros;
@@ -623,7 +703,11 @@ BEGIN
         ----------------------------------------------------------------------
         SET @sRow_ID = 'ErrPromptDocuments';
 
-        DELETE ELog
+        DELETE FROM @MessageLogRows;
+
+        /* Cambio homologado ROW_ID: materializar las filas candidatas. */
+        INSERT INTO @MessageLogRows (ROW_ID)
+        SELECT DISTINCT ELog.ROW_ID
         FROM [EAI_OWNER].[MX_EAI_MESSAGE_LOG] ELog
         INNER JOIN [T3].[Factura_General] FG
             ON ELog.ID = FG.Row_ID
@@ -637,6 +721,12 @@ BEGIN
               )
           AND ELog.Created > @Fecha7Dias
           AND ELog.ID IS NOT NULL;
+
+        /* Cambio homologado ROW_ID: eliminar solo las filas materializadas. */
+        DELETE ELog
+        FROM [EAI_OWNER].[MX_EAI_MESSAGE_LOG] ELog
+        INNER JOIN @MessageLogRows RowsToDelete
+            ON RowsToDelete.ROW_ID = ELog.ROW_ID;
 
         SET @nRegistros = @@ROWCOUNT;
         SET @nProceso4 += @nRegistros;

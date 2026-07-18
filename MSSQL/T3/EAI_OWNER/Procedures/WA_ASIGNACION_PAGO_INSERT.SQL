@@ -1,11 +1,23 @@
-CREATE OR ALTER PROCEDURE [EAI_Owner].[WA_ASIGNACION_PAGO_INSERT]
+/*
+    Homologo SQL Server de EAI_OWNER.WA_ASIGNACION_PAGO_INSERT (Oracle).
+
+    Objetivo:
+      Enriquecer y validar pagos cargados en XP_ASIGNACION_PAGO y, cuando el
+      nivel lo permite, crear el encabezado en T3.Pago y su asignacion a factura.
+
+    Los cambios de tabla que parecen inusuales (algunas incidencias se escriben
+    en X_ASIGNACION_PAGO) se conservan porque forman parte del codigo Oracle.
+*/
+CREATE OR ALTER PROCEDURE [EAI_OWNER].[WA_ASIGNACION_PAGO_INSERT]
 (
     @pLevel INT = 0
 )
 AS
 BEGIN
     SET NOCOUNT ON;
-    SET XACT_ABORT ON;
+    -- Oracle confirma el trabajo previo dentro de WHEN OTHERS. OFF permite
+    -- conservarlo si la transaccion continua en estado confirmable.
+    SET XACT_ABORT OFF;
 
     DECLARE
         @sErrorCode      VARCHAR(30),
@@ -45,7 +57,15 @@ BEGIN
                         + COALESCE(RFD.Credito_Subt, 0)
                         + COALESCE(RFD.Credito_IVA,  0)
                     ) AS Importe
-                FROM [EAI_Owner].[XP_Asignacion_Pago] AS Asig
+                FROM
+                (
+                    -- Oracle agrupa por ROWID: cada asignacion ve el detalle
+                    -- fiscal una sola vez. DISTINCT evita multiplicar importes
+                    -- cuando la misma factura aparece varias veces en staging.
+                    SELECT DISTINCT Factura
+                    FROM [EAI_OWNER].[XP_Asignacion_Pago]
+                    WHERE Factura IS NOT NULL
+                ) AS Asig
                 INNER JOIN [T3].[Registro_Fiscal] AS RF
                     ON Asig.Factura = RF.Factura
                 INNER JOIN [T3].[Registro_Fiscal_Detalle] AS RFD
@@ -165,8 +185,8 @@ BEGIN
             ON Asig.Factura = Dup.Factura;
 
         ---------------------------------------------------------------------
-        -- Inconsistencias: asignación excedente
-        -- En Oracle actualiza X_Asignacion_Pago; aquí se usa XP_Asignacion_Pago.
+        -- Inconsistencias: asignacion excedente.
+        -- Oracle calcula desde XP_Asignacion_Pago y actualiza X_Asignacion_Pago.
         ---------------------------------------------------------------------
         SET @sStepPLSQL = 'ScrStatus_FactExc';
         PRINT @sStepPLSQL;
@@ -175,33 +195,40 @@ BEGIN
         (
             SELECT
                 Factura,
-                SUM(COALESCE(Importe, 0)) AS Importe,
+                SUM(Importe) AS Importe,
                 COUNT(*) AS Duplicidad,
-                MAX(COALESCE(Fact_Pendiente, 0)) AS Fact_Pendiente
+                MAX(Fact_Pendiente) AS Fact_Pendiente
             FROM [EAI_Owner].[XP_Asignacion_Pago]
             GROUP BY Factura
             HAVING COUNT(*) > 1
-               AND SUM(COALESCE(Importe, 0)) > MAX(COALESCE(Fact_Pendiente, 0))
+               AND SUM(Importe) > MAX(Fact_Pendiente)
         )
         UPDATE Asig
            SET Asig.Status_Asignacion = 'Asignacion Excedente'
-        FROM [EAI_Owner].[XP_Asignacion_Pago] AS Asig
+        FROM [EAI_OWNER].[X_Asignacion_Pago] AS Asig
         INNER JOIN FactExc
             ON Asig.Factura = FactExc.Factura;
 
         ---------------------------------------------------------------------
-        -- Inconsistencias: clearing ya procesado
-        -- En Oracle actualiza X_Asignacion_Pago; aquí se usa XP_Asignacion_Pago.
+        -- Inconsistencias: clearing ya procesado.
+        -- El cursor lee XP_Asignacion_Pago, pero Oracle actualiza X por factura.
         ---------------------------------------------------------------------
         SET @sStepPLSQL = 'ScrPagoDuplicated';
         PRINT @sStepPLSQL;
 
-        UPDATE XAP
-           SET XAP.Duplicada = 'X',
-               XAP.Status_Asignacion = 'Clearing ya procesado'
-        FROM [EAI_Owner].[XP_Asignacion_Pago] AS XAP
-        INNER JOIN [T3].[Asignacion_Pago] AS AP
-            ON CONCAT(SUBSTRING(XAP.Fecha_Asignacion, 3, 2), XAP.Clearing_Document) = AP.Pago_ID;
+        UPDATE X
+           SET X.Duplicada = 'X',
+               X.Status_Asignacion = 'Clearing ya procesado'
+        FROM [EAI_OWNER].[X_Asignacion_Pago] AS X
+        WHERE EXISTS
+        (
+            SELECT 1
+            FROM [EAI_OWNER].[XP_Asignacion_Pago] AS XAP
+            INNER JOIN [T3].[Asignacion_Pago] AS AP
+                ON CONCAT(SUBSTRING(XAP.Fecha_Asignacion, 3, 2),
+                          XAP.Clearing_Document) = AP.Pago_ID
+            WHERE XAP.Factura = X.Factura
+        );
 
         ---------------------------------------------------------------------
         -- Liberación: insertar en T3.Pago y T3.Asignacion_Pago
@@ -216,19 +243,19 @@ BEGIN
 
             DECLARE @Liberacion TABLE
             (
-                Pago_ID           VARCHAR(100) NOT NULL,
-                Fecha_Trn         DATETIME NOT NULL,
-                Factura           VARCHAR(50) NOT NULL,
+                Pago_ID           VARCHAR(100) NULL,
+                Fecha_Trn         DATETIME NULL,
+                Factura           VARCHAR(50) NULL,
                 Nota_Credito      VARCHAR(50) NULL,
                 Distribuidor      VARCHAR(50) NULL,
                 Ctro              VARCHAR(50) NULL,
                 Cliente_V3        VARCHAR(50) NULL,
                 Cliente_SAP       VARCHAR(50) NULL,
-                Rep_ID            VARCHAR(50) NOT NULL,
-                Tipo_Pago         VARCHAR(50) NOT NULL,
-                Metodo_Pago       VARCHAR(10) NOT NULL,
-                Fecha_Asignacion  DATE NULL,
-                Valor_Pago        DECIMAL(15,2) NOT NULL,
+                Rep_ID            VARCHAR(50) NULL,
+                Tipo_Pago         VARCHAR(50) NULL,
+                Metodo_Pago       VARCHAR(10) NULL,
+                Fecha_Asignacion  VARCHAR(8) NULL,
+                Valor_Pago        DECIMAL(15,2) NULL,
                 Clearing_Document VARCHAR(100) NULL
             );
 
@@ -250,7 +277,15 @@ BEGIN
                 Clearing_Document
             )
             SELECT
-                CONCAT(SUBSTRING(Asig.Fecha_Asignacion, 3, 2), Asig.Clearing_Document) AS Pago_ID,
+                CASE
+                    -- En Oracle NULL || NULL produce NULL; con un solo valor
+                    -- presente, la concatenacion devuelve ese valor.
+                    WHEN SUBSTRING(Asig.Fecha_Asignacion, 3, 2) IS NULL
+                     AND Asig.Clearing_Document IS NULL
+                        THEN NULL
+                    ELSE CONCAT(SUBSTRING(Asig.Fecha_Asignacion, 3, 2),
+                                Asig.Clearing_Document)
+                END AS Pago_ID,
                 GETDATE() AS Fecha_Trn,
                 Asig.Factura,
                 CAST(NULL AS VARCHAR(50)) AS Nota_Credito,
@@ -267,7 +302,9 @@ BEGIN
                     WHEN Asig.Via_Pago = '03' THEN 'T'
                     ELSE 'D'
                 END AS Metodo_Pago,
-                TRY_CONVERT(DATE, Asig.Fecha_Asignacion, 112) AS Fecha_Asignacion,
+                -- La fecha se conserva como texto hasta procesar cada fila;
+                -- asi un YYYYMMDD invalido falla en la misma etapa que Oracle.
+                Asig.Fecha_Asignacion,
                 Asig.Importe AS Valor_Pago,
                 Asig.Clearing_Document
             FROM [EAI_Owner].[XP_Asignacion_Pago] AS Asig
@@ -282,110 +319,120 @@ BEGIN
                     )
                   )
               AND COALESCE(Asig.Importe, 0) > 0
-              AND COALESCE(Asig.Fact_Pendiente, 0) >= Asig.Importe
-              AND TRY_CONVERT(DATE, Asig.Fecha_Asignacion, 112) IS NOT NULL;
+              AND COALESCE(Asig.Fact_Pendiente, 0) >= Asig.Importe;
 
-            -----------------------------------------------------------------
-            -- Insertar encabezado de pago.
-            -- Mejora: evita duplicar Pago_ID si ya existe.
-            -----------------------------------------------------------------
-            INSERT INTO [T3].[Pago]
-            (
-                Pago_ID,
-                Fecha_Trn,
-                Distribuidor,
-                Fecha_Pago,
-                Cliente_V3,
-                Cliente_SAP,
-                Rep_ID,
-                Tipo_Pago,
-                Metodo_Pago,
-                Valor_Pago,
-                Ctro
-            )
-            SELECT
-                L.Pago_ID,
-                MAX(L.Fecha_Trn) AS Fecha_Trn,
-                MAX(L.Distribuidor) AS Distribuidor,
-                MAX(L.Fecha_Asignacion) AS Fecha_Pago,
-                MAX(L.Cliente_V3) AS Cliente_V3,
-                MAX(L.Cliente_SAP) AS Cliente_SAP,
-                MAX(L.Rep_ID) AS Rep_ID,
-                MAX(L.Tipo_Pago) AS Tipo_Pago,
-                MAX(L.Metodo_Pago) AS Metodo_Pago,
-                SUM(L.Valor_Pago) AS Valor_Pago,
-                MAX(L.Ctro) AS Ctro
-            FROM @Liberacion AS L
-            WHERE NOT EXISTS
-            (
-                SELECT 1
-                FROM [T3].[Pago] AS P
-                WHERE P.Pago_ID = L.Pago_ID
-            )
-            GROUP BY L.Pago_ID;
+            /*
+                Se mantiene el cursor porque Oracle ejecuta tres efectos por
+                fila en este orden: Pago, Asignacion_Pago y estado del staging.
+                No se agrupan importes ni se omiten identificadores existentes.
+            */
+            DECLARE
+                @LPago_ID          VARCHAR(100),
+                @LFecha_Trn        DATETIME,
+                @LFactura          VARCHAR(50),
+                @LNota_Credito     VARCHAR(50),
+                @LDistribuidor     VARCHAR(50),
+                @LCtro             VARCHAR(50),
+                @LCliente_V3       VARCHAR(50),
+                @LCliente_SAP      VARCHAR(50),
+                @LRep_ID           VARCHAR(50),
+                @LTipo_Pago        VARCHAR(50),
+                @LMetodo_Pago      VARCHAR(10),
+                @LFecha_Asignacion VARCHAR(8),
+                @LValor_Pago       DECIMAL(15,2),
+                @LClearing         VARCHAR(100);
 
-            -----------------------------------------------------------------
-            -- Insertar detalle de asignación de pago.
-            -- Mejora: evita duplicar la misma factura para el mismo pago.
-            -----------------------------------------------------------------
-            INSERT INTO [T3].[Asignacion_Pago]
-            (
-                Pago_ID,
-                Asignacion_ID,
-                Fecha_Trn,
-                Factura,
-                Nota_Credito,
-                Distribuidor,
-                Ctro,
-                Cliente_V3,
-                Cliente_SAP,
-                Rep_ID,
-                Fecha_Asignacion,
-                Valor_Pago
-            )
-            SELECT
-                L.Pago_ID,
-                L.Pago_ID AS Asignacion_ID,
-                L.Fecha_Trn,
-                L.Factura,
-                L.Nota_Credito,
-                L.Distribuidor,
-                L.Ctro,
-                L.Cliente_V3,
-                L.Cliente_SAP,
-                L.Rep_ID,
-                L.Fecha_Asignacion,
-                L.Valor_Pago
-            FROM @Liberacion AS L
-            WHERE NOT EXISTS
-            (
-                SELECT 1
-                FROM [T3].[Asignacion_Pago] AS AP
-                WHERE AP.Pago_ID = L.Pago_ID
-                  AND AP.Factura = L.Factura
-                  AND AP.Valor_Pago = L.Valor_Pago
-            );
+            DECLARE curLiberacion CURSOR LOCAL FAST_FORWARD FOR
+                SELECT Pago_ID, Fecha_Trn, Factura, Nota_Credito,
+                       Distribuidor, Ctro, Cliente_V3, Cliente_SAP,
+                       Rep_ID, Tipo_Pago, Metodo_Pago, Fecha_Asignacion,
+                       Valor_Pago, Clearing_Document
+                FROM @Liberacion;
 
-            -----------------------------------------------------------------
-            -- Marcar staging como insertada
-            -----------------------------------------------------------------
-            UPDATE Asig
-               SET Asig.Status = CONCAT('Insertada ', CONVERT(VARCHAR(19), GETDATE(), 120))
-            FROM [EAI_Owner].[XP_Asignacion_Pago] AS Asig
-            INNER JOIN @Liberacion AS L
-                ON Asig.Factura = L.Factura
-               AND Asig.Clearing_Document = L.Clearing_Document
-               AND Asig.Importe = L.Valor_Pago;
+            OPEN curLiberacion;
+            FETCH NEXT FROM curLiberacion INTO
+                @LPago_ID, @LFecha_Trn, @LFactura, @LNota_Credito,
+                @LDistribuidor, @LCtro, @LCliente_V3, @LCliente_SAP,
+                @LRep_ID, @LTipo_Pago, @LMetodo_Pago, @LFecha_Asignacion,
+                @LValor_Pago, @LClearing;
+
+            WHILE @@FETCH_STATUS = 0
+            BEGIN
+                SET @sReference = @LFactura;
+
+                INSERT INTO [T3].[Pago]
+                    (Pago_ID, Fecha_Trn, Distribuidor, Fecha_Pago, Cliente_V3,
+                     Cliente_SAP, Rep_ID, Tipo_Pago, Metodo_Pago, Valor_Pago, Ctro)
+                VALUES
+                    (@LPago_ID, @LFecha_Trn, @LDistribuidor,
+                     CONVERT(DATE, @LFecha_Asignacion, 112),
+                     @LCliente_V3, @LCliente_SAP, @LRep_ID, @LTipo_Pago,
+                     @LMetodo_Pago, @LValor_Pago, @LCtro);
+
+                INSERT INTO [T3].[Asignacion_Pago]
+                    (Pago_ID, Asignacion_ID, Fecha_Trn, Factura, Nota_Credito,
+                     Distribuidor, Ctro, Cliente_V3, Cliente_SAP, Rep_ID,
+                     Fecha_Asignacion, Valor_Pago)
+                VALUES
+                    (@LPago_ID, @LPago_ID, @LFecha_Trn, @LFactura,
+                     @LNota_Credito, @LDistribuidor, @LCtro, @LCliente_V3,
+                     @LCliente_SAP, @LRep_ID,
+                     CONVERT(DATE, @LFecha_Asignacion, 112), @LValor_Pago);
+
+                UPDATE Asig
+                   SET Asig.Status = CONCAT('Insertada ', CONVERT(VARCHAR(19), GETDATE(), 120))
+                FROM [EAI_OWNER].[XP_Asignacion_Pago] AS Asig
+                WHERE Asig.Factura = @LFactura
+                  AND Asig.Clearing_Document = @LClearing
+                  AND Asig.Importe = @LValor_Pago
+                  AND COALESCE(Asig.Duplicada, ' ') <> 'X'
+                  AND
+                  (
+                        Asig.Status_Asignacion IS NULL
+                        OR
+                        (
+                            Asig.Status_Asignacion = 'Documento ya liberado'
+                            AND Asig.Fact_RFC = 'XAXX010101000'
+                        )
+                  )
+                  AND COALESCE(Asig.Importe, 0) > 0
+                  AND COALESCE(Asig.Fact_Pendiente, 0) >= Asig.Importe;
+
+                FETCH NEXT FROM curLiberacion INTO
+                    @LPago_ID, @LFecha_Trn, @LFactura, @LNota_Credito,
+                    @LDistribuidor, @LCtro, @LCliente_V3, @LCliente_SAP,
+                    @LRep_ID, @LTipo_Pago, @LMetodo_Pago, @LFecha_Asignacion,
+                    @LValor_Pago, @LClearing;
+            END;
+
+            CLOSE curLiberacion;
+            DEALLOCATE curLiberacion;
         END;
 
         COMMIT;
     END TRY
     BEGIN CATCH
-        IF XACT_STATE() <> 0
-            ROLLBACK;
-
         SET @sErrorCode = CONCAT('SQL-', ERROR_NUMBER());
         SET @sMsg = LEFT(CONCAT(ERROR_NUMBER(), '-', ERROR_MESSAGE()), 250);
+
+        -- El cursor puede quedar abierto si falla la consulta dependiente.
+        IF CURSOR_STATUS('local', 'curFactPend') >= 0
+            CLOSE curFactPend;
+        IF CURSOR_STATUS('local', 'curFactPend') > -2
+            DEALLOCATE curFactPend;
+
+        IF CURSOR_STATUS('local', 'curLiberacion') >= 0
+            CLOSE curLiberacion;
+        IF CURSOR_STATUS('local', 'curLiberacion') > -2
+            DEALLOCATE curLiberacion;
+
+        /*
+            Oracle registra la excepcion y hace COMMIT sin ROLLBACK. SQL Server
+            solo puede imitarlo cuando la transaccion es confirmable (estado 1).
+            En estado -1 es obligatorio revertir antes de escribir el log.
+        */
+        IF XACT_STATE() = -1
+            ROLLBACK TRANSACTION;
 
         INSERT INTO [EAI_OWNER].[MX_EAI_MESSAGE_LOG]
         (
@@ -400,7 +447,7 @@ BEGIN
             SOURCE,
             SIEBEL_ERROR_CODE,
             RETRY_COUNT,
-            SEQUENCE,
+            [Sequence],
             PARENT_ROW_ID
         )
         VALUES
@@ -413,7 +460,7 @@ BEGIN
             'Error',
             'WA_ASIGNACION_PAGO_INSERT',
             @sMsg,
-            'T-SQL',
+            'TSQL',
             @sErrorCode,
             NULL,
             NULL,
@@ -430,7 +477,11 @@ BEGIN
         PRINT CONCAT('Error         : ', COALESCE(@sMsg, ''));
         PRINT REPLICATE('-', 80);
 
-        THROW;
+        IF XACT_STATE() = 1
+            COMMIT TRANSACTION;
+
+        -- Oracle finaliza despues de registrar el error, sin RAISE.
+        RETURN;
     END CATCH;
 END;
 GO

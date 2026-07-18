@@ -7,7 +7,9 @@ AS
 BEGIN
 
     SET NOCOUNT ON;
-    SET XACT_ABORT ON;
+    -- Oracle confirma en su EXCEPTION el trabajo ejecutado antes del error.
+    -- OFF permite confirmar la transaccion si SQL Server aun la considera valida.
+    SET XACT_ABORT OFF;
 
     /*
         WA_ASIGNACION_PAGO
@@ -51,6 +53,9 @@ BEGIN
     BEGIN TRY
 
         BEGIN TRANSACTION;
+
+        -- Oracle asigna este nombre antes de evaluar el primer nivel.
+        SET @sStepPLSQL = 'ScrFacturas';
 
         -------------------------------------------------------------------
         -- ScrFacturas
@@ -406,7 +411,38 @@ BEGIN
                 + RIGHT('000' + CONVERT(VARCHAR(3), DATEPART(DAYOFYEAR, @releaseDateTime)), 3)
                 + RIGHT('00' + CONVERT(VARCHAR(2), DATEPART(HOUR, @releaseDateTime)), 2);
 
-            INSERT INTO T3.Asignacion_Pago
+            ;WITH ReleaseRows AS
+            (
+                SELECT
+                    A.Factura,
+                    A.Nota_Credito,
+                    A.Importe,
+                    RF.Distribuidor,
+                    RF.Ctro,
+                    RF.Cliente_V3,
+                    RF.Cliente_SAP,
+                    -- Oracle usa ROWNUM sin ORDER BY. Una constante evita
+                    -- introducir una regla de orden que el origen no posee.
+                    ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS RN
+                FROM [EAI_OWNER].[X_Asignacion_Pago] A
+                INNER JOIN [T3].[Registro_Fiscal] RF
+                    ON A.Factura = RF.Factura
+                WHERE ISNULL(A.Duplicada, ' ') <> 'X'
+                  AND
+                  (
+                        A.Status_Asignacion IS NULL
+                        OR
+                        (
+                            A.Status_Asignacion = 'Documento ya liberado'
+                            AND A.Fact_RFC = 'XAXX010101000'
+                            AND A.Cred_RFC = 'XAXX010101000'
+                        )
+                  )
+                  AND ISNULL(A.Importe, 0) > 0
+                  AND ISNULL(A.Fact_Pendiente, 0) >= A.Importe
+                  AND ISNULL(A.Cred_Pendiente, 0) >= A.Importe
+            )
+            INSERT INTO [T3].[Asignacion_Pago]
             (
                 Pago_ID,
                 Asignacion_ID,
@@ -422,53 +458,34 @@ BEGIN
                 Valor_Pago
             )
             SELECT
-
-                @paymentPrefix +
-                RIGHT(
-                    '00000'
-                    + CAST(2500 +
-                      ROW_NUMBER() OVER
-                      (ORDER BY A.Factura)
-                      AS VARCHAR(10))
-                ,5),
-
-                @paymentPrefix +
-                RIGHT(
-                    '00000'
-                    + CAST(2500 +
-                      ROW_NUMBER() OVER
-                      (ORDER BY A.Factura)
-                      AS VARCHAR(10))
-                ,5),
-
+                P.Pago_ID,
+                P.Pago_ID,
                 @releaseDateTime,
-                A.Factura,
-                A.Nota_Credito,
-                RF.Distribuidor,
-                RF.Ctro,
-                RF.Cliente_V3,
-                RF.Cliente_SAP,
+                R.Factura,
+                R.Nota_Credito,
+                R.Distribuidor,
+                R.Ctro,
+                R.Cliente_V3,
+                R.Cliente_SAP,
                 'CENTRAL',
                 CAST(DATEADD(DAY,-ISNULL(@pDays,0),@releaseDateTime) AS DATE),
-                A.Importe
-
-            FROM EAI_OWNER.X_Asignacion_Pago A
-            INNER JOIN T3.Registro_Fiscal RF
-                ON A.Factura = RF.Factura
-            WHERE ISNULL(A.Duplicada,' ') <> 'X'
-              AND
-              (
-                    A.Status_Asignacion IS NULL
-                    OR
-                    (
-                        A.Status_Asignacion='Documento ya liberado'
-                        AND A.Fact_RFC='XAXX010101000'
-                        AND A.Cred_RFC='XAXX010101000'
-                    )
-              )
-              AND ISNULL(A.Importe,0) > 0
-              AND ISNULL(A.Fact_Pendiente,0) >= A.Importe
-              AND ISNULL(A.Cred_Pendiente,0) >= A.Importe;
+                R.Importe
+            FROM ReleaseRows R
+            CROSS APPLY
+            (
+                SELECT SequenceText = CONVERT(VARCHAR(20), 2500 + R.RN)
+            ) S
+            CROSS APPLY
+            (
+                -- LPAD(..., 5, '0') rellena valores cortos y conserva los
+                -- primeros cinco caracteres cuando el valor es mas largo.
+                SELECT Pago_ID = @paymentPrefix
+                    + CASE
+                        WHEN LEN(S.SequenceText) >= 5
+                            THEN LEFT(S.SequenceText, 5)
+                        ELSE RIGHT('00000' + S.SequenceText, 5)
+                      END
+            ) P;
 
             /*
                 El cursor Oracle marca cada fila liberada despues del INSERT.
@@ -511,17 +528,33 @@ BEGIN
     END TRY
 
     BEGIN CATCH
-
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-
         SET @sErrorCode =
             'SQL-' + CAST(ERROR_NUMBER() AS VARCHAR(20));
 
         SET @sMsg =
             LEFT(CONCAT(ERROR_NUMBER(), '-', ERROR_MESSAGE()), 250);
 
-        INSERT INTO EAI_OWNER.MX_EAI_MESSAGE_LOG
+        -- Liberar cursores que pudieran permanecer abiertos al fallar una
+        -- consulta de saldos. Un cursor LOCAL no debe sobrevivir al procedure.
+        IF CURSOR_STATUS('local', 'cFactPend') >= 0
+            CLOSE cFactPend;
+        IF CURSOR_STATUS('local', 'cFactPend') > -2
+            DEALLOCATE cFactPend;
+
+        IF CURSOR_STATUS('local', 'cCredPend') >= 0
+            CLOSE cCredPend;
+        IF CURSOR_STATUS('local', 'cCredPend') > -2
+            DEALLOCATE cCredPend;
+
+        /*
+            Oracle no ejecuta ROLLBACK en WHEN OTHERS: inserta el error y hace
+            COMMIT. Si la transaccion sigue confirmable (estado 1), el log y el
+            trabajo previo se confirman juntos. El estado -1 obliga a revertir.
+        */
+        IF XACT_STATE() = -1
+            ROLLBACK TRANSACTION;
+
+        INSERT INTO [EAI_OWNER].[MX_EAI_MESSAGE_LOG]
         (
             DIRECTION,
             REFERENCE,
@@ -534,7 +567,7 @@ BEGIN
             SOURCE,
             SIEBEL_ERROR_CODE,
             RETRY_COUNT,
-            SEQUENCE,
+            [Sequence],
             PARENT_ROW_ID
         )
         VALUES
@@ -547,14 +580,30 @@ BEGIN
             'Error',
             'WA_ASIGNACION_PAGO',
             @sMsg,
-            'T-SQL',
+            'TSQL',
             @sErrorCode,
             NULL,
             NULL,
             NULL
         );
 
-        THROW;
+        IF XACT_STATE() = 1
+            COMMIT TRANSACTION;
+
+        -- Equivalente de los mensajes DBMS_OUTPUT del bloque EXCEPTION.
+        PRINT REPLICATE('-', 80);
+        PRINT 'Problemas en la ejecucion del Procedimiento';
+        PRINT 'FAVOR DE ESCALAR LOS SIGUIENTES DATOS :';
+        PRINT 'Procedimiento : WA_ASIGNACION_PAGO';
+        PRINT CONCAT('Fecha         : ', CONVERT(CHAR(8), SYSDATETIME(), 112),
+                     ' ', CONVERT(CHAR(8), SYSDATETIME(), 108));
+        PRINT CONCAT('Referencia    : ', COALESCE(@sReference, 'NULL'));
+        PRINT CONCAT('Secuencia     : ', COALESCE(@sStepPLSQL, 'NULL'));
+        PRINT CONCAT('Error         : ', @sMsg);
+        PRINT REPLICATE('-', 80);
+
+        -- Oracle registra el error y finaliza sin propagar la excepcion.
+        RETURN;
 
     END CATCH
 

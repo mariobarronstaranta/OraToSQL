@@ -7,9 +7,9 @@
       para reproceso.
 
     Nota de migracion:
-      Oracle usa el ROWID fisico del log y genera otro identificador mediante
-      fecha + ROWNUM. MX_EAI_MESSAGE_LOG no tiene una llave equivalente en SQL
-      Server; para el nuevo mensaje se genera un GUID sin guiones (32 caracteres).
+      MX_EAI_MESSAGE_LOG.ROW_ID sustituye el ROWID fisico usado para localizar
+      la fila origen. El GUID de 32 caracteres del mensaje de recepcion conserva
+      un contrato independiente y no se reemplaza con la secuencia del log.
 */
 CREATE OR ALTER PROCEDURE [EAI_OWNER].[WA_ERR_INTERCOMPANY]
     @pDias INT = 0
@@ -49,11 +49,14 @@ BEGIN
         ----------------------------------------------------------------------
         /*
             UPDLOCK + HOLDLOCK evita que dos ejecuciones reprocesen el mismo
-            conjunto. SourceToken solo sirve para distinguir las filas durante
-            esta ejecucion; no se almacena en tablas de negocio.
+            conjunto. Source_ROW_ID conserva la identidad estable del mensaje
+            origen durante toda la ejecucion.
+
+            Cambio homologado ROW_ID:
+            se materializa MX_EAI_MESSAGE_LOG.ROW_ID como llave de la fila origen.
         */
         SELECT
-            SourceToken   = NEWID(),
+            Source_ROW_ID = Err.ROW_ID,
             ReceiveRow_ID = REPLACE(CONVERT(VARCHAR(36), NEWID()), '-', ''),
             Err.Queue_Name,
             Err.Message
@@ -88,7 +91,7 @@ BEGIN
         SanitizedChunks AS
         (
             SELECT
-                S.SourceToken,
+                S.Source_ROW_ID,
                 S.ReceiveRow_ID,
                 S.Queue_Name,
                 N.ChunkNo,
@@ -117,7 +120,7 @@ BEGIN
             CROSS JOIN ChunkNumbers N
         )
         SELECT
-            C.SourceToken,
+            C.Source_ROW_ID,
             C.ReceiveRow_ID,
             C.Queue_Name,
             XML_Content = CAST
@@ -129,7 +132,7 @@ BEGIN
         INTO #ReprocessedMessages
         FROM SanitizedChunks C
         GROUP BY
-            C.SourceToken,
+            C.Source_ROW_ID,
             C.ReceiveRow_ID,
             C.Queue_Name
         OPTION (MAXRECURSION 39);
@@ -149,13 +152,13 @@ BEGIN
         ----------------------------------------------------------------------
         -- 4. Marcar los errores originales para reproceso
         ----------------------------------------------------------------------
+        /* Cambio homologado ROW_ID: actualizar solo las filas materializadas. */
         UPDATE Err
         SET Err.Status = 'Reprocess'
         FROM [EAI_OWNER].[MX_EAI_MESSAGE_LOG] Err
-        WHERE Err.Queue_Name = 'Invoice-Intercompany'
-          AND Err.Status = 'Error'
-          AND Err.Siebel_Error_Message LIKE '%-ORA-31011%'
-          AND Err.Created > @FechaCorte;
+        INNER JOIN #ReprocessedMessages R
+            ON R.Source_ROW_ID = Err.ROW_ID
+        WHERE Err.Status = 'Error';
 
         PRINT CONCAT('Documentos -> ', @nPedidos);
 

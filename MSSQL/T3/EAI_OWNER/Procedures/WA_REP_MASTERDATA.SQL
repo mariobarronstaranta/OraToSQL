@@ -1,181 +1,181 @@
+/*
+    Homologo SQL Server de EAI_OWNER.WA_REP_MASTERDATA (Oracle).
+
+    Objetivo:
+      1. Recorrer las vans vigentes cuyo nombre inicia con VAN.
+      2. Completar correos faltantes de representantes existentes.
+      3. Insertar representantes nuevos solamente cuando pInsert > 0.
+
+    El origen procesa cada fila del LEFT JOIN, incluso si hay Cliente_SAP
+    duplicados. Se conserva un cursor LOCAL FAST_FORWARD para no deduplicar ni
+    cambiar el orden update/insert que tendria Oracle.
+*/
 CREATE OR ALTER PROCEDURE [EAI_OWNER].[WA_REP_MASTERDATA]
 (
-    @pInsert INT = 0
+    /* NUMBER admite valores fraccionarios; solo se evalua si es mayor que 0. */
+    @pInsert DECIMAL(10,4) = 0
 )
 AS
 BEGIN
     SET NOCOUNT ON;
 
+    /* Oracle confirma el trabajo previo cuando entra en WHEN OTHERS. */
+    SET XACT_ABORT OFF;
+
     DECLARE
-        @sReference        VARCHAR(30)  = NULL,
-        @sErrorCode        VARCHAR(30)  = NULL,
-        @sMsg              VARCHAR(300) = NULL,
-        @nPedidos          INT          = 0,
-        @nPID              INT          = NULL,
-        @nProceso          INT          = 0;
+        @sReference       VARCHAR(30) = NULL,
+        @sErrorCode       VARCHAR(30),
+        @sMsg             VARCHAR(300),
+        @nPedidos         INT = 0,
+        @nPID             BIGINT = NULL,
+        @nProceso         INT = 0,
+        @sClienteSAP      VARCHAR(1024),
+        @sNombreRep       VARCHAR(1024),
+        @sEmail           VARCHAR(100),
+        @sCorreoExistente VARCHAR(100),
+        @sAccion          VARCHAR(10);
 
     BEGIN TRY
-        BEGIN TRAN;
+        BEGIN TRANSACTION;
 
-        /*
-            Origen equivalente al cursor Oracle ScrReps.
-
-            Nota:
-            Se usa ROW_NUMBER para evitar duplicados por Cliente_SAP.
-            En Oracle, si existían duplicados, el cursor podía ejecutar múltiples updates/inserts.
-            En SQL Server esto puede causar conflictos, por lo que se conserva una sola fila por Cliente_SAP.
-        */
-        ;WITH SrcBase AS
-        (
+        ----------------------------------------------------------------------
+        -- Cursor ScrReps: vans vigentes relacionadas con CAT_REPS.
+        ----------------------------------------------------------------------
+        DECLARE ScrReps CURSOR LOCAL FAST_FORWARD FOR
             SELECT
                 A.Stock_Partner_Resource AS Cliente_SAP,
-                A.Resource_Name          AS Nombre_Rep,
-                REPLACE(
-                    REPLACE(A.IvyBase__Username__c, 'petra3.', ''),
-                    'PETRA3.', ''
-                ) AS eMail
-            FROM [EAI_OWNER].[VANS_Vigentes] A
-            WHERE A.Name LIKE 'VAN%'
-              AND A.Stock_Partner_Resource NOT LIKE '%RESOURCE%'
-        ),
-        SrcDedup AS
-        (
-            SELECT
-                Cliente_SAP,
-                Nombre_Rep,
-                eMail,
-                ROW_NUMBER() OVER
-                (
-                    PARTITION BY Cliente_SAP
-                    ORDER BY Cliente_SAP
-                ) AS rn
-            FROM SrcBase
-        ),
-        Src AS
-        (
-            SELECT
-                S.Cliente_SAP,
-                S.Nombre_Rep,
-                S.eMail,
-                B.Nombre,
-                COALESCE(B.Correo_Electronico, 'NULL') AS Correo_Electronico,
+                A.Resource_Name AS Nombre_Rep,
                 CASE
                     WHEN B.Cliente_SAP IS NOT NULL THEN 'UPDATE'
                     ELSE 'INSERT'
-                END AS Accion
-            FROM SrcDedup S
-            LEFT JOIN [EAI_OWNER].[Cat_Reps] B
-                ON S.Cliente_SAP = B.Cliente_SAP
-            WHERE S.rn = 1
-        )
-        UPDATE CR
-           SET CR.Correo_Electronico  = S.eMail,
-               CR.Ultima_Modificacion = GETDATE(),
-               CR.ModificadoPor       = 'REPLICATE'
-        FROM [EAI_OWNER].[Cat_Reps] CR
-        INNER JOIN Src S
-            ON CR.Cliente_SAP = S.Cliente_SAP
-        WHERE S.Accion = 'UPDATE'
-          AND LEN(LTRIM(RTRIM(COALESCE(S.Correo_Electronico, 'NULL')))) < 5
-          AND LEN(LTRIM(RTRIM(COALESCE(S.eMail, '')))) > 0;
+                END AS Accion,
+                REPLACE
+                (
+                    REPLACE(A.IvyBase__Username__c, 'petra3.', ''),
+                    'PETRA3.',
+                    ''
+                ) AS eMail,
+                COALESCE(B.Correo_Electronico, 'NULL') AS Correo_Electronico
+            FROM [EAI_OWNER].[VANS_VIGENTES] AS A
+            LEFT JOIN [EAI_OWNER].[CAT_REPS] AS B
+                ON B.Cliente_SAP = A.Stock_Partner_Resource
+            WHERE A.Name LIKE 'VAN%'
+              AND A.Stock_Partner_Resource NOT LIKE '%RESOURCE%';
 
-        SET @nProceso = @@ROWCOUNT;
+        OPEN ScrReps;
 
-        /*
-            Inserción de nuevos representantes.
-            Respeta la lógica Oracle:
-            solo inserta cuando NVL(pInsert,0) > 0.
-        */
-        IF COALESCE(@pInsert, 0) > 0
+        FETCH NEXT FROM ScrReps INTO
+            @sClienteSAP,
+            @sNombreRep,
+            @sAccion,
+            @sEmail,
+            @sCorreoExistente;
+
+        WHILE @@FETCH_STATUS = 0
         BEGIN
-            ;WITH SrcBase AS
-            (
-                SELECT
-                    A.Stock_Partner_Resource AS Cliente_SAP,
-                    A.Resource_Name          AS Nombre_Rep,
-                    REPLACE(
-                        REPLACE(A.IvyBase__Username__c, 'petra3.', ''),
-                        'PETRA3.', ''
-                    ) AS eMail
-                FROM [EAI_OWNER].[VANS_Vigentes] A
-                WHERE A.Name LIKE 'VAN%'
-                  AND A.Stock_Partner_Resource NOT LIKE '%RESOURCE%'
-            ),
-            SrcDedup AS
-            (
-                SELECT
-                    Cliente_SAP,
-                    Nombre_Rep,
-                    eMail,
-                    ROW_NUMBER() OVER
-                    (
-                        PARTITION BY Cliente_SAP
-                        ORDER BY Cliente_SAP
-                    ) AS rn
-                FROM SrcBase
-            )
-            INSERT INTO [EAI_OWNER].[Cat_Reps]
-            (
-                Cliente_SAP,
-                Nombre,
-                Correo_Electronico,
-                Creacion,
-                CreadoPor
-            )
-            SELECT
-                S.Cliente_SAP,
-                S.Nombre_Rep,
-                S.eMail,
-                GETDATE(),
-                'REPLICATE'
-            FROM SrcDedup S
-            WHERE S.rn = 1
-              AND NOT EXISTS
-              (
-                  SELECT 1
-                  FROM [EAI_OWNER].[Cat_Reps] CR
-                  WHERE CR.Cliente_SAP = S.Cliente_SAP
-              );
+            /* Referencia de la fila actual para una eventual bitacora de error. */
+            SET @sReference = CONVERT(VARCHAR(30), @sClienteSAP);
+            SET @nProceso = @nProceso + 1;
 
-            SET @nPedidos = @@ROWCOUNT;
+            IF @sAccion = 'UPDATE'
+            BEGIN
+                /*
+                    Oracle actualiza solo cuando el correo existente tiene
+                    menos de 5 caracteres y el nuevo no esta vacio.
+
+                    NULLIF reproduce LENGTH(TRIM('   ')) = NULL de Oracle; una
+                    cadena formada solo por espacios no satisface la condicion.
+                */
+                IF LEN(NULLIF(LTRIM(RTRIM(@sCorreoExistente)), '')) < 5
+                   AND LEN(NULLIF(LTRIM(RTRIM(@sEmail)), '')) > 0
+                BEGIN
+                    UPDATE [EAI_OWNER].[CAT_REPS]
+                       SET Correo_Electronico = @sEmail,
+                           Ultima_Modificacion = SYSDATETIME(),
+                           ModificadoPor = 'REPLICATE'
+                    WHERE Cliente_SAP = @sClienteSAP;
+                END;
+
+                /* Oracle suma cero en la rama UPDATE. */
+                SET @nPedidos = @nPedidos + 0;
+            END
+            ELSE
+            BEGIN
+                /* Equivale a NVL(pInsert, 0) > 0. */
+                IF COALESCE(@pInsert, 0) > 0
+                BEGIN
+                    INSERT INTO [EAI_OWNER].[CAT_REPS]
+                    (
+                        Cliente_SAP,
+                        Nombre,
+                        Correo_Electronico,
+                        Creacion,
+                        CreadoPor
+                    )
+                    VALUES
+                    (
+                        @sClienteSAP,
+                        @sNombreRep,
+                        @sEmail,
+                        SYSDATETIME(),
+                        'REPLICATE'
+                    );
+
+                    SET @nPedidos = @nPedidos + 1;
+                END;
+            END;
+
+            FETCH NEXT FROM ScrReps INTO
+                @sClienteSAP,
+                @sNombreRep,
+                @sAccion,
+                @sEmail,
+                @sCorreoExistente;
         END;
 
-        COMMIT;
+        CLOSE ScrReps;
+        DEALLOCATE ScrReps;
+
+        COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
-        IF XACT_STATE() <> 0
-            ROLLBACK;
-
-        SET @sReference = COALESCE(@sReference, 'WA_REP_MASTERDATA');
-        SET @sErrorCode = CONCAT('SQL-', ERROR_NUMBER());
+        SET @sErrorCode = CONCAT('SQL-', CONVERT(VARCHAR(20), ERROR_NUMBER()));
         SET @sMsg = LEFT(CONCAT(ERROR_NUMBER(), '-', ERROR_MESSAGE()), 250);
 
+        IF CURSOR_STATUS('local', 'ScrReps') >= 0
+            CLOSE ScrReps;
+
+        IF CURSOR_STATUS('local', 'ScrReps') > -2
+            DEALLOCATE ScrReps;
+
         /*
-            Se registra el error como en Oracle.
-            Oracle no hace RAISE después del log; por compatibilidad,
-            aquí tampoco se relanza el error.
+            Una transaccion condenada no puede confirmarse. Si sigue valida,
+            el log y todo el trabajo previo se confirman juntos como en Oracle.
         */
+        IF XACT_STATE() = -1
+            ROLLBACK TRANSACTION;
+
         INSERT INTO [EAI_OWNER].[MX_EAI_MESSAGE_LOG]
         (
-            DIRECTION,
-            REFERENCE,
-            CREATED,
-            MESSAGE,
-            JOB_PID,
-            STATUS,
-            QUEUE_NAME,
-            SIEBEL_ERROR_MESSAGE,
-            SOURCE,
-            SIEBEL_ERROR_CODE,
-            RETRY_COUNT,
-            SEQUENCE,
-            PARENT_ROW_ID
+            Direction,
+            Reference,
+            Created,
+            Message,
+            Job_PID,
+            Status,
+            Queue_Name,
+            Siebel_Error_Message,
+            Source,
+            Siebel_Error_Code,
+            Retry_Count,
+            [Sequence],
+            Parent_Row_ID
         )
         VALUES
         (
             'Job Logging',
             @sReference,
-            GETDATE(),
+            SYSDATETIME(),
             NULL,
             @nPID,
             'Error',
@@ -187,6 +187,12 @@ BEGIN
             NULL,
             NULL
         );
+
+        IF XACT_STATE() = 1
+            COMMIT TRANSACTION;
+
+        -- Oracle registra el error y finaliza sin volver a lanzarlo.
+        RETURN;
     END CATCH;
 END;
 GO

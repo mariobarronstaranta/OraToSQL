@@ -1,3 +1,24 @@
+/*
+    Homologo SQL Server de EAI_OWNER.WA_ASIGNA_INCOBRABLE (Oracle).
+
+    Objetivo funcional:
+      1. Enriquecer las aplicaciones incobrables con importes, RFC y saldos.
+      2. Detectar aplicaciones ya realizadas, duplicadas o excedidas.
+      3. Con @pLevel >= 1000, generar dos clases de movimiento:
+         - Por nota de credito: Asignacion_Pago con factura 'INCOBRABLE'.
+         - Por factura: Pago con tipo PAYMENT/metodo I y su Asignacion_Pago.
+
+    Niveles conservados del procedure Oracle:
+      - @pLevel <= 10  : calcula importes fiscales y RFC.
+      - @pLevel <= 100 : consulta saldos pendientes.
+      - Todos          : ejecuta validaciones de negocio.
+      - @pLevel >= 1000: libera las aplicaciones elegibles.
+
+    SQL Server no conserva el ROWID de Oracle. Los conjuntos de liberacion se
+    materializan antes de insertar y las actualizaciones usan Factura,
+    Nota_Credito e Importe como identificadores logicos. El DDL migrado no
+    ofrece una llave fisica mas precisa.
+*/
 CREATE OR ALTER PROCEDURE [EAI_OWNER].[WA_ASIGNA_INCOBRABLE]
 (
     @pLevel    INT = 0,
@@ -7,21 +28,9 @@ CREATE OR ALTER PROCEDURE [EAI_OWNER].[WA_ASIGNA_INCOBRABLE]
 AS
 BEGIN
     SET NOCOUNT ON;
-    SET XACT_ABORT ON;
-
-    /*
-        WA_ASIGNA_INCOBRABLE
-        ====================
-        Valida aplicaciones incobrables y, en nivel 1000, genera dos tipos de
-        movimiento:
-        - contra nota de credito: solo inserta Asignacion_Pago con factura
-          simbolica 'INCOBRABLE';
-        - contra factura: inserta Pago y despues Asignacion_Pago.
-
-        SQL Server no conserva ROWID de Oracle. Esta conversion usa las claves
-        logicas Factura + Nota_Credito + Importe. Las filas duplicadas se marcan
-        antes de liberar y por eso no deben llegar a esta fase.
-    */
+    -- Oracle confirma en EXCEPTION tanto el trabajo previo como la bitacora.
+    -- OFF permite conservarlo si SQL Server aun considera confirmable la transaccion.
+    SET XACT_ABORT OFF;
 
     DECLARE
         @nAplicaciones INT = 0,
@@ -30,7 +39,7 @@ BEGIN
         @nPID          INT = NULL,
         @sReference    VARCHAR(50) = NULL,
         @sStepPLSQL    VARCHAR(50) = NULL,
-        @Now           DATETIME2(0) = SYSDATETIME(),
+        @Now           DATETIME2(0),
         @FechaAsignacion DATE,
         @PagoPrefix     VARCHAR(7);
 
@@ -49,20 +58,12 @@ BEGIN
     SET @pLevel = COALESCE(@pLevel, 0);
     SET @pDays = COALESCE(@pDays, 0);
     SET @nSequence = COALESCE(@nSequence, 0);
-    SET @FechaAsignacion = CAST(DATEADD(DAY, -@pDays, @Now) AS DATE);
-
-    /*
-      Equivalente de:
-      TO_CHAR(SYSDATE, 'YYDDDHH24')
-      YY + día del año a 3 posiciones + hora 24 a 2 posiciones
-    */
-    SET @PagoPrefix =
-          RIGHT(CONVERT(CHAR(4), DATEPART(YEAR, @Now)), 2)
-        + RIGHT('000' + CONVERT(VARCHAR(3), DATEPART(DAYOFYEAR, @Now)), 3)
-        + RIGHT('00'  + CONVERT(VARCHAR(2), DATEPART(HOUR, @Now)), 2);
 
     BEGIN TRY
         BEGIN TRAN;
+
+        -- Oracle asigna esta etapa antes de evaluar el primer nivel.
+        SET @sStepPLSQL = 'ScrFacturas';
 
         /* ============================================================
            1. Actualiza importes y RFC de facturas / notas
@@ -154,8 +155,7 @@ BEGIN
 
             DECLARE curFactPend CURSOR LOCAL FAST_FORWARD FOR
                 SELECT DISTINCT Factura
-                FROM [EAI_OWNER].[X_Aplica_Incobrable]
-                WHERE Factura IS NOT NULL;
+                FROM [EAI_OWNER].[X_Aplica_Incobrable];
 
             OPEN curFactPend;
             FETCH NEXT FROM curFactPend INTO @sReference;
@@ -190,8 +190,7 @@ BEGIN
 
             DECLARE curCredPend CURSOR LOCAL FAST_FORWARD FOR
                 SELECT DISTINCT Nota_Credito
-                FROM [EAI_OWNER].[X_Aplica_Incobrable]
-                WHERE Nota_Credito IS NOT NULL;
+                FROM [EAI_OWNER].[X_Aplica_Incobrable];
 
             OPEN curCredPend;
             FETCH NEXT FROM curCredPend INTO @sReference;
@@ -295,7 +294,9 @@ BEGIN
             FROM [EAI_OWNER].[X_Aplica_Incobrable]
             GROUP BY Nota_Credito
             HAVING COUNT(*) > 1
-               AND SUM(COALESCE(Importe, 0)) > MAX(COALESCE(Cred_Pendiente, 0))
+               -- No se agrega COALESCE: Oracle compara SUM y MAX con su
+               -- semantica nativa de NULL dentro del HAVING.
+               AND SUM(Importe) > MAX(Cred_Pendiente)
         )
         UPDATE Asig
            SET Asig.Status_Asignacion = 'Asignacion Excedente'
@@ -315,7 +316,7 @@ BEGIN
             FROM [EAI_OWNER].[X_Aplica_Incobrable]
             GROUP BY Factura
             HAVING COUNT(*) > 1
-               AND SUM(COALESCE(Importe, 0)) > MAX(COALESCE(Fact_Pendiente, 0))
+               AND SUM(Importe) > MAX(Fact_Pendiente)
         )
         UPDATE Asig
            SET Asig.Status_Asignacion = 'Asignacion Excedente'
@@ -329,6 +330,19 @@ BEGIN
         IF @pLevel >= 1000
         BEGIN
             SET @sStepPLSQL = 'ScrLiberacion';
+
+            -- SYSDATE se evalua al iniciar la liberacion, no al entrar al
+            -- procedure. Esto evita usar una hora obsoleta si las validaciones
+            -- anteriores tardan varios minutos.
+            SET @Now = SYSDATETIME();
+            SET @FechaAsignacion = CAST(DATEADD(DAY, -@pDays, @Now) AS DATE);
+
+            -- Equivalente de TO_CHAR(SYSDATE, 'YYDDDHH24'):
+            -- anio corto + dia del anio (3 posiciones) + hora (2 posiciones).
+            SET @PagoPrefix =
+                  RIGHT(CONVERT(CHAR(4), DATEPART(YEAR, @Now)), 2)
+                + RIGHT('000' + CONVERT(VARCHAR(3), DATEPART(DAYOFYEAR, @Now)), 3)
+                + RIGHT('00'  + CONVERT(VARCHAR(2), DATEPART(HOUR, @Now)), 2);
 
             DECLARE @Liberacion TABLE
             (
@@ -349,7 +363,6 @@ BEGIN
 
             INSERT INTO @Liberacion
             (
-                Pago_ID,
                 Fecha_Trn,
                 Factura,
                 Nota_Credito,
@@ -363,10 +376,6 @@ BEGIN
                 Source_Factura
             )
             SELECT
-                @PagoPrefix
-                    + RIGHT('00000' + CONVERT(VARCHAR(10),
-                        @nSequence + ROW_NUMBER() OVER
-                        (ORDER BY Asig.Nota_Credito, Asig.Factura, Asig.Importe)), 5) AS Pago_ID,
                 @Now AS Fecha_Trn,
                 'INCOBRABLE' AS Factura,
                 Asig.Nota_Credito,
@@ -388,6 +397,21 @@ BEGIN
                   )
               AND COALESCE(Asig.Importe, 0) > 0
               AND COALESCE(Asig.Cred_Pendiente, 0) >= Asig.Importe;
+
+            -- Oracle usa ROWNUM sin ORDER BY. La identidad conserva esa falta
+            -- de prioridad de negocio. LPAD rellena valores cortos y, cuando
+            -- exceden cinco posiciones, conserva sus primeros cinco caracteres.
+            UPDATE L
+               SET Pago_ID = @PagoPrefix
+                   + CASE
+                         WHEN LEN(S.SequenceText) >= 5 THEN LEFT(S.SequenceText, 5)
+                         ELSE RIGHT('00000' + S.SequenceText, 5)
+                     END
+            FROM @Liberacion AS L
+            CROSS APPLY
+            (
+                SELECT CONVERT(VARCHAR(20), @nSequence + L.RowNum)
+            ) AS S(SequenceText);
 
             INSERT INTO [T3].[Asignacion_Pago]
             (
@@ -444,6 +468,14 @@ BEGIN
                ======================================================== */
             SET @sStepPLSQL = 'ScrLiberacionFact';
 
+            -- Oracle abre un segundo cursor y vuelve a evaluar SYSDATE.
+            SET @Now = SYSDATETIME();
+            SET @FechaAsignacion = CAST(DATEADD(DAY, -@pDays, @Now) AS DATE);
+            SET @PagoPrefix =
+                  RIGHT(CONVERT(CHAR(4), DATEPART(YEAR, @Now)), 2)
+                + RIGHT('000' + CONVERT(VARCHAR(3), DATEPART(DAYOFYEAR, @Now)), 3)
+                + RIGHT('00'  + CONVERT(VARCHAR(2), DATEPART(HOUR, @Now)), 2);
+
             DECLARE @LiberacionFact TABLE
             (
                 RowNum           INT IDENTITY(1,1),
@@ -464,7 +496,6 @@ BEGIN
 
             INSERT INTO @LiberacionFact
             (
-                Pago_ID,
                 Fecha_Trn,
                 Factura,
                 Tipo_Pago,
@@ -479,11 +510,6 @@ BEGIN
                 Valor_Pago
             )
             SELECT
-                @PagoPrefix
-                    + RIGHT('00000' + CONVERT(VARCHAR(10),
-                        @nSequence + @nAplicaciones
-                        + ROW_NUMBER() OVER
-                          (ORDER BY Asig.Factura, Asig.Nota_Credito, Asig.Importe)), 5) AS Pago_ID,
                 @Now AS Fecha_Trn,
                 Asig.Factura,
                 'PAYMENT' AS Tipo_Pago,
@@ -506,6 +532,24 @@ BEGIN
                   )
               AND COALESCE(Asig.Importe, 0) > 0
               AND COALESCE(Asig.Fact_Pendiente, 0) >= Asig.Importe;
+
+            -- nAplicaciones desplaza el consecutivo de esta segunda fase para
+            -- que no repita Pago_ID usados por las notas de credito.
+            UPDATE LF
+               SET Pago_ID = @PagoPrefix
+                   + CASE
+                         WHEN LEN(S.SequenceText) >= 5 THEN LEFT(S.SequenceText, 5)
+                         ELSE RIGHT('00000' + S.SequenceText, 5)
+                     END
+            FROM @LiberacionFact AS LF
+            CROSS APPLY
+            (
+                SELECT CONVERT
+                (
+                    VARCHAR(20),
+                    @nSequence + @nAplicaciones + LF.RowNum
+                )
+            ) AS S(SequenceText);
 
             INSERT INTO [T3].[Pago]
             (
@@ -601,11 +645,14 @@ BEGIN
         IF CURSOR_STATUS('local', 'curCredPend') >= -1
             DEALLOCATE curCredPend;
 
-        IF XACT_STATE() <> 0
-            ROLLBACK;
-
         SET @sErrorCode = CONCAT('SQL-', ERROR_NUMBER());
         SET @sMsg = LEFT(CONCAT(ERROR_NUMBER(), '-', ERROR_MESSAGE()), 250);
+
+        -- Oracle hace COMMIT dentro de WHEN OTHERS. Si la transaccion quedo
+        -- inutilizable, SQL Server obliga a revertirla; la bitacora se inserta
+        -- despues en autocommit. Si sigue valida, se confirma junto con el log.
+        IF XACT_STATE() = -1
+            ROLLBACK TRANSACTION;
 
         INSERT INTO [EAI_OWNER].[MX_EAI_MESSAGE_LOG]
         (
@@ -620,7 +667,7 @@ BEGIN
             SOURCE,
             SIEBEL_ERROR_CODE,
             RETRY_COUNT,
-            SEQUENCE,
+            [Sequence],
             PARENT_ROW_ID
         )
         VALUES
@@ -656,7 +703,11 @@ BEGIN
         PRINT CONCAT('Error         : ', COALESCE(@sMsg, ''));
         PRINT REPLICATE('-', 80);
 
-        THROW;
+        IF XACT_STATE() = 1
+            COMMIT TRANSACTION;
+
+        -- El Oracle registra el error y termina sin RAISE.
+        RETURN;
     END CATCH;
 END;
 GO

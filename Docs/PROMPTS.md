@@ -135,3 +135,38 @@ Al terminar:
 - Ejecuta una revision estatica buscando restos Oracle o patrones riesgosos.
 - Indica que no se ejecuto contra SQL Server si no hay conexion disponible.
 ```
+
+## Migrar un package Oracle
+
+```text
+Analiza completamente la specification y el body del package Oracle indicado.
+
+Genera su equivalente SQL Server como procedimientos y funciones independientes
+dentro del schema original.
+
+Requisitos:
+- Inventariar miembros publicos y privados.
+- Mantener nombres publicos aprobados; no agregar prefijos sin autorizacion.
+- Convertir llamadas schema.package.member a schema.member.
+- No crear un RUN_ALL salvo que exista un flujo explicito en Oracle o en un job.
+- Separar permisos GRANT de la implementacion.
+- Documentar orden de despliegue, dependencias, diferencias y pruebas.
+- Marcar database links y credenciales como configuracion pendiente; no inventarlos.
+```
+
+## Migrar USER_JOBS a SQL Server Agent
+
+```text
+Convierte el inventario USER_JOBS Oracle a scripts idempotentes de SQL Server Agent.
+
+Requisitos:
+- Determinar alcance por PRIV_USER y SCHEMA_USER, no por el schema de WHAT.
+- Convertir WHAT en Step T-SQL e INTERVAL en un schedule exclusivo.
+- Conservar el numero Oracle en una tabla de mapeo.
+- Crear todos los jobs deshabilitados.
+- Conservar BROKEN=Y como deshabilitado.
+- Validar procedimientos directos y dependencias transitivas.
+- Generar scripts separados para crear, validar, habilitar y deshabilitar.
+- Documentar diferencias de calendario, propietario, permisos y alertas.
+- No habilitar ni ejecutar jobs durante la generacion.
+```

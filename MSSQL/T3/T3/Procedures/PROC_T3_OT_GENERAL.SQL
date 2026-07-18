@@ -1,0 +1,86 @@
+
+
+/****** Object:  StoredProcedure [T3].[PROC_T3_OT_GENERAL]    Script Date: 7/16/2026 10:13:42 PM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE   PROCEDURE [T3].[PROC_T3_OT_GENERAL]
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @sFACTURA   VARCHAR(12);  
+    DECLARE @sPROCESAR  VARCHAR(12);  
+
+    -- Variables cursores
+    DECLARE @REN_FACTURA            VARCHAR(50),
+            @REN_FECHA_FACTURA      DATETIME,
+            @REN_FECHA_CANCELACION  DATETIME,
+            @REN_CLIENTE_SAP        VARCHAR(50),
+            @REN_CLASE_FACTURA      VARCHAR(10),
+            @REN_TOTAL              NUMERIC(22,2),
+            @REN_TOTAL_DETALLE      NUMERIC(22,2);
+
+    DECLARE PREVENTAS CURSOR LOCAL FORWARD_ONLY STATIC FOR
+        SELECT PG.FACTURA, PG.FECHA_FACTURA, PG.FECHA_CANCELACION, PG.CLIENTE_SAP, PG.CLASE_FACTURA,
+               ISNULL( PG.VALOR_SUBT, 0 ) + ISNULL( PG.VALOR_IVA, 0 )        AS TOTAL, 
+               SUM( ISNULL( PD.VALOR_SUBT, 0 ) + ISNULL( PD.VALOR_IVA, 0 ) ) AS TOTAL_DETALLE
+           FROM T3.OTROS_GENERAL PG
+           INNER JOIN T3.OTROS_DETALLE PD ON PG.FACTURA = PD.FACTURA
+           WHERE PG.FECHA_TRN         > GETDATE() - 4
+             AND PG.FECHA_PROC_BATMD IS NULL
+           GROUP BY PG.FACTURA, PG.FECHA_FACTURA, PG.FECHA_CANCELACION, PG.CLIENTE_SAP, PG.CLASE_FACTURA, ISNULL( PG.VALOR_SUBT, 0 ) + ISNULL( PG.VALOR_IVA, 0 ) ;              
+
+    BEGIN TRY
+        UPDATE T3.Otros_General 
+        SET Fecha_Proc_BATMD = CONVERT(DATETIME, '29991231', 112)
+        FROM T3.Otros_General OG
+        WHERE OG.Fecha_Trn         > GETDATE() - 4
+          AND OG.Fecha_Proc_BATMD IS NULL
+          AND OG.Factura IN ( 
+              SELECT DISTINCT OG_Sub.Factura
+              FROM T3.Otros_General OG_Sub
+              INNER JOIN T3.Otros_Detalle OD ON OG_Sub.Factura = OD.Factura
+              INNER JOIN T3.Material Cig ON OD.Material = Cig.Material
+              WHERE OG_Sub.Fecha_Trn > GETDATE() - 30
+                AND OG_Sub.Sociedad  = 'MX10'
+                AND OG_Sub.RFC       = 'BAT030325CE9'  
+          ) ;
+
+        EXEC WA_ERR_INVOICE_PAYMETHOD 4 ;
+
+        OPEN PREVENTAS;
+        FETCH NEXT FROM PREVENTAS INTO @REN_FACTURA, @REN_FECHA_FACTURA, @REN_FECHA_CANCELACION, @REN_CLIENTE_SAP, @REN_CLASE_FACTURA, @REN_TOTAL, @REN_TOTAL_DETALLE;
+
+        WHILE @@FETCH_STATUS = 0
+        BEGIN
+            SET @sPROCESAR = 'SI' ;
+            SET @sFACTURA  = @REN_FACTURA ;
+
+            IF ( ( ABS( @REN_TOTAL - @REN_TOTAL_DETALLE ) < 0.10 ) AND ( @sPROCESAR = 'SI' ) ) 
+            BEGIN
+                EXEC PROC_V40_GENERAR_OTROS @REN_FACTURA ;
+
+                UPDATE T3.OTROS_GENERAL 
+                SET Fecha_Proc_BATMD = GETDATE()
+                WHERE Factura = @REN_FACTURA ;
+            END;
+
+            FETCH NEXT FROM PREVENTAS INTO @REN_FACTURA, @REN_FECHA_FACTURA, @REN_FECHA_CANCELACION, @REN_CLIENTE_SAP, @REN_CLASE_FACTURA, @REN_TOTAL, @REN_TOTAL_DETALLE;
+        END;
+
+        CLOSE PREVENTAS;
+        DEALLOCATE PREVENTAS;
+
+    END TRY
+    BEGIN CATCH
+        IF CURSOR_STATUS('local', 'PREVENTAS') >= 0 BEGIN CLOSE PREVENTAS; DEALLOCATE PREVENTAS; END;
+        THROW;
+    END CATCH
+END;
+GO
+
+

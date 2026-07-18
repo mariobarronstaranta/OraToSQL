@@ -6,10 +6,10 @@
       ampersand por el texto "-amp-" para obtener XML valido, copiarlos al log
       de recepcion y marcar el mensaje original para reproceso.
 
-    Diferencia estructural entre motores:
-      Oracle utiliza el ROWID fisico de MX_EAI_MESSAGE_LOG. Esa tabla no tiene
-      una llave equivalente en el modelo SQL Server, por lo que se genera un
-      ROW_ID unico de 32 caracteres al insertar en MX_RECEIVE_MESSAGE_LOG.
+    Equivalencia de identificadores:
+      MX_EAI_MESSAGE_LOG.ROW_ID identifica la fila origen y sustituye el ROWID
+      fisico de Oracle. El ROW_ID de 32 caracteres generado para
+      MX_RECEIVE_MESSAGE_LOG conserva su contrato independiente.
 */
 CREATE OR ALTER PROCEDURE [EAI_OWNER].[WA_ERR_CUSTOMER_AMPERSAND]
     @pDias INT = 0
@@ -35,8 +35,12 @@ BEGIN
             Se materializa el conjunto antes de modificarlo. UPDLOCK y
             HOLDLOCK evitan que otra ejecucion procese simultaneamente las
             mismas filas mientras esta transaccion permanece abierta.
+
+            Cambio homologado ROW_ID:
+            Source_ROW_ID conserva la llave de la fila origen del log.
         */
         SELECT
+            Source_ROW_ID = Err.ROW_ID,
             Receive_Row_ID = REPLACE(CONVERT(VARCHAR(36), NEWID()), '-', ''),
             Err.Queue_Name,
             XML_Content = CAST
@@ -57,7 +61,7 @@ BEGIN
 
         -- Se guarda una referencia util para el log si una operacion posterior
         -- falla. En el proceso por conjuntos no existe una "fila actual".
-        SELECT @v_ID = MIN(Receive_Row_ID)
+        SELECT @v_ID = CONVERT(VARCHAR(50), MIN(Source_ROW_ID))
         FROM #CustomersToReprocess;
 
         INSERT INTO [EAI_OWNER].[MX_RECEIVE_MESSAGE_LOG]
@@ -71,16 +75,13 @@ BEGIN
 
         SET @nCustomers = @@ROWCOUNT;
 
-        /*
-            Se aplica el mismo filtro utilizado para crear el conjunto. Los
-            bloqueos anteriores impiden que cambie entre el INSERT y el UPDATE.
-        */
+        /* Cambio homologado ROW_ID: actualizar solo las filas materializadas. */
         UPDATE Err
         SET Err.Status = 'Reprocess'
         FROM [EAI_OWNER].[MX_EAI_MESSAGE_LOG] Err
-        WHERE Err.Created    > @FechaCorte
-          AND Err.Queue_Name = 'Customer'
-          AND Err.Status     = 'Error';
+        INNER JOIN #CustomersToReprocess C
+            ON C.Source_ROW_ID = Err.ROW_ID
+        WHERE Err.Status = 'Error';
 
         PRINT CONCAT('Customers -> ', @nCustomers);
 

@@ -1,0 +1,40 @@
+/* Equivalente de los GRANT EXECUTE otorgados sobre el package Oracle. */
+DECLARE
+      @Principal SYSNAME
+    , @Sql NVARCHAR(MAX);
+
+DECLARE Principals CURSOR LOCAL FAST_FORWARD FOR
+SELECT PrincipalName
+FROM (VALUES
+    (N'LEGV3_SUPPORT'),
+    (N'INTEGRATION_ROLE'),
+    (N'ITX_DEV')
+) AS P(PrincipalName)
+WHERE DATABASE_PRINCIPAL_ID(P.PrincipalName) IS NOT NULL;
+
+OPEN Principals;
+FETCH NEXT FROM Principals INTO @Principal;
+
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    SET @Sql = N'
+        GRANT EXECUTE ON OBJECT::[EAI_OWNER].[RECV_CUSTOMER] TO ' + QUOTENAME(@Principal) + N';
+        GRANT EXECUTE ON OBJECT::[EAI_OWNER].[PROC_CUSTOMER] TO ' + QUOTENAME(@Principal) + N';
+        GRANT EXECUTE ON OBJECT::[EAI_OWNER].[RECV_CREDIT] TO ' + QUOTENAME(@Principal) + N';
+        GRANT EXECUTE ON OBJECT::[EAI_OWNER].[PROC_CREDIT] TO ' + QUOTENAME(@Principal) + N';
+        GRANT EXECUTE ON OBJECT::[EAI_OWNER].[RECV_PRODUCT] TO ' + QUOTENAME(@Principal) + N';
+        GRANT EXECUTE ON OBJECT::[EAI_OWNER].[RECV_PRICE] TO ' + QUOTENAME(@Principal) + N';
+        GRANT EXECUTE ON OBJECT::[EAI_OWNER].[RECV_INVOICE] TO ' + QUOTENAME(@Principal) + N';
+        GRANT EXECUTE ON OBJECT::[EAI_OWNER].[RECV_ORDER] TO ' + QUOTENAME(@Principal) + N';
+        GRANT EXECUTE ON OBJECT::[EAI_OWNER].[PROC_ORDER] TO ' + QUOTENAME(@Principal) + N';
+        GRANT EXECUTE ON OBJECT::[EAI_OWNER].[RECV_REPLENISHMENT] TO ' + QUOTENAME(@Principal) + N';
+        GRANT EXECUTE ON OBJECT::[EAI_OWNER].[RECV_PAYMENT] TO ' + QUOTENAME(@Principal) + N';
+        GRANT EXECUTE ON OBJECT::[EAI_OWNER].[RECV_INVOICE_INTERCOMPANY] TO ' + QUOTENAME(@Principal) + N';';
+
+    EXEC sys.sp_executesql @Sql;
+    FETCH NEXT FROM Principals INTO @Principal;
+END;
+
+CLOSE Principals;
+DEALLOCATE Principals;
+GO

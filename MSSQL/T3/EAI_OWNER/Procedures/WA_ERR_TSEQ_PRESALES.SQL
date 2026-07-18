@@ -1,63 +1,78 @@
-CREATE OR ALTER PROCEDURE [dbo].[WA_ERR_TSEQ_PRESALES]
+/*
+    Homologo SQL Server de EAI_OWNER.WA_ERR_TSEQ_PRESALES (Oracle).
+
+    Objetivo:
+      1. Revisar las secuencias de preventa ORD y AASR por TS_RowID.
+      2. Clasificar cada transicion como retroceso, repeticion o avance.
+      3. Registrar los retrocesos en TRANSACTION_SEQUENCE_ERRORS.
+      4. Cerrar la bitacora del componente 928 con los conteos obtenidos.
+
+    Se conserva un cursor LOCAL FAST_FORWARD porque Oracle mantiene valores de
+    estado distintos: Rule_Rugex permanece con el valor de la primera fila del
+    TS_RowID, mientras Resource y Sequence avanzan con cada fila. El recorrido
+    explicito evita que una conversion con LAG cambie esa regla.
+*/
+CREATE OR ALTER PROCEDURE [EAI_OWNER].[WA_ERR_TSEQ_PRESALES]
 (
-    @pDays      INT = 1,
-    @pDiffHours INT = 5
+    /* NUMBER permite fracciones; DECIMAL conserva dias y horas parciales. */
+    @pDays      DECIMAL(10,4) = 1,
+    @pDiffHours DECIMAL(10,4) = 5
 )
 AS
 BEGIN
     SET NOCOUNT ON;
-    SET XACT_ABORT ON;
 
-    DECLARE 
+    /* Oracle confirma el trabajo previo dentro de WHEN OTHERS. */
+    SET XACT_ABORT OFF;
+
+    DECLARE
         @sErrorCode       VARCHAR(30),
         @sMsg             VARCHAR(300),
-        @v_ID             VARCHAR(50),
+        @v_ID             VARCHAR(50) = NULL,
         @nFailures        INT = 0,
         @nRows            INT = 0,
         @nNotUpdated      INT = 0,
-        @nUpdated         INT = 0,N
+        @nUpdated         INT = 0,
+        @nRange           DECIMAL(8,0),
+        @nFound           INT,
         @nComponent       INT = 928,
-        @nPID             BIGINT;
+        @nPID             BIGINT = NULL,
+        @FechaCorte       DATE,
 
-    /*
-        Tabla temporal de fallas detectadas.
-        Se conserva el identificador anterior de Rule_Rugex, Sequence_Number y Resource,
-        porque la lógica Oracle registra la falla comparando el registro actual contra el previo.
-    */
-    DECLARE @Failures TABLE
-    (
-        FailureID              INT IDENTITY(1,1) PRIMARY KEY,
-        TS_RowID               VARCHAR(100) NULL,
-        Rule_Rugex             VARCHAR(100) NULL,
-        Rule_Rugex_Key         VARCHAR(6)   NULL,
-        Seq_Prev               INT          NULL,
-        Seq_Next               INT          NULL,
-        LastUpdated            VARCHAR(19)  NULL,
-        ResourceName           VARCHAR(100) NULL,
-        UpdatedRows            INT          NOT NULL DEFAULT 0
-    );
+        @sTSRowIDOld      VARCHAR(100) = 'Init',
+        @sTSNameOld       VARCHAR(100),
+        @sTSResourceOld   VARCHAR(100),
+        @sTransactionOld  VARCHAR(100),
+        @nSequenceOld     DECIMAL(8,0),
+        @sRuleRugexOld    VARCHAR(100),
+        @sModifiedDateOld VARCHAR(100),
+
+        @sTSRowIDNew      VARCHAR(100),
+        @sTSNameNew       VARCHAR(100),
+        @sTSResourceNew   VARCHAR(100),
+        @sTransactionNew  VARCHAR(100),
+        @nSequenceNew     DECIMAL(8,0),
+        @sRuleRugexNew    VARCHAR(100),
+        @sModifiedDateNew VARCHAR(100),
+        @sMXModifiedDate  VARCHAR(19);
 
     BEGIN TRY
-        BEGIN TRAN;
+        BEGIN TRANSACTION;
 
-        /*
-            Equivalente a:
-            Log_Start(nComponent);
-        */
-        EXEC [dbo].[Log_Start] @nComponent;
+        ----------------------------------------------------------------------
+        -- 1. Inicio del componente y de su bitacora de proceso.
+        ----------------------------------------------------------------------
+        EXEC [EAI_OWNER].[LOG_START]
+            @nComponent = @nComponent;
 
-        /*
-            Equivalente a:
-            EAI_Owner.ProcessID.NextVal
-        */
-        SELECT @nPID = NEXT VALUE FOR [EAI_Owner].[ProcessID];
+        SET @nPID = NEXT VALUE FOR [EAI_OWNER].[ProcessID];
 
         INSERT INTO [T3].[RF_PROCESOS_LOG]
         (
-            [PID],
-            [Proceso],
-            [Fecha_Proc_BATMD],
-            [Inicio]
+            PID,
+            Proceso,
+            Fecha_Proc_BATMD,
+            Inicio
         )
         VALUES
         (
@@ -68,224 +83,183 @@ BEGIN
         );
 
         /*
-            Fuente normalizada.
-            Nota crítica:
-            Oracle:
-                TSH.Rule_Rugex NOT LIKE '[OV%'
-            En Oracle '[' no es wildcard especial para LIKE.
-            En SQL Server '[' inicia una expresión de patrón.
-            Para preservar la lógica original se usa:
-                NOT LIKE '[[]OV%'
-            Esto significa: no inicia con el literal '[OV'.
+            Equivale a TRUNC(SYSDATE - NVL(pDays, 1)). Se usan segundos para
+            conservar la parte fraccionaria de pDays antes de truncar la fecha.
         */
-        ;WITH SourceInfo AS
+        SET @FechaCorte = CONVERT
         (
+            date,
+            DATEADD
+            (
+                SECOND,
+                CONVERT(INT, -COALESCE(@pDays, 1) * 86400),
+                SYSDATETIME()
+            )
+        );
+
+        ----------------------------------------------------------------------
+        -- 2. Recorrido ordenado: equivalente al cursor ScrInfo de Oracle.
+        ----------------------------------------------------------------------
+        DECLARE ScrInfo CURSOR LOCAL FAST_FORWARD FOR
             SELECT
-                CAST(TSH.[ID] AS VARCHAR(100))                  AS TS_RowID,
-                CAST(TSH.[Name] AS VARCHAR(100))                AS TS_Name,
-                CAST(TSH.[Resource_R] AS VARCHAR(100))          AS TS_Resource,
-                CAST(TSH.[Transaction_Type] AS VARCHAR(100))    AS Transaction_Type,
-                TRY_CONVERT(INT, TSH.[Sequence_Number])         AS Sequence_Number,
-                CAST(TSH.[Rule_Rugex] AS VARCHAR(100))          AS Rule_Rugex,
-
-                REPLACE(
-                    REPLACE(CAST(TSH.[LastModifiedDate] AS VARCHAR(50)), '.000Z', ''),
-                    'T',
-                    ' '
-                ) AS ModifiedDate,
-
+                TSH.ID AS TS_RowID,
+                TSH.Name AS TS_Name,
+                TSH.Resource_R AS TS_Resource,
+                TSH.Transaction_Type,
+                /*
+                    La conversion estricta reproduce la asignacion a NUMBER(8):
+                    una secuencia invalida debe activar CATCH, no ser ignorada.
+                */
+                CONVERT(DECIMAL(8,0), TSH.Sequence_Number) AS Sequence_Number,
+                TSH.Rule_Rugex,
+                D.ModifiedDate,
                 CONVERT
                 (
                     VARCHAR(19),
                     DATEADD
                     (
-                        HOUR,
-                        -COALESCE(@pDiffHours, 0),
-                        TRY_CONVERT
-                        (
-                            DATETIME2(0),
-                            REPLACE
-                            (
-                                REPLACE(CAST(TSH.[LastModifiedDate] AS VARCHAR(50)), '.000Z', ''),
-                                'T',
-                                ' '
-                            ),
-                            120
-                        )
+                        SECOND,
+                        CONVERT(INT, -COALESCE(@pDiffHours, 0) * 3600),
+                        CONVERT(DATETIME2(0), D.ModifiedDate, 120)
                     ),
                     120
-                ) AS MX_ModifiedDate,
-
-                TSH.[Extract_dt]
-            FROM [EAI_Owner].[Transaction_Sequence_Hist] AS TSH
-            WHERE TSH.[Transaction_Type] IN ('ORD', 'AASR')
-              AND TSH.[Rule_Rugex] NOT LIKE '[[]OV%'
-              AND TSH.[Insert_Hist] > CAST(DATEADD(DAY, -COALESCE(@pDays, 1), SYSDATETIME()) AS DATE)
-        ),
-        OrderedInfo AS
-        (
-            SELECT
-                SI.*,
-
-                LAG(SI.TS_Resource) OVER
+                ) AS MX_ModifiedDate
+            FROM [EAI_OWNER].[TRANSACTION_SEQUENCE_HIST] AS TSH
+            CROSS APPLY
+            (
+                SELECT ModifiedDate = REPLACE
                 (
-                    PARTITION BY SI.TS_RowID
-                    ORDER BY SI.ModifiedDate, SI.Extract_dt
-                ) AS Prev_TS_Resource,
-
-                LAG(SI.Sequence_Number) OVER
-                (
-                    PARTITION BY SI.TS_RowID
-                    ORDER BY SI.ModifiedDate, SI.Extract_dt
-                ) AS Prev_Sequence_Number,
-
-                LAG(SI.Rule_Rugex) OVER
-                (
-                    PARTITION BY SI.TS_RowID
-                    ORDER BY SI.ModifiedDate, SI.Extract_dt
-                ) AS Prev_Rule_Rugex,
-
-                LAG(SI.ModifiedDate) OVER
-                (
-                    PARTITION BY SI.TS_RowID
-                    ORDER BY SI.ModifiedDate, SI.Extract_dt
-                ) AS Prev_ModifiedDate
-            FROM SourceInfo AS SI
-        ),
-        Compared AS
-        (
-            SELECT
-                OI.*,
-                OI.Sequence_Number - OI.Prev_Sequence_Number AS SeqRange
-            FROM OrderedInfo AS OI
-            WHERE OI.Prev_Sequence_Number IS NOT NULL
-        )
-        INSERT INTO @Failures
-        (
-            TS_RowID,
-            Rule_Rugex,
-            Rule_Rugex_Key,
-            Seq_Prev,
-            Seq_Next,
-            LastUpdated,
-            ResourceName
-        )
-        SELECT
-            C.TS_RowID,
-            C.Prev_Rule_Rugex,
-            SUBSTRING(C.Prev_Rule_Rugex, 2, 6),
-            C.Prev_Sequence_Number,
-            C.Sequence_Number,
-            C.MX_ModifiedDate,
-            C.Prev_TS_Resource
-        FROM Compared AS C
-        WHERE C.SeqRange < 0;
-
-        /*
-            Conteos equivalentes a los acumuladores del cursor Oracle.
-        */
-        ;WITH SourceInfo AS
-        (
-            SELECT
-                CAST(TSH.[ID] AS VARCHAR(100)) AS TS_RowID,
-                TRY_CONVERT(INT, TSH.[Sequence_Number]) AS Sequence_Number,
-                REPLACE(
-                    REPLACE(CAST(TSH.[LastModifiedDate] AS VARCHAR(50)), '.000Z', ''),
+                    REPLACE(TSH.LastModifiedDate, '.000Z', ''),
                     'T',
                     ' '
-                ) AS ModifiedDate,
-                TSH.[Extract_dt]
-            FROM [EAI_Owner].[Transaction_Sequence_Hist] AS TSH
-            WHERE TSH.[Transaction_Type] IN ('ORD', 'AASR')
-              AND TSH.[Rule_Rugex] NOT LIKE '[[]OV%'
-              AND TSH.[Insert_Hist] > CAST(DATEADD(DAY, -COALESCE(@pDays, 1), SYSDATETIME()) AS DATE)
-        ),
-        OrderedInfo AS
-        (
-            SELECT
-                SI.*,
-                LAG(SI.Sequence_Number) OVER
-                (
-                    PARTITION BY SI.TS_RowID
-                    ORDER BY SI.ModifiedDate, SI.Extract_dt
-                ) AS Prev_Sequence_Number
-            FROM SourceInfo AS SI
-        ),
-        Compared AS
-        (
-            SELECT
-                OI.TS_RowID,
-                OI.Sequence_Number - OI.Prev_Sequence_Number AS SeqRange
-            FROM OrderedInfo AS OI
-            WHERE OI.Prev_Sequence_Number IS NOT NULL
-        )
-        SELECT
-            @nRows       = (SELECT COUNT(DISTINCT TS_RowID) FROM SourceInfo),
-            @nFailures   = (SELECT COUNT(*) FROM Compared WHERE SeqRange < 0),
-            @nNotUpdated = (SELECT COUNT(*) FROM Compared WHERE SeqRange = 0),
-            @nUpdated    = (SELECT COUNT(*) FROM Compared WHERE SeqRange > 0);
+                )
+            ) AS D
+            WHERE TSH.Transaction_Type IN ('ORD', 'AASR')
+              /*
+                  En Oracle '[' es literal. En SQL Server se escapa como '[[]'
+                  para que el patron siga significando "inicia con [OV".
+              */
+              AND TSH.Rule_Rugex NOT LIKE '[[]OV%'
+              AND TSH.Insert_Hist > @FechaCorte
+            ORDER BY
+                TSH.ID,
+                D.ModifiedDate,
+                TSH.Extract_dt;
 
-        /*
-            Referencia para logging en caso de error.
-            Equivalente aproximado a v_ID := Seq.TS_RowID.
-        */
-        SELECT TOP (1)
-            @v_ID = TS_RowID
-        FROM @Failures
-        ORDER BY FailureID DESC;
+        OPEN ScrInfo;
 
-        /*
-            Primero actualiza errores existentes.
-            Equivalente a:
-            UPDATE Transaction_Sequence_Errors
-               SET UpdatedOn = SYSDATE
-             WHERE Rule_Rugex = ...
-               AND LastUpdated = ...
-               AND ResourceName = ...
-        */
-        UPDATE E
-            SET E.[UpdatedOn] = SYSDATETIME()
-        FROM [EAI_Owner].[Transaction_Sequence_Errors] AS E
-        INNER JOIN @Failures AS F
-            ON E.[Rule_Rugex]   = F.Rule_Rugex_Key
-           AND E.[LastUpdated]  = F.LastUpdated
-           AND E.[ResourceName] = F.ResourceName;
+        FETCH NEXT FROM ScrInfo INTO
+            @sTSRowIDNew,
+            @sTSNameNew,
+            @sTSResourceNew,
+            @sTransactionNew,
+            @nSequenceNew,
+            @sRuleRugexNew,
+            @sModifiedDateNew,
+            @sMXModifiedDate;
 
-        /*
-            Inserta únicamente fallas que no existían.
-            Se usa SELECT DISTINCT para evitar duplicados si el histórico trae eventos repetidos
-            con la misma llave funcional.
-        */
-        INSERT INTO [EAI_Owner].[Transaction_Sequence_Errors]
-        (
-            [Rule_Rugex],
-            [Seq_Prev],
-            [Seq_Next],
-            [LastUpdated],
-            [ResourceName],
-            [CreatedOn]
-        )
-        SELECT DISTINCT
-            F.Rule_Rugex_Key,
-            F.Seq_Prev,
-            F.Seq_Next,
-            F.LastUpdated,
-            F.ResourceName,
-            SYSDATETIME()
-        FROM @Failures AS F
-        WHERE NOT EXISTS
-        (
-            SELECT 1
-            FROM [EAI_Owner].[Transaction_Sequence_Errors] AS E
-            WHERE E.[Rule_Rugex]   = F.Rule_Rugex_Key
-              AND E.[LastUpdated]  = F.LastUpdated
-              AND E.[ResourceName] = F.ResourceName
-        );
+        WHILE @@FETCH_STATUS = 0
+        BEGIN
+            /* Oracle conserva el ultimo ID leido para la bitacora de error. */
+            SET @v_ID = @sTSRowIDNew;
 
-        /*
-            Equivalente a DBMS_OUTPUT.PUT_LINE.
-            PRINT es informativo; para auditoría formal ya existe RF_PROCESOS_LOG.
-        */
+            IF @sTSRowIDOld <> @sTSRowIDNew
+            BEGIN
+                SET @nRows = @nRows + 1;
+                SET @sTSRowIDOld = @sTSRowIDNew;
+                SET @sTSNameOld = @sTSNameNew;
+                SET @sTSResourceOld = @sTSResourceNew;
+                SET @sTransactionOld = @sTransactionNew;
+                SET @nSequenceOld = @nSequenceNew;
+                SET @sRuleRugexOld = @sRuleRugexNew;
+                SET @sModifiedDateOld = @sModifiedDateNew;
+            END
+            ELSE
+            BEGIN
+                SET @nRange = @nSequenceNew - @nSequenceOld;
+
+                IF @nRange < 0
+                BEGIN
+                    SET @nFailures = @nFailures + 1;
+
+                    PRINT CONCAT
+                    (
+                        'Rule_Rugex -> ', SUBSTRING(@sRuleRugexOld, 2, 6), '. ',
+                        'Sequence -> ',
+                        RIGHT(REPLICATE(' ', 6)
+                              + CONVERT(VARCHAR(20), @nSequenceOld), 6),
+                        ' -> ',
+                        RIGHT(REPLICATE(' ', 6)
+                              + CONVERT(VARCHAR(20), @nSequenceNew), 6),
+                        '. Updated -> ', @sMXModifiedDate, '. ',
+                        'Resource -> ', @sTSResourceOld
+                    );
+
+                    /*
+                        Se actualiza primero. Solo cuando no existe la llave
+                        funcional se inserta una nueva falla, igual que Oracle.
+                    */
+                    UPDATE [EAI_OWNER].[TRANSACTION_SEQUENCE_ERRORS]
+                       SET UpdatedOn = SYSDATETIME()
+                    WHERE Rule_Rugex = SUBSTRING(@sRuleRugexOld, 2, 6)
+                      AND LastUpdated = @sMXModifiedDate
+                      AND ResourceName = @sTSResourceOld;
+
+                    SET @nFound = @@ROWCOUNT;
+
+                    IF @nFound = 0
+                    BEGIN
+                        INSERT INTO [EAI_OWNER].[TRANSACTION_SEQUENCE_ERRORS]
+                        (
+                            Rule_Rugex,
+                            Seq_Prev,
+                            Seq_Next,
+                            LastUpdated,
+                            ResourceName,
+                            CreatedOn
+                        )
+                        VALUES
+                        (
+                            SUBSTRING(@sRuleRugexOld, 2, 6),
+                            @nSequenceOld,
+                            @nSequenceNew,
+                            @sMXModifiedDate,
+                            @sTSResourceOld,
+                            SYSDATETIME()
+                        );
+                    END;
+                END
+                ELSE IF @nRange = 0
+                    SET @nNotUpdated = @nNotUpdated + 1;
+                ELSE
+                    SET @nUpdated = @nUpdated + 1;
+
+                /*
+                    Rule_Rugex no se actualiza aqui: Oracle conserva el de la
+                    primera fila. Resource, Sequence y ModifiedDate si avanzan.
+                */
+                SET @sTSResourceOld = @sTSResourceNew;
+                SET @nSequenceOld = @nSequenceNew;
+                SET @sModifiedDateOld = @sModifiedDateNew;
+            END;
+
+            FETCH NEXT FROM ScrInfo INTO
+                @sTSRowIDNew,
+                @sTSNameNew,
+                @sTSResourceNew,
+                @sTransactionNew,
+                @nSequenceNew,
+                @sRuleRugexNew,
+                @sModifiedDateNew,
+                @sMXModifiedDate;
+        END;
+
+        CLOSE ScrInfo;
+        DEALLOCATE ScrInfo;
+
+        ----------------------------------------------------------------------
+        -- 3. Resumen y cierre de la bitacora del componente 928.
+        ----------------------------------------------------------------------
         PRINT '--------------------------------';
         PRINT CONCAT('TSeq Reviewed -> ', @nRows);
         PRINT CONCAT('Failures      -> ', @nFailures);
@@ -293,44 +267,45 @@ BEGIN
         PRINT CONCAT('Updated Ok    -> ', @nUpdated);
 
         UPDATE [EAI_OWNER].[MX_COMPONENTS]
-            SET [Status] = 1
-        WHERE [Component] = @nComponent;
+           SET Status = 1
+        WHERE Component = @nComponent;
 
         UPDATE [T3].[RF_PROCESOS_LOG]
-            SET [Fin]       = SYSDATETIME(),
-                [Proceso_1] = @nRows,
-                [Proceso_2] = @nFailures,
-                [Proceso_3] = @nNotUpdated,
-                [Proceso_4] = @nUpdated
-        WHERE [PID] = @nPID;
+           SET Fin = SYSDATETIME(),
+               Proceso_1 = @nRows,
+               Proceso_2 = @nFailures,
+               Proceso_3 = @nNotUpdated,
+               Proceso_4 = @nUpdated
+        WHERE PID = @nPID;
 
-        COMMIT;
+        COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
-        IF XACT_STATE() <> 0
-            ROLLBACK;
-
-        SET @sErrorCode = CONCAT('SQL-', ERROR_NUMBER());
+        SET @sErrorCode = CONCAT('SQL-', CONVERT(VARCHAR(20), ERROR_NUMBER()));
         SET @sMsg = LEFT(CONCAT(ERROR_NUMBER(), '-', ERROR_MESSAGE()), 250);
 
         /*
-            Se registra el error fuera de la transacción principal,
-            imitando el comportamiento Oracle que hace COMMIT en el EXCEPTION.
+            Si la transaccion no es confirmable se revierte antes de registrar
+            el error. Si aun es valida, el COMMIT conserva el trabajo previo,
+            reproduciendo el WHEN OTHERS de Oracle.
         */
+        IF XACT_STATE() = -1
+            ROLLBACK TRANSACTION;
+
         INSERT INTO [EAI_OWNER].[MX_EAI_MESSAGE_LOG]
         (
-            [DIRECTION],
-            [REFERENCE],
-            [CREATED],
-            [MESSAGE],
-            [STATUS],
-            [QUEUE_NAME],
-            [SIEBEL_ERROR_MESSAGE],
-            [SOURCE],
-            [SIEBEL_ERROR_CODE],
-            [RETRY_COUNT],
-            [SEQUENCE],
-            [PARENT_ROW_ID]
+            Direction,
+            Reference,
+            Created,
+            Message,
+            Status,
+            Queue_Name,
+            Siebel_Error_Message,
+            Source,
+            Siebel_Error_Code,
+            Retry_Count,
+            [Sequence],
+            Parent_Row_ID
         )
         VALUES
         (
@@ -348,11 +323,11 @@ BEGIN
             NULL
         );
 
-        /*
-            Si se desea comportamiento idéntico a Oracle, no relanzar el error.
-            Si se desea que el job falle en SQL Agent, descomentar THROW.
-        */
-        -- THROW;
+        IF XACT_STATE() = 1
+            COMMIT TRANSACTION;
+
+        -- Oracle registra el error y finaliza sin volver a lanzarlo.
+        RETURN;
     END CATCH;
 END;
 GO

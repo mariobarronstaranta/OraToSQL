@@ -46,6 +46,10 @@ Este documento resume las convenciones usadas en las conversiones del proyecto. 
 - Cuidar semantica de `NULL`: en Oracle `''` se trata como `NULL`, mientras SQL Server distingue cadena vacia de `NULL`.
 - Si Oracle usa `ROWID`, validar si la tabla SQL Server conserva una columna equivalente. Si no existe, documentar el identificador usado como sustituto.
 - No asumir que existe una columna `Row_ID` solo porque Oracle consulta el pseudocampo `ROWID`. Revisar el DDL SQL Server; cuando no haya llave equivalente, generar un identificador para el destino o conservar el conjunto mediante bloqueos y filtros documentados.
+- Para `[EAI_OWNER].[MX_EAI_MESSAGE_LOG]`, aplicar `MSSQL/T3/EAI_OWNER/Tables/ALTER_MX_EAI_MESSAGE_LOG_ADD_ROW_ID.SQL`: la columna `[ROW_ID]` se genera con la secuencia `[EAI_OWNER].[MX_EAI_MESSAGE_LOG_ROW_ID_SEQ]` y puede usarse como sustituto estable del `ROWID` Oracle.
+- El nuevo `[EAI_OWNER].[MX_EAI_MESSAGE_LOG].[ROW_ID]` identifica exclusivamente la fila origen del log. No sustituir con ese valor el `ROW_ID` logico generado para `[EAI_OWNER].[MX_RECEIVE_MESSAGE_LOG]` salvo que exista una decision funcional especifica.
+- En reprocesos, materializar `MX_EAI_MESSAGE_LOG.ROW_ID` como `Source_ROW_ID BIGINT` y relacionar el `UPDATE` o `DELETE` mediante esa llave; no reconstruir la identidad con combinaciones de `ID`, `CREATED` y `MESSAGE`.
+- Identificar estos ajustes dentro del T-SQL con la etiqueta `Cambio homologado ROW_ID`: documentar la estructura que conserva las llaves, la materializacion de candidatos y el `UPDATE` o `DELETE` final por `ROW_ID`.
 
 ## Logging de procesos
 
@@ -139,6 +143,7 @@ La presencia de `WHEN OTHERS` no implica por si sola que SQL Server deba ejecuta
 - En `CATCH`, ejecutar `ROLLBACK TRANSACTION` solo si `XACT_STATE() <> 0`.
 - Conservar los limites de confirmacion funcionales. Si Oracle confirma cada iteracion, una unica transaccion para todo el procedimiento puede cambiar que trabajo permanece ante un error intermedio.
 - No ejecutar `ROLLBACK` en un procedimiento que no abrio su propia transaccion: podria revertir trabajo perteneciente al invocador.
+- Si el bloque `EXCEPTION` Oracle registra el error y ejecuta `COMMIT`, evaluar `SET XACT_ABORT OFF`: en el `CATCH`, revertir solo si `XACT_STATE() = -1`; si el estado es `1`, registrar el error y confirmar para conservar el trabajo previo. Esta regla debe aplicarse caso por caso.
 
 ## Cursores
 
@@ -149,6 +154,57 @@ Mantener cursor solo si:
 - Existe dependencia estricta del orden.
 - Hay side effects por iteracion.
 - El resultado cambia segun acumuladores no triviales.
+
+Si un cursor T-SQL puede quedar abierto al saltar al `CATCH`, cerrarlo y liberarlo usando `CURSOR_STATUS` antes de registrar o propagar el error.
+
+## ROWNUM sin orden explicito
+
+Oracle no garantiza orden cuando usa `ROWNUM` sin `ORDER BY`. Al generar una secuencia equivalente con `ROW_NUMBER()`, no introducir una regla de negocio artificial; usar `ORDER BY (SELECT NULL)` y documentar que la asignacion es no determinista. Si el orden es funcionalmente importante, debe definirse y validarse como una decision separada.
+
+## Packages Oracle
+
+- SQL Server no tiene `PACKAGE`; convertir cada miembro en un procedimiento o
+  funcion independiente dentro del schema original.
+- Leer specification y body completos. Un miembro privado llamado por otro
+  miembro tambien debe migrarse.
+- La clausula final `END package` no representa un coordinador ejecutable.
+- Convertir `schema.package.member(...)` a `[schema].[member]` y actualizar todas
+  las llamadas internas, jobs y permisos.
+- No agregar un prefijo al nombre publico si no fue aprobado. La carpeta
+  `Package`/`Packages` conserva agrupacion visual, no namespace.
+- Separar `GRANT` de la implementacion; un archivo de permisos no sustituye el
+  package.
+- Para database links, usar linked server/sinonimo o una interfaz acordada. No
+  inventar servidor, base ni credenciales.
+
+## Secuencias
+
+- Calificar siempre el schema: `NEXT VALUE FOR [schema].[sequence]`.
+- Comparar `START WITH` contra valores ya usados antes de crear en una base con
+  datos.
+- No asumir continuidad: caché, rollbacks y errores dejan huecos.
+- `ORDER`, `NOORDER`, `KEEP`, `SCALE` y atributos globales Oracle no tienen
+  equivalencia directa y deben documentarse.
+- Los scripts idempotentes no deben reiniciar una secuencia existente.
+
+## DBMS_JOB y SQL Server Agent
+
+- Determinar pertenencia por el inventario Oracle (`PRIV_USER`/`SCHEMA_USER`),
+  no por el schema del procedimiento contenido en `WHAT`.
+- Convertir `WHAT` en un Step T-SQL y `INTERVAL` en un schedule exclusivo.
+- Conservar el numero Oracle en `dbo.Job_Oracle_SQLAgent_Map` cuando los
+  procedimientos de administracion todavía lo usan.
+- `BROKEN=Y` se convierte en job deshabilitado. Durante migracion, crear todos
+  deshabilitados y habilitar solo en una ventana autorizada.
+- No reutilizar schedules si `JOB_INTERVAL`, `JOB_NEXT_DATE` o `JOB_NEXT_RUN`
+  pueden modificarlos individualmente.
+- Validar dependencias transitivas, propietario, permisos, SQL Server Agent,
+  operadores y Database Mail antes de habilitar.
+- Oracle puede recalcular expresiones relativas y presentar deriva; SQL Server
+  Agent usa una cuadricula de calendario fija.
+- Si otro codigo busca texto del package en `USER_JOBS.WHAT`, conservar una
+  marca compatible en el job name o cambiar la consulta para usar el mapeo. No
+  reintroducir prefijos rechazados en los stored procedures.
 
 ## Reglas de validacion estatica
 

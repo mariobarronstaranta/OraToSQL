@@ -1,216 +1,238 @@
-CREATE OR ALTER PROCEDURE EAI_Owner.WA_QTY_SAP_BILLING
+/*
+    Homologo SQL Server de EAI_OWNER.WA_QTY_SAP_BILLING (Oracle).
+
+    Convierte una cantidad facturada a la unidad de medida de venta del
+    material. La conversion depende de la unidad recibida, los factores del
+    maestro de materiales y la categoria calculada (FMC, PP, VAPOR, etc.).
+
+    El procedimiento Oracle usa un cursor. Aunque normalmente Material deberia
+    ser unico, aqui tambien se recorren todas las coincidencias para conservar
+    el comportamiento si existen duplicados en el maestro.
+*/
+CREATE OR ALTER PROCEDURE [EAI_OWNER].[WA_QTY_SAP_BILLING]
 (
-    @pReference      VARCHAR(100),
-    @pMaterial       VARCHAR(100),
-    @pCantidad       DECIMAL(38,10),
-    @pUnidadMedida   VARCHAR(30),
-    @pCantUMV        DECIMAL(38,10) OUTPUT,
-    @pUMV            VARCHAR(30) OUTPUT
+    @pReference    VARCHAR(100),
+    @pMaterial     VARCHAR(100),
+    @pCantidad     DECIMAL(38,10),
+    @pUnidadMedida VARCHAR(30),
+    @pCantUMV      DECIMAL(38,10) OUTPUT,
+    @pUMV          VARCHAR(30) OUTPUT
 )
 AS
 BEGIN
     SET NOCOUNT ON;
 
+    /* El WHEN OTHERS de Oracle recupera valores sin propagar el error. */
+    SET XACT_ABORT OFF;
+
     DECLARE
-        @sWorkaround       VARCHAR(500),
-        @Material          VARCHAR(100),
-        @Nombre_Material   VARCHAR(255),
-        @Material_Group    VARCHAR(100),
-        @SAT_Clave         VARCHAR(100),
-        @Unidad_Med_Vta    VARCHAR(30),
-        @Cig_x_CLL         DECIMAL(38,10),
-        @Cig_x_PAQ         DECIMAL(38,10),
-        @Cig_x_CT          DECIMAL(38,10),
-        @Factor_PAQ        DECIMAL(38,10),
-        @Paq_x_Carton      DECIMAL(38,10),
-        @Fecha_Creacion    DATETIME,
-        @Categoria         VARCHAR(30);
+        @sUnidadMedVta VARCHAR(30),
+        @nCigPorCLL    DECIMAL(38,10),
+        @nFactorPAQ    DECIMAL(38,10),
+        @nPaqPorCarton DECIMAL(38,10),
+        @sCategoria    VARCHAR(30),
+        @sWorkaround   VARCHAR(500);
 
     BEGIN TRY
-        /*
-            Valores default equivalentes al inicio del procedure Oracle:
-            pCantUMV := pCantidad;
-            pUMV     := pUnidadMedida;
-        */
+        ----------------------------------------------------------------------
+        -- 1. Valores de salida iniciales y homologacion de la unidad SAP.
+        ----------------------------------------------------------------------
         SET @pCantUMV = @pCantidad;
-        SET @pUMV     = @pUnidadMedida;
+        SET @pUMV = @pUnidadMedida;
 
-        /*
-            Equivalente a:
-            SELECT EAI_Owner.GETCONV('ECC_V3 UOM', pUnidadMedida)
-            INTO pUMV
-            FROM DUAL;
-        */
-        SELECT @pUMV = EAI_Owner.GETCONV('ECC_V3 UOM', @pUnidadMedida);
+        SET @pUMV = [EAI_OWNER].[GETCONV]('ECC_V3 UOM', @pUnidadMedida);
 
-        /*
-            Reemplazo del cursor ScrProducto.
-            Se usa TOP (1) porque el procedure procesa un solo material.
-        */
-        SELECT TOP (1)
-               @Material        = Info.Material,
-               @Nombre_Material = Info.Nombre_Material,
-               @Material_Group  = Info.Material_Group,
-               @SAT_Clave       = Info.SAT_Clave,
-               @Unidad_Med_Vta  = Info.Unidad_Med_Vta,
-               @Cig_x_CLL       = Info.Cig_x_CLL,
-               @Cig_x_PAQ       = Info.Cig_x_PAQ,
-               @Cig_x_CT        = Info.Cig_x_CT,
-               @Factor_PAQ      = Info.Factor_PAQ,
-               @Paq_x_Carton    = Info.Paq_x_Carton,
-               @Fecha_Creacion  = Info.Fecha_Creacion,
-               @Categoria       = Info.Categoria
-        FROM
-        (
+        ----------------------------------------------------------------------
+        -- 2. Maestro del material: equivalente al cursor ScrProducto.
+        ----------------------------------------------------------------------
+        DECLARE ScrProducto CURSOR LOCAL FAST_FORWARD FOR
             SELECT
-                SKU.Material,
-                SKU.Nombre_Material,
-                SAT.SAT_Clave,
                 SKU.Unidad_Med_Vta,
-                COALESCE(SKU.Cig_x_CLL, 0) AS Cig_x_CLL,
-                COALESCE(SKU.Cig_x_PAQ, 0) AS Cig_x_PAQ,
-                COALESCE(SKU.Cig_x_CT,  0) AS Cig_x_CT,
-
+                CONVERT(DECIMAL(38,10), COALESCE(SKU.Cig_x_CLL, 0)),
                 CASE
                     WHEN COALESCE(SKU.Cig_x_CLL, 0) = 0 THEN 0
-                    ELSE COALESCE(SKU.Cig_x_PAQ, 0) / COALESCE(SKU.Cig_x_CLL, 0)
+                    ELSE
+                        CONVERT(DECIMAL(38,10), COALESCE(SKU.Cig_x_PAQ, 0))
+                        / CONVERT(DECIMAL(38,10), SKU.Cig_x_CLL)
                 END AS Factor_PAQ,
-
                 CASE
                     WHEN COALESCE(SKU.Cig_x_PAQ, 0) = 0 THEN 0
-                    ELSE COALESCE(SKU.Cig_x_CT, 0) / COALESCE(SKU.Cig_x_PAQ, 0)
-                END AS Factor_CARTON,
-
-                SKU.Creacion AS Fecha_Creacion,
-
+                    ELSE
+                        CONVERT(DECIMAL(38,10), COALESCE(SKU.Cig_x_CT, 0))
+                        / CONVERT(DECIMAL(38,10), SKU.Cig_x_PAQ)
+                END AS Paq_x_Carton,
                 CASE
-                    WHEN CHARINDEX('EPOD', UPPER(SKU.Nombre_Material)) > 0 THEN 'VAPOR'
-                    WHEN CHARINDEX('VYPE', UPPER(SKU.Nombre_Material)) > 0 THEN 'VAPOR'
-                    WHEN CHARINDEX('VUSE', UPPER(SKU.Nombre_Material)) > 0 THEN 'VAPOR'
-                    WHEN CHARINDEX('VELO', UPPER(SKU.Nombre_Material)) > 0 THEN 'VELO'
-                    WHEN SKU.Material LIKE '50%' THEN 'PP'
-                    WHEN COALESCE(SKU.Cig_x_CLL, 0) IN (14, 15, 16, 18, 20, 24, 25) THEN 'FMC'
+                    WHEN CHARINDEX('EPOD', UPPER(SKU.Nombre_Material)) > 0
+                        THEN 'VAPOR'
+                    WHEN CHARINDEX('VYPE', UPPER(SKU.Nombre_Material)) > 0
+                        THEN 'VAPOR'
+                    WHEN CHARINDEX('VUSE', UPPER(SKU.Nombre_Material)) > 0
+                        THEN 'VAPOR'
+                    WHEN CHARINDEX('VELO', UPPER(SKU.Nombre_Material)) > 0
+                        THEN 'VELO'
+                    WHEN SKU.Material LIKE '50%'
+                        THEN 'PP'
+                    WHEN COALESCE(SKU.Cig_x_CLL, 0)
+                         IN (14, 15, 16, 18, 20, 24, 25)
+                        THEN 'FMC'
                     ELSE 'TBD'
-                END AS Categoria,
-
-                SKU.Nombre_Corto AS Material_Group
-            FROM T3.Material AS SKU
+                END AS Categoria
+            FROM [T3].[MATERIAL] AS SKU
             LEFT JOIN
             (
+                /*
+                    Oracle obtiene la mayor clave SAT de VTA. La columna no se
+                    usa despues, pero se conserva el join del cursor original.
+                */
                 SELECT
                     Material,
                     MAX(SAT_Clave) AS SAT_Clave
-                FROM T3.CFDI_ProdServ
+                FROM [T3].[CFDI_PRODSERV]
                 WHERE Modulo = 'VTA'
                 GROUP BY Material
             ) AS SAT
-                ON SKU.Material = SAT.Material
-            WHERE COALESCE(SKU.Creacion, GETDATE()) > CONVERT(DATETIME, '20150101', 112)
-        ) AS Info
-        WHERE Info.Material = @pMaterial;
+                ON SAT.Material = SKU.Material
+            WHERE COALESCE(SKU.Creacion, SYSDATETIME())
+                  > CONVERT(date, '20150101', 112)
+              AND SKU.Material = @pMaterial;
 
-        /*
-            Si no existe el material, Oracle no entra al FOR LOOP.
-            Por lo tanto, se conservan los valores ya asignados:
-            @pCantUMV = @pCantidad
-            @pUMV     = GETCONV(...)
-        */
-        IF @Material IS NULL
-        BEGIN
-            RETURN;
-        END;
+        OPEN ScrProducto;
 
-        /*
-            Conversión para MIL, PZ, PCE.
-        */
-        IF @pUnidadMedida IN ('MIL')
-        BEGIN
-            IF COALESCE(@Cig_x_CLL, 0) > 0
-            BEGIN
-                SET @pUMV     = @Unidad_Med_Vta;
-                SET @pCantUMV = @pCantidad * 1000 / COALESCE(@Cig_x_CLL, 0);
-            END;
-        END
-        ELSE IF @pUnidadMedida IN ('PZ', 'PCE')
-        BEGIN
-            IF COALESCE(@Cig_x_CLL, 0) > 0
-            BEGIN
-                SET @pUMV     = @Unidad_Med_Vta;
-                SET @pCantUMV = @pCantidad / COALESCE(@Cig_x_CLL, 0);
-            END;
-        END;
+        FETCH NEXT FROM ScrProducto INTO
+            @sUnidadMedVta,
+            @nCigPorCLL,
+            @nFactorPAQ,
+            @nPaqPorCarton,
+            @sCategoria;
 
-        /*
-            Conversiones especiales para categoría FMC.
-        */
-        IF @Categoria = 'FMC'
+        WHILE @@FETCH_STATUS = 0
         BEGIN
-            IF @pUMV = 'PAQ'
+            ------------------------------------------------------------------
+            -- 2.1 Conversion inicial de millares o piezas a unidad de venta.
+            ------------------------------------------------------------------
+            IF @pUnidadMedida = 'MIL'
             BEGIN
-                IF COALESCE(@Factor_PAQ, 0) > 0
+                IF COALESCE(@nCigPorCLL, 0) > 0
                 BEGIN
-                    SET @pUMV     = @Unidad_Med_Vta;
-                    SET @pCantUMV = @pCantidad * @Factor_PAQ;
-
-                    /*
-                        Mejora: en Oracle esta rama inserta sWorkaround sin asignarlo antes.
-                        Aquí se asigna para evitar log NULL.
-                    */
-                    SET @sWorkaround =
-                        CONCAT(
-                            'Conversion de ',
-                            LTRIM(RTRIM(CONVERT(VARCHAR(50), CAST(@pCantidad AS DECIMAL(38,4))))),
-                            ' ',
-                            @pUnidadMedida,
-                            ' -> ',
-                            LTRIM(RTRIM(CONVERT(VARCHAR(50), CAST(@pCantUMV AS DECIMAL(38,4))))),
-                            ' ',
-                            @pUMV
-                        );
-
-                    INSERT INTO EAI_Owner.WA_Logging
-                    (
-                        Fecha,
-                        Usuario,
-                        Usuario_Red,
-                        IP,
-                        Terminal,
-                        Documento,
-                        Comentario
-                    )
-                    VALUES
-                    (
-                        GETDATE(),
-                        SUSER_SNAME(),
-                        ORIGINAL_LOGIN(),
-                        CONVERT(VARCHAR(50), CONNECTIONPROPERTY('client_net_address')),
-                        HOST_NAME(),
-                        @pReference,
-                        @sWorkaround
-                    );
+                    SET @pUMV = @sUnidadMedVta;
+                    SET @pCantUMV = @pCantidad * 1000
+                                  / COALESCE(@nCigPorCLL, 0);
                 END;
             END
-            ELSE IF @pUMV = 'CASES'
+            ELSE IF @pUnidadMedida IN ('PZ', 'PCE')
             BEGIN
-                IF COALESCE(@Factor_PAQ, 0) > 0
-                   AND COALESCE(@Paq_x_Carton, 0) > 0
+                IF COALESCE(@nCigPorCLL, 0) > 0
                 BEGIN
-                    SET @pUMV     = @Unidad_Med_Vta;
-                    SET @pCantUMV = @pCantidad * @Factor_PAQ * @Paq_x_Carton;
+                    SET @pUMV = @sUnidadMedVta;
+                    SET @pCantUMV = @pCantidad
+                                  / COALESCE(@nCigPorCLL, 0);
+                END;
+            END;
 
-                    SET @sWorkaround =
-                        CONCAT(
+            ------------------------------------------------------------------
+            -- 2.2 Reglas especiales para materiales FMC.
+            ------------------------------------------------------------------
+            IF @sCategoria = 'FMC'
+            BEGIN
+                IF @pUMV = 'PAQ'
+                BEGIN
+                    IF @nFactorPAQ > 0
+                    BEGIN
+                        SET @pUMV = @sUnidadMedVta;
+                        SET @pCantUMV = @pCantidad * @nFactorPAQ;
+
+                        /*
+                            Oracle no asigna sWorkaround en esta rama. Por
+                            compatibilidad el comentario se inserta NULL, salvo
+                            que una iteracion anterior ya le haya dado valor.
+                        */
+                        INSERT INTO [EAI_OWNER].[WA_LOGGING]
+                        (
+                            Fecha,
+                            Usuario,
+                            Usuario_Red,
+                            IP,
+                            Terminal,
+                            Documento,
+                            Comentario
+                        )
+                        VALUES
+                        (
+                            SYSDATETIME(),
+                            SUSER_SNAME(),
+                            ORIGINAL_LOGIN(),
+                            CONVERT(VARCHAR(50),
+                                    CONNECTIONPROPERTY('client_net_address')),
+                            HOST_NAME(),
+                            @pReference,
+                            @sWorkaround
+                        );
+                    END;
+                END
+                ELSE IF @pUMV = 'CASES'
+                BEGIN
+                    IF @nFactorPAQ > 0 AND @nPaqPorCarton > 0
+                    BEGIN
+                        SET @pUMV = @sUnidadMedVta;
+                        SET @pCantUMV = @pCantidad
+                                      * @nFactorPAQ
+                                      * @nPaqPorCarton;
+
+                        SET @sWorkaround = CONCAT
+                        (
                             'Conversion de ',
-                            LTRIM(RTRIM(CONVERT(VARCHAR(50), CAST(@pCantidad AS DECIMAL(38,4))))),
-                            ' ',
-                            @pUnidadMedida,
-                            ' -> ',
-                            LTRIM(RTRIM(CONVERT(VARCHAR(50), CAST(@pCantUMV AS DECIMAL(38,4))))),
-                            ' ',
-                            @pUMV
+                            CONVERT(VARCHAR(50), @pCantidad),
+                            ' ', @pUnidadMedida, ' -> ',
+                            CONVERT(VARCHAR(50), @pCantUMV),
+                            ' ', @pUMV
                         );
 
-                    INSERT INTO EAI_Owner.WA_Logging
+                        INSERT INTO [EAI_OWNER].[WA_LOGGING]
+                        (
+                            Fecha,
+                            Usuario,
+                            Usuario_Red,
+                            IP,
+                            Terminal,
+                            Documento,
+                            Comentario
+                        )
+                        VALUES
+                        (
+                            SYSDATETIME(),
+                            SUSER_SNAME(),
+                            ORIGINAL_LOGIN(),
+                            CONVERT(VARCHAR(50),
+                                    CONNECTIONPROPERTY('client_net_address')),
+                            HOST_NAME(),
+                            @pReference,
+                            @sWorkaround
+                        );
+                    END;
+                END;
+            END
+            ------------------------------------------------------------------
+            -- 2.3 Los materiales PP convierten CASES solo por cajas/carton.
+            ------------------------------------------------------------------
+            ELSE IF @sCategoria = 'PP'
+            BEGIN
+                IF @pUMV = 'CASES'
+                   AND @nFactorPAQ > 0
+                   AND @nPaqPorCarton > 0
+                BEGIN
+                    SET @pUMV = @sUnidadMedVta;
+                    SET @pCantUMV = @pCantidad * @nPaqPorCarton;
+
+                    SET @sWorkaround = CONCAT
+                    (
+                        'Conversion de ',
+                        CONVERT(VARCHAR(50), @pCantidad),
+                        ' ', @pUnidadMedida, ' -> ',
+                        CONVERT(VARCHAR(50), @pCantUMV),
+                        ' ', @pUMV
+                    );
+
+                    INSERT INTO [EAI_OWNER].[WA_LOGGING]
                     (
                         Fecha,
                         Usuario,
@@ -222,85 +244,42 @@ BEGIN
                     )
                     VALUES
                     (
-                        GETDATE(),
+                        SYSDATETIME(),
                         SUSER_SNAME(),
                         ORIGINAL_LOGIN(),
-                        CONVERT(VARCHAR(50), CONNECTIONPROPERTY('client_net_address')),
+                        CONVERT(VARCHAR(50),
+                                CONNECTIONPROPERTY('client_net_address')),
                         HOST_NAME(),
                         @pReference,
                         @sWorkaround
                     );
                 END;
             END;
-        END
-        /*
-            Conversiones especiales para categoría PP.
-        */
-        ELSE IF @Categoria = 'PP'
-        BEGIN
-            IF @pUMV = 'CASES'
-            BEGIN
-                IF COALESCE(@Factor_PAQ, 0) > 0
-                   AND COALESCE(@Paq_x_Carton, 0) > 0
-                BEGIN
-                    SET @pUMV     = @Unidad_Med_Vta;
-                    SET @pCantUMV = @pCantidad * @Paq_x_Carton;
 
-                    SET @sWorkaround =
-                        CONCAT(
-                            'Conversion de ',
-                            LTRIM(RTRIM(CONVERT(VARCHAR(50), CAST(@pCantidad AS DECIMAL(38,4))))),
-                            ' ',
-                            @pUnidadMedida,
-                            ' -> ',
-                            LTRIM(RTRIM(CONVERT(VARCHAR(50), CAST(@pCantUMV AS DECIMAL(38,4))))),
-                            ' ',
-                            @pUMV
-                        );
-
-                    INSERT INTO EAI_Owner.WA_Logging
-                    (
-                        Fecha,
-                        Usuario,
-                        Usuario_Red,
-                        IP,
-                        Terminal,
-                        Documento,
-                        Comentario
-                    )
-                    VALUES
-                    (
-                        GETDATE(),
-                        SUSER_SNAME(),
-                        ORIGINAL_LOGIN(),
-                        CONVERT(VARCHAR(50), CONNECTIONPROPERTY('client_net_address')),
-                        HOST_NAME(),
-                        @pReference,
-                        @sWorkaround
-                    );
-                END;
-            END;
+            FETCH NEXT FROM ScrProducto INTO
+                @sUnidadMedVta,
+                @nCigPorCLL,
+                @nFactorPAQ,
+                @nPaqPorCarton,
+                @sCategoria;
         END;
+
+        CLOSE ScrProducto;
+        DEALLOCATE ScrProducto;
     END TRY
     BEGIN CATCH
-        /*
-            Equivalente funcional a:
-            EXCEPTION
-               WHEN OTHERS THEN
-                  pCantUMV := pCantidad;
-                  pUMV     := pUnidadMedida;
-            
-            Se conserva el comportamiento original:
-            no relanza error y devuelve valores originales.
-        */
-        SET @pCantUMV = @pCantidad;
-        SET @pUMV     = @pUnidadMedida;
+        /* Liberar el cursor sin ocultar el comportamiento del WHEN OTHERS. */
+        IF CURSOR_STATUS('local', 'ScrProducto') >= 0
+            CLOSE ScrProducto;
 
-        /*
-            Opcional recomendado:
-            registrar error técnico en una tabla de errores si existe.
-            No se incluye THROW para respetar el comportamiento Oracle.
-        */
+        IF CURSOR_STATUS('local', 'ScrProducto') > -2
+            DEALLOCATE ScrProducto;
+
+        /* Oracle devuelve los valores originales y no propaga la excepcion. */
+        SET @pCantUMV = @pCantidad;
+        SET @pUMV = @pUnidadMedida;
+
+        RETURN;
     END CATCH;
 END;
 GO

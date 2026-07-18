@@ -28,7 +28,11 @@ BEGIN
         VALUES
         (
               @nComponent
-            , NEXT VALUE FOR dbo.ProcessID
+            /*
+                Homologacion Oracle: PROCESSID pertenece a EAI_OWNER.
+                Evita depender de una secuencia dbo.ProcessID distinta.
+            */
+            , NEXT VALUE FOR [EAI_OWNER].[ProcessID]
             , @dtBegin
             , @dtEnd
             , @nRecords
