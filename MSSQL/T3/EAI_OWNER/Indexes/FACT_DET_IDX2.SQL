@@ -1,0 +1,16 @@
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'[EAI_OWNER].[FACT_DET]')
+      AND name = N'FACT_DET_IDX2'
+)
+BEGIN
+    CREATE NONCLUSTERED INDEX [FACT_DET_IDX2]
+    ON [EAI_OWNER].[FACT_DET]
+    (
+        [INVC_DOC_NUM] ASC
+    )
+    ON [PRIMARY];
+END;
+GO

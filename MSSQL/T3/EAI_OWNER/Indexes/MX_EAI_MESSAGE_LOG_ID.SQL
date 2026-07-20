@@ -1,0 +1,16 @@
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'[EAI_OWNER].[MX_EAI_MESSAGE_LOG]')
+      AND name = N'MX_EAI_MESSAGE_LOG_ID'
+)
+BEGIN
+    CREATE NONCLUSTERED INDEX [MX_EAI_MESSAGE_LOG_ID]
+    ON [EAI_OWNER].[MX_EAI_MESSAGE_LOG]
+    (
+        [ID] ASC
+    )
+    ON [PRIMARY];
+END;
+GO

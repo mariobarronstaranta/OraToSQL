@@ -1,0 +1,16 @@
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'[EAI_OWNER].[MX_HASH_KDGRP]')
+      AND name = N'MX_HASH_KDGRP_IX'
+)
+BEGIN
+    CREATE NONCLUSTERED INDEX [MX_HASH_KDGRP_IX]
+    ON [EAI_OWNER].[MX_HASH_KDGRP]
+    (
+        [LLAVE] ASC
+    )
+    ON [PRIMARY];
+END;
+GO

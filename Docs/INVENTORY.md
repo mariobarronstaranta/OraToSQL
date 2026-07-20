@@ -13,10 +13,13 @@ Nota de alcance: los conteos de objetos SQL no incluyen carpetas internas de her
 | `ORA/T3/EAI/Functions` | 9 | 9 | Funciones Oracle |
 | `ORA/T3/EAI/Procedures` | 32 | 31 | Procedimientos Oracle; `SF_CFDI_NOTA_CREDITO` existe con y sin extension |
 | `ORA/T3/EAI/Packages` | 2 | 1 package / 4 miembros | Specification vacia y body de `PKG_ENCUESTAS_MKT` |
+| `ORA/T3/EAI/Indexes` | 86 | 86 | DDL Oracle individuales: 56 indices normales y 30 indices unicos |
+| `ORA/T3/EAI/Triggers` | 2 | 2 | Triggers Oracle de auditoria/estatus |
 | `ORA/T3/EAI/Tables` | 1 | 1 | Script consolidado de tablas Oracle |
 | `ORA/T3/EAI_OWNER/Functions` | 14 | 14 | Funciones Oracle originales del esquema `EAI_OWNER` |
 | `ORA/T3/EAI_OWNER/Procedures` | 86 | 86 | Procedimientos Oracle originales de `EAI_OWNER`; todos tienen archivo homonimo en SQL Server |
 | `ORA/T3/EAI_OWNER/Packages` | 2 | 1 package / 12 miembros | Specification y body de `RECV_TO_SEND_V3` |
+| `ORA/T3/EAI_OWNER/Indexes` | 66 | 65 | 65 DDL individuales mas `DDL_INDEX_EAI_OWNER.SQL` como archivo consolidado auxiliar; 63 indices normales y 2 unicos |
 | `ORA/T3/EAI_OWNER/Sequences` | 4 | 4 | Secuencias Oracle con homologo SQL Server |
 | `ORA/T3/EAI_OWNER/Tables` | 15 | 15 | Tablas Oracle de `EAI_OWNER`, con un archivo a revisar |
 | `ORA/T3/T3/Procedures` | 17 | 17 | Procedimientos Oracle invocados directamente por jobs `EAI_OWNER` |
@@ -24,8 +27,11 @@ Nota de alcance: los conteos de objetos SQL no incluyen carpetas internas de her
 | `MSSQL/T3/EAI/Functions` | 9 | 9 | Funciones SQL Server |
 | `MSSQL/T3/EAI/Procedures` | 33 | 31 | 32 scripts de procedimiento mas `Procedures.slnx`; `SF_CFDI_NOTA_CREDITO` existe con y sin extension |
 | `MSSQL/T3/EAI/Packages` | 6 | 4 objetos + 1 plantilla | Tres procedimientos, una funcion, configuracion CEDIS y README |
+| `MSSQL/T3/EAI/Indexes` | 87 | 86 | 86 scripts individuales mas `Indices_Consolidados_EAI.SQL`; migracion validada sobre 43 tablas en LocalDB |
+| `MSSQL/T3/EAI/Triggers` | 2 | 2 | Triggers SQL Server homologados desde Oracle |
 | `MSSQL/T3/EAI/Tablas` | 1 | 1 | Script consolidado de tablas SQL Server |
 | `MSSQL/T3/EAI_OWNER/Functions` | 36 | 36 | Funciones SQL Server de `EAI_OWNER`; 14 corresponden al folder Oracle actual y 22 son preexistentes sin archivo par en `ORA/T3/EAI_OWNER/Functions` |
+| `MSSQL/T3/EAI_OWNER/Indexes` | 66 | 65 | 65 scripts individuales mas `Indices_Consolidados_EAI_OWNER.SQL`; incluye 8 indices funcionales mediante columnas calculadas |
 | `MSSQL/T3/EAI_OWNER/Procedures` | 88 | 87 | 86 procedimientos tienen par Oracle; un script duplica `SF_INCONSISTENCIAS` y otro crea una tabla auxiliar |
 | `MSSQL/T3/EAI_OWNER/Package` | 14 | 12 procedimientos | Miembros de `RECV_TO_SEND_V3`, `GRANTS.SQL` y README |
 | `MSSQL/T3/EAI_OWNER/Sequences` | 5 | 4 | Cuatro secuencias y README |
@@ -33,7 +39,7 @@ Nota de alcance: los conteos de objetos SQL no incluyen carpetas internas de her
 | `MSSQL/T3/EAI_OWNER/Tables` | 2 | 2 | Script consolidado y migracion incremental de `MX_EAI_MESSAGE_LOG` |
 | `MSSQL/T3/T3/Procedures` | 156 | 156 | Procedimientos T3 migrados; incluye los 17 destinos directos de jobs |
 | `MSSQL/T3/T3/Tables` | 404 | 404 | DDL SQL Server T3; falta incorporar su fuente Oracle equivalente |
-| `Docs` | 13 | N/A | Diez documentos Markdown y tres archivos Excel de soporte |
+| `Docs` | 16 | N/A | Trece documentos Markdown y tres archivos Excel de soporte |
 
 ## Funciones EAI
 
@@ -48,6 +54,40 @@ Nota de alcance: los conteos de objetos SQL no incluyen carpetas internas de her
 | `F_SEMANA_MES` | `ORA/T3/EAI/Functions/F_SEMANA_MES.SQL` | `MSSQL/T3/EAI/Functions/F_SEMANA_MES.SQL` |
 | `ISNUMBER` | `ORA/T3/EAI/Functions/ISNUMBER.SQL` | `MSSQL/T3/EAI/Functions/ISNUMBER.SQL` |
 | `PORC_VENTA` | `ORA/T3/EAI/Functions/PORC_VENTA.SQL` | `MSSQL/T3/EAI/Functions/PORC_VENTA.SQL` |
+
+## Triggers EAI
+
+| Objeto | Oracle | SQL Server |
+| --- | --- | --- |
+| `UPDATE_T3R_STATUS` | `ORA/T3/EAI/Triggers/UPDATE_T3R_STATUS.SQL` | `MSSQL/T3/EAI/Triggers/UPDATE_T3R_STATUS.SQL` |
+| `T3R_SALES_DOCS_OLD_LOG` | `ORA/T3/EAI/Triggers/T3R_SALES_DOCS_OLD_LOG.SQL` | `MSSQL/T3/EAI/Triggers/T3R_SALES_DOCS_OLD_LOG.SQL` |
+
+## Indices y PK
+
+- `ORA/T3/EAI/Indexes` contiene 86 DDL individuales: 56 `CREATE INDEX` y
+  30 `CREATE UNIQUE INDEX`.
+- `ORA/T3/EAI_OWNER/Indexes` contiene 65 DDL individuales: 63
+  `CREATE INDEX` y dos `CREATE UNIQUE INDEX`. El archivo
+  `DDL_INDEX_EAI_OWNER.SQL` conserva la exportacion consolidada y no se cuenta
+  como objeto adicional.
+- `MSSQL/T3/EAI/Indexes` contiene los 86 archivos homologos: 56 indices
+  normales, dos indices unicos independientes, 27 PK y una restriccion
+  `UNIQUE`. Las PK y la restriccion unica usan verificaciones condicionales
+  para no duplicar las estructuras ya incluidas en el DDL de tablas.
+- `MSSQL/T3/EAI/Indexes/Indices_Consolidados_EAI.SQL` agrupa los 86 objetos en
+  un solo instalador idempotente. Es un archivo auxiliar y no incrementa el
+  numero de objetos del schema.
+- `MSSQL/T3/EAI_OWNER/Indexes` contiene los 65 homologos: 55 indices
+  ordinarios, ocho indices funcionales mediante columnas calculadas persistidas
+  y dos PK condicionales. `Indices_Consolidados_EAI_OWNER.SQL` permite instalar
+  todo el lote desde un solo archivo.
+- Los DDL Oracle con nombre terminado en `_PK` pueden ser el indice que soporta
+  una llave primaria, pero `CREATE UNIQUE INDEX` por si solo no crea la
+  restriccion `PRIMARY KEY`. La conversion debe contrastarse con el DDL de
+  tablas antes de decidir entre `PRIMARY KEY` y `UNIQUE INDEX`.
+
+Consultar `Docs/INDEXES_MIGRATION.md` para el alcance, reglas y estado de la
+conversion.
 
 ## Funciones EAI_OWNER
 
@@ -300,6 +340,8 @@ SQL Server:
 | `Docs/PACKAGES_MIGRATION.md` | Markdown | Equivalencia y estado de los packages Oracle migrados |
 | `Docs/SEQUENCES_MIGRATION.md` | Markdown | Inventario y pendientes de secuencias `EAI_OWNER` |
 | `Docs/JOBS_MIGRATION.md` | Markdown | Conversion de 37 `USER_JOBS` a SQL Server Agent |
+| `Docs/INDEXES_MIGRATION.md` | Markdown | Inventario, separacion y estado de conversion de indices y PK |
+| `Docs/INFO_INDEX.md` | Markdown | Detalle por esquema, nombre, tabla y tipo de indice o restriccion |
 | `Docs/PROMPTS.md` | Markdown | Prompts de trabajo |
 | `Docs/README.md` | Markdown | Guia principal de la documentacion |
 | `Docs/AccesosBDOracle.xlsx` | Excel | Accesos o referencia de bases Oracle |
@@ -311,6 +353,10 @@ SQL Server:
 - Consolidar o archivar `SF_INCONSISTENCIAS_REVISAR.SQL` para evitar dos scripts que declaran el mismo procedimiento.
 - Reubicar `TABLA_Job_Oracle_SQLAgent_Map.SQL` en la carpeta de tablas y validar si el schema `dbo` es intencional.
 - Existen archivos `SF_CFDI_NOTA_CREDITO` con y sin extension `.SQL`.
+- Los 86 indices y restricciones `EAI` y los 65 de `EAI_OWNER` ya tienen archivo
+  homonimo MSSQL. Los tres indices compuestos `DEBIT_OPEN_ITEM_IDX8`,
+  `PAGOS_IDX6` y `PAGOS_IDX7` usan `INCLUDE` para respetar el limite de 1,700
+  bytes de llave de SQL Server.
 - `Procedures.slnx` es un archivo auxiliar de solucion y no un objeto SQL.
 - El archivo `A51_OL_CLIENTES.SQL` no parece corresponder a una tabla por su contenido inicial.
 - En `LOG_AUDIT_UPDATED`, Oracle filtra tablas log por `ROWID`; la version SQL Server usa `TICKET_REFERENCIA` porque es el identificador disponible en las tablas migradas.

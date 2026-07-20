@@ -1,0 +1,16 @@
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'[EAI].[CFDI_BITACORA]')
+      AND name = N'CFDI_BITACORA_DOC_NUM_IX'
+)
+BEGIN
+    CREATE NONCLUSTERED INDEX [CFDI_BITACORA_DOC_NUM_IX]
+    ON [EAI].[CFDI_BITACORA]
+    (
+    [DOC_NUM] ASC
+    )
+    ON [PRIMARY];
+END;
+GO

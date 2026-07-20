@@ -51,6 +51,17 @@ Este documento resume las convenciones usadas en las conversiones del proyecto. 
 - En reprocesos, materializar `MX_EAI_MESSAGE_LOG.ROW_ID` como `Source_ROW_ID BIGINT` y relacionar el `UPDATE` o `DELETE` mediante esa llave; no reconstruir la identidad con combinaciones de `ID`, `CREATED` y `MESSAGE`.
 - Identificar estos ajustes dentro del T-SQL con la etiqueta `Cambio homologado ROW_ID`: documentar la estructura que conserva las llaves, la materializacion de candidatos y el `UPDATE` o `DELETE` final por `ROW_ID`.
 
+## Triggers
+
+- Usar `CREATE OR ALTER TRIGGER [schema].[NombreTrigger]`.
+- Convertir siempre a logica set-based con `inserted` y `deleted`; no asumir una sola fila por sentencia.
+- Si el trigger Oracle es `BEFORE UPDATE`, en SQL Server usar `AFTER UPDATE` y evaluar condiciones con los valores de `inserted`.
+- Cuando Oracle compara columnas con `!=`, mantener `<>` en SQL Server para conservar semantica de `NULL` (si uno de los lados es `NULL`, la condicion no se dispara).
+- Cuando Oracle use `NVL(col, 0)` en comparaciones, homologar con `ISNULL(col, 0)`.
+- Emparejar `inserted` y `deleted` mediante una PK o llave tecnica inmutable. Si el DDL no la ofrece, usar una clave logica sustentada por los procesos consumidores y documentar la limitacion.
+- `ROW_NUMBER()` global con `ORDER BY (SELECT NULL)` no garantiza que una fila anterior corresponda con la nueva. Solo usar un ordinal dentro de cada clave logica para controlar duplicados, con un orden determinista y dejando recomendada la correccion por PK.
+- No afirmar equivalencia para actualizaciones que cambien la propia clave usada en el emparejamiento: SQL Server requiere una llave inmutable compartida por `inserted` y `deleted`.
+
 ## Logging de procesos
 
 Cuando el Oracle original usa:
@@ -186,6 +197,39 @@ Oracle no garantiza orden cuando usa `ROWNUM` sin `ORDER BY`. Al generar una sec
 - `ORDER`, `NOORDER`, `KEEP`, `SCALE` y atributos globales Oracle no tienen
   equivalencia directa y deben documentarse.
 - Los scripts idempotentes no deben reiniciar una secuencia existente.
+
+## Indices y llaves primarias
+
+- Mantener un archivo por indice con el mismo nombre del objeto Oracle.
+- Convertir indices Oracle ordinarios a `CREATE NONCLUSTERED INDEX` y conservar
+  el orden y la secuencia de las columnas.
+- Convertir `CREATE UNIQUE INDEX` a `CREATE UNIQUE NONCLUSTERED INDEX` solo
+  cuando el objeto represente exclusivamente un indice unico.
+- No inferir una restriccion `PRIMARY KEY` por el sufijo `_PK` ni por
+  `CREATE UNIQUE INDEX`. Confirmar `ALTER TABLE ... PRIMARY KEY` en el DDL de
+  tablas y evitar crear dos estructuras equivalentes para la misma llave.
+- Omitir opciones fisicas exclusivas de Oracle como `PCTFREE`, `INITRANS`,
+  `MAXTRANS`, `STORAGE`, `COMPUTE STATISTICS`, `NOLOGGING`, `NOPARALLEL` y
+  `TABLESPACE`.
+- Asignar el filegroup SQL Server de acuerdo con la configuracion del destino;
+  actualmente las tablas `EAI` migradas usan `[PRIMARY]`.
+- Revisar el limite de bytes de la llave en SQL Server, especialmente para
+  indices compuestos o columnas `VARCHAR`/`NVARCHAR` extensas.
+- Los indices funcionales Oracle, por ejemplo `TO_DATE(columna, formato)` o
+  `SUBSTR(columna, ...)`, requieren una columna calculada determinista e
+  indexable en SQL Server, o un rediseño documentado. No trasladar la expresion
+  Oracle directamente.
+- Para columnas calculadas de fecha originadas por `TO_DATE(texto,
+  'YYYY-MM-DD')`, usar una conversion determinista; el lote `EAI_OWNER` elimina
+  guiones y aplica el estilo `112`. El estilo `23` no permite marcar como
+  persistida la columna calculada en la version SQL Server validada.
+- Si la suma maxima declarada de una llave compuesta supera 1,700 bytes,
+  mantener como llave la columna principal y evaluar mover columnas de
+  cobertura a `INCLUDE`, documentando la perdida de ordenamiento o busqueda por
+  esas columnas dentro del mismo indice.
+- Validar sintaxis y, cuando exista una instancia de prueba, crear el indice
+  sobre el DDL real de la tabla para detectar columnas ausentes, tipos no
+  indexables, duplicados en indices unicos y exceso de tamaño de llave.
 
 ## DBMS_JOB y SQL Server Agent
 

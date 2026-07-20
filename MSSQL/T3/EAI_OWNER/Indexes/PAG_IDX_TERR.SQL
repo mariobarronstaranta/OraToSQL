@@ -1,0 +1,16 @@
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'[EAI_OWNER].[PAGOS]')
+      AND name = N'PAG_IDX_TERR'
+)
+BEGIN
+    CREATE NONCLUSTERED INDEX [PAG_IDX_TERR]
+    ON [EAI_OWNER].[PAGOS]
+    (
+        [TERRITORIO] ASC
+    )
+    ON [PRIMARY];
+END;
+GO

@@ -1,0 +1,16 @@
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'[EAI_OWNER].[PED_DET]')
+      AND name = N'PED_DET_IDX1'
+)
+BEGIN
+    CREATE NONCLUSTERED INDEX [PED_DET_IDX1]
+    ON [EAI_OWNER].[PED_DET]
+    (
+        [ORDER_NUM] ASC
+    )
+    ON [PRIMARY];
+END;
+GO

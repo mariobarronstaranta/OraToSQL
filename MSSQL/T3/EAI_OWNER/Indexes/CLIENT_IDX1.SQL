@@ -1,0 +1,21 @@
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'[EAI_OWNER].[CLIENT]')
+      AND name = N'CLIENT_IDX1'
+)
+BEGIN
+    CREATE NONCLUSTERED INDEX [CLIENT_IDX1]
+    ON [EAI_OWNER].[CLIENT]
+    (
+        [ID] ASC,
+        [CLIENTE_SAP] ASC,
+        [CLIENTE_V3] ASC,
+        [STATUS] ASC,
+        [SALES_TERRITORY] ASC,
+        [DELIVERY_TERRITORY] ASC
+    )
+    ON [PRIMARY];
+END;
+GO

@@ -1,0 +1,17 @@
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'[EAI].[CUSTOMER_LOG]')
+      AND name = N'CUSTOMER_LOG_IX'
+)
+BEGIN
+    CREATE NONCLUSTERED INDEX [CUSTOMER_LOG_IX]
+    ON [EAI].[CUSTOMER_LOG]
+    (
+    [CLIENTE_V3] ASC,
+    [FECHA_INSERT] ASC
+    )
+    ON [PRIMARY];
+END;
+GO

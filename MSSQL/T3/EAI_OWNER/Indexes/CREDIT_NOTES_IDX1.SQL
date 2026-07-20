@@ -1,0 +1,16 @@
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'[EAI_OWNER].[CREDIT_NOTES]')
+      AND name = N'CREDIT_NOTES_IDX1'
+)
+BEGIN
+    CREATE NONCLUSTERED INDEX [CREDIT_NOTES_IDX1]
+    ON [EAI_OWNER].[CREDIT_NOTES]
+    (
+        [ID] ASC
+    )
+    ON [PRIMARY];
+END;
+GO

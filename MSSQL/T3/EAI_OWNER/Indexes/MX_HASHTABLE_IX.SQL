@@ -1,0 +1,17 @@
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'[EAI_OWNER].[MX_HASHTABLE]')
+      AND name = N'MX_HASHTABLE_IX'
+)
+BEGIN
+    CREATE NONCLUSTERED INDEX [MX_HASHTABLE_IX]
+    ON [EAI_OWNER].[MX_HASHTABLE]
+    (
+        [TYPE] ASC,
+        [SOURCE] ASC
+    )
+    ON [PRIMARY];
+END;
+GO

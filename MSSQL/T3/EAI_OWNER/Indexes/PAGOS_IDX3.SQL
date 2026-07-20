@@ -1,0 +1,16 @@
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'[EAI_OWNER].[PAGOS]')
+      AND name = N'PAGOS_IDX3'
+)
+BEGIN
+    CREATE NONCLUSTERED INDEX [PAGOS_IDX3]
+    ON [EAI_OWNER].[PAGOS]
+    (
+        [DOI_STATUS] ASC
+    )
+    ON [PRIMARY];
+END;
+GO

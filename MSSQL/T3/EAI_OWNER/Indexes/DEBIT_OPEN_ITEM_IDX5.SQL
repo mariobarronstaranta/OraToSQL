@@ -1,0 +1,16 @@
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'[EAI_OWNER].[DEBIT_OPEN_ITEM]')
+      AND name = N'DEBIT_OPEN_ITEM_IDX5'
+)
+BEGIN
+    CREATE NONCLUSTERED INDEX [DEBIT_OPEN_ITEM_IDX5]
+    ON [EAI_OWNER].[DEBIT_OPEN_ITEM]
+    (
+        [DOC_NUM] ASC
+    )
+    ON [PRIMARY];
+END;
+GO

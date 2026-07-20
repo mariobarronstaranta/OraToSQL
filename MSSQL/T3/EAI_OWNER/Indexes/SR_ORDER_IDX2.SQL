@@ -1,0 +1,16 @@
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'[EAI_OWNER].[SR_ORDER]')
+      AND name = N'SR_ORDER_IDX2'
+)
+BEGIN
+    CREATE NONCLUSTERED INDEX [SR_ORDER_IDX2]
+    ON [EAI_OWNER].[SR_ORDER]
+    (
+        [TIPO] ASC
+    )
+    ON [PRIMARY];
+END;
+GO

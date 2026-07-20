@@ -1,0 +1,16 @@
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'[EAI_OWNER].[FACTURAS]')
+      AND name = N'FACTURAS_IDX2'
+)
+BEGIN
+    CREATE NONCLUSTERED INDEX [FACTURAS_IDX2]
+    ON [EAI_OWNER].[FACTURAS]
+    (
+        [DELIVERY_STATUS] ASC
+    )
+    ON [PRIMARY];
+END;
+GO

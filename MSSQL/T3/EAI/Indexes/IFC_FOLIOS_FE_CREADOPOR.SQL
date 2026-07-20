@@ -1,0 +1,17 @@
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'[EAI].[IFC_FOLIOS_FE]')
+      AND name = N'IFC_FOLIOS_FE_CREADOPOR'
+)
+BEGIN
+    CREATE NONCLUSTERED INDEX [IFC_FOLIOS_FE_CREADOPOR]
+    ON [EAI].[IFC_FOLIOS_FE]
+    (
+    [CREADOPOR] ASC,
+    [ROW_ID] ASC
+    )
+    ON [PRIMARY];
+END;
+GO

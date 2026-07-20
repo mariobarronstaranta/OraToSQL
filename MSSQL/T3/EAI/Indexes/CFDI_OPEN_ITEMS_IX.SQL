@@ -1,0 +1,16 @@
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'[EAI].[CFDI_OPEN_ITEMS]')
+      AND name = N'CFDI_OPEN_ITEMS_IX'
+)
+BEGIN
+    CREATE NONCLUSTERED INDEX [CFDI_OPEN_ITEMS_IX]
+    ON [EAI].[CFDI_OPEN_ITEMS]
+    (
+    [NOTA_VENTA] ASC
+    )
+    ON [PRIMARY];
+END;
+GO

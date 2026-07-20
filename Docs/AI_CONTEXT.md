@@ -18,19 +18,25 @@ Los objetos principales estan relacionados con integraciones y procesos del domi
 ## Estructura principal
 
 - `ORA/T3/EAI/Functions`: funciones Oracle originales del esquema `EAI`.
+- `ORA/T3/EAI/Indexes`: 86 DDL individuales de indices Oracle `EAI`.
 - `ORA/T3/EAI/Procedures`: procedimientos Oracle originales del esquema `EAI`.
 - `ORA/T3/EAI/Packages`: specification y body de packages Oracle `EAI`.
+- `ORA/T3/EAI/Triggers`: triggers Oracle originales de auditoria y estatus del esquema `EAI`.
 - `ORA/T3/EAI/Tables`: definicion de tablas Oracle del esquema `EAI`.
 - `ORA/T3/EAI_OWNER/Functions`: funciones Oracle originales del esquema `EAI_OWNER`.
+- `ORA/T3/EAI_OWNER/Indexes`: 65 DDL individuales y una exportacion consolidada auxiliar de indices Oracle `EAI_OWNER`.
 - `ORA/T3/EAI_OWNER/Procedures`: procedimientos Oracle originales del esquema `EAI_OWNER` disponibles actualmente.
 - `ORA/T3/EAI_OWNER/Packages`: specification y body de packages Oracle `EAI_OWNER`.
 - `ORA/T3/EAI_OWNER/Sequences`: cuatro secuencias Oracle `EAI_OWNER`.
 - `ORA/T3/EAI_OWNER/Tables`: tablas Oracle originales del esquema `EAI_OWNER`.
 - `MSSQL/T3/EAI/Functions`: funciones transformadas a SQL Server.
+- `MSSQL/T3/EAI/Indexes`: migracion completa de los 86 indices, PK y restricciones unicas `EAI`.
 - `MSSQL/T3/EAI/Procedures`: procedimientos transformados a SQL Server.
 - `MSSQL/T3/EAI/Packages`: miembros independientes de `EAI.PKG_ENCUESTAS_MKT`.
+- `MSSQL/T3/EAI/Triggers`: triggers `EAI` convertidos a logica set-based con `inserted` y `deleted`.
 - `MSSQL/T3/EAI/Tablas`: definicion de tablas transformadas a SQL Server.
 - `MSSQL/T3/EAI_OWNER/Functions`: funciones SQL Server asociadas a `EAI_OWNER`.
+- `MSSQL/T3/EAI_OWNER/Indexes`: migracion completa de 65 indices y PK; incluye instalador consolidado y 8 columnas calculadas para indices funcionales.
 - `MSSQL/T3/EAI_OWNER/Procedures`: transformacion SQL Server asociada a objetos `EAI_OWNER`.
 - `MSSQL/T3/EAI_OWNER/Package`: miembros independientes de `EAI_OWNER.RECV_TO_SEND_V3`.
 - `MSSQL/T3/EAI_OWNER/Sequences`: homologos de las cuatro secuencias Oracle.
@@ -54,6 +60,7 @@ Antes de proponer cambios:
 9. Para packages, revisar specification y body completos; SQL Server publica cada miembro como objeto independiente.
 10. Para jobs, distinguir propietario (`SCHEMA_USER`) del schema del procedimiento invocado en `WHAT`.
 11. No habilitar SQL Agent Jobs solo porque exista el procedimiento directo; validar dependencias internas, permisos y calendario.
+12. Para indices con nombre `_PK`, revisar la restriccion en el DDL de tablas: un indice unico Oracle no demuestra por si solo que deba crearse una `PRIMARY KEY` en SQL Server.
 
 ## Diferencias Oracle -> SQL Server que suelen importar
 
@@ -95,6 +102,10 @@ Antes de proponer cambios:
 - Hay 36 funciones SQL Server bajo `MSSQL/T3/EAI_OWNER/Functions`; 22 no tienen archivo homonimo en el folder Oracle actual y deben validarse contra su origen.
 - Hay 32 procedimientos Oracle bajo `ORA/T3/EAI/Procedures`.
 - Hay 32 scripts de procedimiento SQL Server bajo `MSSQL/T3/EAI/Procedures`, mas el auxiliar `Procedures.slnx`.
+- Hay dos triggers Oracle `EAI` y dos homologos SQL Server: `UPDATE_T3R_STATUS` y `T3R_SALES_DOCS_OLD_LOG`.
+- Hay 86 indices Oracle individuales bajo `EAI` y los 86 tienen conversion homonima bajo `MSSQL/T3/EAI/Indexes`.
+- Hay 65 indices Oracle individuales bajo `EAI_OWNER` y los 65 tienen conversion homonima bajo `MSSQL/T3/EAI_OWNER/Indexes`.
+- Los triggers usan `[PROCEDURE]` y `[DOC_NUM_R3]` como claves logicas de emparejamiento; el DDL actual no declara llaves tecnicas y no se deben modificar esas claves dentro de las sentencias auditadas.
 - Hay 86 procedimientos Oracle bajo `ORA/T3/EAI_OWNER/Procedures`, todos con archivo homonimo en `MSSQL/T3/EAI_OWNER/Procedures`.
 - Hay 88 scripts SQL bajo `MSSQL/T3/EAI_OWNER/Procedures`: 86 pares homonimos, `SF_INCONSISTENCIAS_REVISAR.SQL` como variante duplicada de `SF_INCONSISTENCIAS` y `TABLA_Job_Oracle_SQLAgent_Map.SQL` como script de tabla auxiliar ubicado en la carpeta de procedimientos.
 - Los procedimientos duplicados de `EAI` fueron retirados de `MSSQL/T3/EAI_OWNER/Procedures`; ambos schemas deben documentarse como conjuntos separados.

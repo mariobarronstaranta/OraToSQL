@@ -1,0 +1,19 @@
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'[EAI].[SDC_VENTA]')
+      AND name = N'SDC_VENTA_IDX1'
+)
+BEGIN
+    CREATE UNIQUE NONCLUSTERED INDEX [SDC_VENTA_IDX1]
+    ON [EAI].[SDC_VENTA]
+    (
+    [CADENA] ASC,
+    [ANIOMES] ASC,
+    [PLAZA] ASC,
+    [SKU] ASC
+    )
+    ON [PRIMARY];
+END;
+GO

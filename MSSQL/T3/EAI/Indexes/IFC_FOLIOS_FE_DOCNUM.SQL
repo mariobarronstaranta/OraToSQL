@@ -1,0 +1,16 @@
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'[EAI].[IFC_FOLIOS_FE]')
+      AND name = N'IFC_FOLIOS_FE_DOCNUM'
+)
+BEGIN
+    CREATE NONCLUSTERED INDEX [IFC_FOLIOS_FE_DOCNUM]
+    ON [EAI].[IFC_FOLIOS_FE]
+    (
+    [VAR_1] ASC
+    )
+    ON [PRIMARY];
+END;
+GO

@@ -1,0 +1,18 @@
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'[EAI].[FC__REP_DISTRIBUTOR]')
+      AND name = N'I1_FC__REP_DISTRIBUTOR'
+)
+BEGIN
+    CREATE NONCLUSTERED INDEX [I1_FC__REP_DISTRIBUTOR]
+    ON [EAI].[FC__REP_DISTRIBUTOR]
+    (
+    [REP_ID] ASC,
+    [START_DATE] ASC,
+    [END_DATE] ASC
+    )
+    ON [PRIMARY];
+END;
+GO

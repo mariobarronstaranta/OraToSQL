@@ -27,6 +27,9 @@ La documentacion busca servir para:
 - [PACKAGES_MIGRATION.md](PACKAGES_MIGRATION.md): equivalencia de packages Oracle y estado de `RECV_TO_SEND_V3` y `PKG_ENCUESTAS_MKT`.
 - [SEQUENCES_MIGRATION.md](SEQUENCES_MIGRATION.md): inventario, despliegue y diferencias de las secuencias `EAI_OWNER`.
 - [JOBS_MIGRATION.md](JOBS_MIGRATION.md): inventario `USER_JOBS`, conversion a SQL Server Agent, dependencias y habilitacion controlada.
+- [TRIGGERS_MIGRATION.md](TRIGGERS_MIGRATION.md): equivalencia de triggers Oracle `EAI` y consideraciones set-based en SQL Server.
+- [INDEXES_MIGRATION.md](INDEXES_MIGRATION.md): inventario, archivos individuales y reglas para convertir indices y PK.
+- [INFO_INDEX.md](INFO_INDEX.md): tabla detallada de indices, PK y restricciones por esquema.
 - [PROMPTS.md](PROMPTS.md): prompts utiles para pedir analisis o conversion asistida por IA.
 
 ## Estructura del repositorio
@@ -36,11 +39,14 @@ ORA/
   T3/
     EAI/
       Functions/
+      Indexes/
       Packages/
       Procedures/
+      Triggers/
       Tables/
     EAI_OWNER/
       Functions/
+      Indexes/
       Packages/
       Procedures/
       Sequences/
@@ -52,11 +58,14 @@ MSSQL/
   T3/
     EAI/
       Functions/
+      Indexes/
       Packages/
       Procedures/
+      Triggers/
       Tablas/
     EAI_OWNER/
       Functions/
+      Indexes/
       Jobs/
       Package/
       Procedures/
@@ -99,6 +108,7 @@ Para cada objeto importante conviene documentar:
 - Las funciones Oracle bajo `ORA/T3/EAI_OWNER/Functions` se generan como `CREATE OR ALTER FUNCTION [EAI_OWNER].[NombreObjeto]` y se guardan con el mismo nombre de archivo bajo `MSSQL/T3/EAI_OWNER/Functions`.
 - Los 86 procedimientos Oracle bajo `ORA/T3/EAI_OWNER/Procedures` tienen un archivo homonimo bajo `MSSQL/T3/EAI_OWNER/Procedures` y se generan en el schema `[EAI_OWNER]`.
 - Los miembros de un package Oracle se publican como procedimientos o funciones independientes en el schema original; la carpeta `Package`/`Packages` conserva solamente la agrupacion visual.
+- Los indices Oracle se conservan en un archivo por objeto. Un `CREATE UNIQUE INDEX` con nombre `_PK` no debe convertirse automaticamente en `PRIMARY KEY`; primero se valida la restriccion declarada en el DDL de la tabla.
 - Los nombres publicos de los 12 miembros de `RECV_TO_SEND_V3` no llevan el prefijo del package, por decision del cliente.
 - Los 37 registros `USER_JOBS` entregados para `EAI_OWNER` se despliegan como SQL Server Agent Jobs deshabilitados y se relacionan mediante `dbo.Job_Oracle_SQLAgent_Map`.
 - Los 17 procedimientos `[T3]` llamados directamente por esos jobs existen en `MSSQL/T3/T3/Procedures`; deben validarse tambien sus dependencias internas antes de habilitar los jobs.
