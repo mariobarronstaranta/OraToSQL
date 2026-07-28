@@ -37,7 +37,8 @@ BEGIN
             getNextRun(Replicated, dtNextRun, dtNextXML)
 
         En esta migracion:
-        - dbo.Job_Oracle_SQLAgent_Map conserva la relacion DBMS_JOB.Job -> SQL Agent.
+        - EAI_OWNER.Job_Oracle_SQLAgent_Map conserva la relacion
+          DBMS_JOB.Job -> SQL Agent.
         - msdb.dbo.sp_update_job sustituye DBMS_JOB.BROKEN para enabled/disabled.
         - msdb.dbo.sp_update_schedule ajusta active_start_date/time al reactivar.
         - EAI_OWNER.GETNEXTRUN conserva la regla de desfase para jobs no replicados.
@@ -58,8 +59,8 @@ BEGIN
     END;
 
     BEGIN TRY
-        IF OBJECT_ID(N'dbo.Job_Oracle_SQLAgent_Map', N'U') IS NULL
-            THROW 51000, 'No existe dbo.Job_Oracle_SQLAgent_Map para mapear DBMS_JOB a SQL Server Agent.', 1;
+        IF OBJECT_ID(N'[EAI_OWNER].[Job_Oracle_SQLAgent_Map]', N'U') IS NULL
+            THROW 51000, 'No existe EAI_OWNER.Job_Oracle_SQLAgent_Map para mapear DBMS_JOB a SQL Server Agent.', 1;
 
         DECLARE @Jobs TABLE
         (
@@ -93,7 +94,7 @@ BEGIN
             Map.Schedule_Id,
             UPPER(COALESCE(Step.command, Job.name)),
             CHARINDEX('.REP_', UPPER(COALESCE(Step.command, Job.name)))
-        FROM dbo.Job_Oracle_SQLAgent_Map AS Map
+        FROM [EAI_OWNER].[Job_Oracle_SQLAgent_Map] AS Map
         INNER JOIN msdb.dbo.sysjobs AS Job
             ON Job.job_id = Map.SqlAgent_Job_Id
         INNER JOIN msdb.dbo.sysjobsteps AS Step
@@ -233,7 +234,7 @@ BEGIN
                 FROM [EAI_OWNER].[MX_Components] AS C
                 WHERE UPPER(C.Name) + @sChar = @What;
 
-                UPDATE dbo.Job_Oracle_SQLAgent_Map
+                UPDATE [EAI_OWNER].[Job_Oracle_SQLAgent_Map]
                    SET Last_Update_Date = SYSDATETIME(),
                        Last_Update_User = SUSER_SNAME()
                  WHERE Oracle_Job_No = @OracleJobNo;

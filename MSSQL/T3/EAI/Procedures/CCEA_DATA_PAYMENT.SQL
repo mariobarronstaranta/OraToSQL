@@ -81,7 +81,7 @@ BEGIN
             SB.Stock_Partner,
             LTRIM(RTRIM(MC.Cliente_V3)),
             MC.Cliente_SAP,
-            dbo.FN_TRIM_CIFRAS(MC.Nombre),
+            T3.FN_TRIM_CIFRAS(MC.Nombre),
             LTRIM(RTRIM(MC.RFC)),
             EAI_OWNER.GETCONV('CifrasControl Payment Type',MC.Metodo_Pago),
             EAI_OWNER.GETCONV('TMD_Cifras Payment Type',CS.Forma_Pago),

@@ -47,7 +47,7 @@ BEGIN
               reglas pertenecen a JOB_INTERVAL y al schedule ya migrado.
 
         Dependencia:
-            dbo.Job_Oracle_SQLAgent_Map debe mapear el numero DBMS_JOB.Job al
+            EAI_OWNER.Job_Oracle_SQLAgent_Map debe mapear el numero DBMS_JOB.Job al
             job_id y schedule_id de SQL Server Agent.
     */
 
@@ -62,14 +62,14 @@ BEGIN
         RETURN 0;
 
     BEGIN TRY
-        IF OBJECT_ID(N'dbo.Job_Oracle_SQLAgent_Map', N'U') IS NULL
-            THROW 51000, 'No existe dbo.Job_Oracle_SQLAgent_Map para mapear DBMS_JOB a SQL Server Agent.', 1;
+        IF OBJECT_ID(N'[EAI_OWNER].[Job_Oracle_SQLAgent_Map]', N'U') IS NULL
+            THROW 51000, 'No existe EAI_OWNER.Job_Oracle_SQLAgent_Map para mapear DBMS_JOB a SQL Server Agent.', 1;
 
         SELECT
             @SqlAgentJobId   = M.SqlAgent_Job_Id,
             @SqlAgentJobName = M.SqlAgent_Job_Name,
             @ScheduleId      = M.Schedule_Id
-        FROM dbo.Job_Oracle_SQLAgent_Map AS M
+        FROM [EAI_OWNER].[Job_Oracle_SQLAgent_Map] AS M
         WHERE M.Oracle_Job_No = @pJOB
           AND M.Is_Active = 1;
 
@@ -148,7 +148,7 @@ BEGIN
                     THROW 51007, 'Error al actualizar active_start_date/time del schedule.', 1;
             END;
 
-            UPDATE dbo.Job_Oracle_SQLAgent_Map
+            UPDATE [EAI_OWNER].[Job_Oracle_SQLAgent_Map]
                SET Last_Update_Date = SYSDATETIME(),
                    Last_Update_User = SUSER_SNAME()
              WHERE Oracle_Job_No = @pJOB

@@ -1,4 +1,14 @@
-CREATE PROCEDURE [EAI_Owner].[SF_PROC_CENTRAL_PAYMENT]
+/*
+    Procedure : EAI_OWNER.SF_PROC_CENTRAL_PAYMENT
+    Objetivo  : Leer un mensaje XML de pago SAP, normalizar sus importes y crear
+                el encabezado temporal que consumen los procesos de asignación.
+    Entradas  : @sRow_ID identifica el mensaje; @nOutput habilita trazas; @nPID
+                relaciona errores con el proceso padre.
+    Integridad: El reemplazo del encabezado temporal y la actualización del
+                mensaje se ejecutan en una sola transacción para evitar datos a
+                medias si el XML o un importe son inválidos.
+*/
+CREATE OR ALTER PROCEDURE [EAI_Owner].[SF_PROC_CENTRAL_PAYMENT]
 (
     @sRow_ID   VARCHAR(50),
     @nRowNum   INT = 1,
@@ -63,6 +73,8 @@ BEGIN
                 (GETDATE(), 'SF_PROC_CENTRAL_PAYMENT', @sRow_ID, 'Begin');
         END;
 
+        -- TRY_CAST permite identificar XML vacío o mal formado sin ejecutar
+        -- extracciones parciales. El mensaje queda marcado para revisión.
         SELECT TOP (1)
             @XML_Content = TRY_CAST(XML_Content AS XML)
         FROM [EAI_Owner].[MX_Receive_Message_Log]
@@ -227,17 +239,19 @@ BEGIN
                 (GETDATE(), 'SF_PROC_CENTRAL_PAYMENT', @sRow_ID, CONCAT('PaymentMethod      => ', @docPaymentMethod));
         END;
 
+        -- Oracle usa TO_NUMBER: una cantidad no numérica debe abortar y provocar
+        -- rollback, no convertirse silenciosamente en NULL.
         SET @numAmountDocCurrency =
             CASE
                 WHEN LEN(COALESCE(@docAmountDocCurrency, '')) > 0
-                THEN TRY_CONVERT(DECIMAL(15,2), @docAmountDocCurrency)
+                THEN CONVERT(DECIMAL(15,2), @docAmountDocCurrency)
                 ELSE NULL
             END;
 
         SET @numPaymentAmount =
             CASE
                 WHEN LEN(COALESCE(@docPaymentAmount, '')) > 0
-                THEN TRY_CONVERT(DECIMAL(15,2), @docPaymentAmount)
+                THEN CONVERT(DECIMAL(15,2), @docPaymentAmount)
                 ELSE NULL
             END;
 
@@ -417,7 +431,8 @@ BEGIN
             -- Si falla también el logging, se relanza el error original del CATCH principal.
         END CATCH;
 
-        THROW;
+        -- El procedimiento Oracle registra el error sin propagarlo. El rollback
+        -- anterior protege los datos temporales de una actualización parcial.
     END CATCH;
 END;
 GO

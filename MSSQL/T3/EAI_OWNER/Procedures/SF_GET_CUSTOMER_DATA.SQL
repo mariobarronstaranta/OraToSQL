@@ -1,3 +1,11 @@
+/*
+    Procedure : EAI_OWNER.SF_GET_CUSTOMER_DATA
+    Objetivo  : Obtener la identidad TMD y centro de un cliente SAP para una
+                fecha de referencia.
+    Prioridad : Primero consulta el historial vigente en T3.Cliente; si no hay
+                coincidencia, utiliza la última vista de T3.Mov_Cliente.
+    Salidas   : Se inicializan con valores seguros antes de realizar búsquedas.
+*/
 CREATE OR ALTER PROCEDURE EAI_OWNER.SF_GET_CUSTOMER_DATA
 (
       @pCustomer_SAP      VARCHAR(500),
@@ -35,6 +43,11 @@ BEGIN
 
         SET @sDoc_Type = 'None';
 
+        -- v_ID tiene 15 caracteres en Oracle. Validar antes de consultar evita
+        -- aceptar silenciosamente un identificador que Oracle rechazaría.
+        IF LEN(@pCustomer_SAP) > 15
+            THROW 50021, 'El identificador SAP excede 15 caracteres.', 1;
+
         ---------------------------------------------------
         -- HISTORIAL
         ---------------------------------------------------
@@ -42,7 +55,7 @@ BEGIN
         SELECT TOP (1)
                @rtCustomer_TMD  = C.Cliente_V3,
                @rtCtro          = C.Ctro,
-               @rtDistributor   = dbo.CONV_PLANT_TO_DIST(C.Ctro),
+               @rtDistributor   = EAI.CONV_PLANT_TO_DIST(C.Ctro),
                @rtRep_ID        = 'CENTRAL',
                @rtCustomer_Name = C.Nombre,
                @sDoc_Type       = 'History'
@@ -61,7 +74,7 @@ BEGIN
             SELECT TOP (1)
                    @rtCustomer_TMD  = M.Cliente_V3,
                    @rtCtro          = M.Ctro,
-                   @rtDistributor   = dbo.CONV_PLANT_TO_DIST(M.Ctro),
+                   @rtDistributor   = EAI.CONV_PLANT_TO_DIST(M.Ctro),
                    @rtRep_ID        = 'CENTRAL',
                    @rtCustomer_Name = M.Nombre,
                    @sDoc_Type       = 'History'

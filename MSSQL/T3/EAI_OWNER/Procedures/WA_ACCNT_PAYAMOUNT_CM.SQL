@@ -1,3 +1,10 @@
+/*
+    Procedure : EAI_OWNER.WA_ACCNT_PAYAMOUNT_CM
+    Objetivo  : Asignar un sufijo único a pares factura/nota de crédito Z9 que
+                comparten ClearingDocNumber.
+    Integridad: El conteo de asignaciones existentes y ambos encabezados se
+                actualizan en una sola transacción.
+*/
 CREATE OR ALTER PROCEDURE EAI_OWNER.WA_ACCNT_PAYAMOUNT_CM
 (
       @pDiasIni INT = 0
@@ -10,7 +17,7 @@ BEGIN
     SET XACT_ABORT ON;
 
     DECLARE
-          @nPID INT = @@SPID
+          @nPID INT = NULL
         , @ErrorCode VARCHAR(30)
         , @ErrorMessage VARCHAR(300);
 
@@ -123,19 +130,19 @@ BEGIN
         ExistingAssignments AS
         (
             SELECT
-
-                  E.ClearingDocNumber
-
-                , COUNT(AP.Pago_ID) AS ExistingCount
-
-            FROM EligibleDocuments E
-
-            LEFT JOIN T3.Asignacion_Pago AP
-                   ON AP.Asignacion_ID LIKE
-                      E.ClearingDocNumber + '%'
-
-            GROUP BY
-                E.ClearingDocNumber
+                  E.ClearingDocNumber,
+                  (
+                      SELECT COUNT(AP.Pago_ID)
+                      FROM T3.Asignacion_Pago AP
+                      WHERE AP.Asignacion_ID LIKE E.ClearingDocNumber + '%'
+                  ) AS ExistingCount
+            FROM
+            (
+                -- Un ClearingDocNumber puede tener varios pares elegibles. El
+                -- conteo existente se calcula una sola vez, como en Oracle.
+                SELECT DISTINCT ClearingDocNumber
+                FROM EligibleDocuments
+            ) E
         ),
 
         NumberedDocuments AS
@@ -168,7 +175,7 @@ BEGIN
                 , Nota_IDocNumber
 
                 , ClearingDocNumber +
-                  dbo.FN_CONV_DOCTO_LETRA
+                  EAI_OWNER.FN_CONV_DOCTO_LETRA
                   (
                      ExistingCount + RowNum
                   ) AS NewClearingDocument
@@ -206,7 +213,7 @@ BEGIN
             ROLLBACK TRANSACTION;
 
         SET @ErrorCode =
-            CAST(ERROR_NUMBER() AS VARCHAR(30));
+            CONCAT('SQL-', ERROR_NUMBER());
 
         SET @ErrorMessage =
             LEFT(ERROR_MESSAGE(),300);
@@ -238,7 +245,7 @@ BEGIN
             @ErrorCode
         );
 
-        THROW;
+        -- Oracle deja el detalle del error en la bitácora y no lo propaga.
 
     END CATCH
 

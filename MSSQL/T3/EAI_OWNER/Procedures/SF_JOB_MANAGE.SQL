@@ -27,7 +27,7 @@ BEGIN
         - DBMS_JOB.BROKEN(job, FALSE, SYSDATE + 30 segundos): habilita el job
           y establece la siguiente fecha base de ejecucion.
         - JOB_NEXT_RUN aplica esas reglas sobre SQL Server Agent mediante
-          dbo.Job_Oracle_SQLAgent_Map, sp_update_job y sp_update_schedule.
+          EAI_OWNER.Job_Oracle_SQLAgent_Map, sp_update_job y sp_update_schedule.
 
         La accion Oracle es exacta: solamente 'Suspend' suspende. Cualquier
         otro valor, incluido NULL, reactiva los jobs.

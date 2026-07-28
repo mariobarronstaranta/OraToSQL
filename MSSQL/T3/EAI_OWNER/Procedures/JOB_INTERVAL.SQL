@@ -20,7 +20,8 @@ BEGIN
         mismo modelo: un job se vincula a uno o mas schedules con propiedades
         normalizadas. Por eso este procedure:
 
-        1. Busca el job/schedule equivalente en dbo.Job_Oracle_SQLAgent_Map.
+        1. Busca el job/schedule equivalente en
+           EAI_OWNER.Job_Oracle_SQLAgent_Map.
         2. Traduce expresiones Oracle conocidas a columnas de msdb schedules.
         3. Actualiza el schedule con msdb.dbo.sp_update_schedule.
 
@@ -34,6 +35,10 @@ BEGIN
         @SqlAgentJobId      UNIQUEIDENTIFIER,
         @IntervalClean      VARCHAR(4000),
         @IntervalExpr       VARCHAR(4000),
+        @NumericText        VARCHAR(4000),
+        @NumeratorText      VARCHAR(4000),
+        @DenominatorText    VARCHAR(4000),
+        @SlashPosition      INT,
         @FreqType           INT = 4,
         @FreqInterval       INT = 1,
         @FreqSubdayType     INT = 1,
@@ -57,7 +62,7 @@ BEGIN
         SQL Server:
             SQL Server Agent no guarda una expresion PL/SQL de intervalo.
             Esta migracion actualiza el schedule asociado al job mediante
-            dbo.Job_Oracle_SQLAgent_Map.
+            EAI_OWNER.Job_Oracle_SQLAgent_Map.
 
         Equivalencias soportadas:
             SYSDATE+N                 -> cada N dias
@@ -78,8 +83,8 @@ BEGIN
         IF NULLIF(LTRIM(RTRIM(@pInterval)), '') IS NULL
             THROW 51001, 'El parametro @pInterval no puede ser NULL o vacio.', 1;
 
-        IF OBJECT_ID(N'dbo.Job_Oracle_SQLAgent_Map', N'U') IS NULL
-            THROW 51002, 'No existe dbo.Job_Oracle_SQLAgent_Map para mapear DBMS_JOB a SQL Server Agent.', 1;
+        IF OBJECT_ID(N'[EAI_OWNER].[Job_Oracle_SQLAgent_Map]', N'U') IS NULL
+            THROW 51002, 'No existe EAI_OWNER.Job_Oracle_SQLAgent_Map para mapear DBMS_JOB a SQL Server Agent.', 1;
 
         -- Tabla puente esperada por la migracion:
         --   Oracle_Job_No    = numero historico DBMS_JOB.JOB.
@@ -90,7 +95,7 @@ BEGIN
         SELECT
             @ScheduleId    = M.Schedule_Id,
             @SqlAgentJobId = M.SqlAgent_Job_Id
-        FROM dbo.Job_Oracle_SQLAgent_Map AS M
+        FROM [EAI_OWNER].[Job_Oracle_SQLAgent_Map] AS M
         WHERE M.Oracle_Job_No = @pJobNo
           AND M.Is_Active = 1;
 
@@ -148,9 +153,22 @@ BEGIN
         -- Variante con hora fija: TRUNC(SYSDATE)+1+6/24 => diario a las 06:00.
         ELSE IF @IntervalClean LIKE 'TRUNCSYSDATE+1+%/24'
         BEGIN
-            SET @Hours = TRY_CONVERT(INT, REPLACE(REPLACE(@IntervalClean, 'TRUNCSYSDATE+1+', ''), '/24', ''));
+            SET @NumericText =
+                REPLACE(REPLACE(@IntervalClean, 'TRUNCSYSDATE+1+', ''), '/24', '');
 
-            IF @Hours IS NULL OR @Hours < 0 OR @Hours > 23
+            /*
+                TRY_CONVERT no esta disponible en niveles de compatibilidad
+                antiguos. Primero se valida que el texto contenga solamente
+                digitos y que no pueda desbordar un INT; despues se convierte.
+            */
+            IF @NumericText = ''
+               OR @NumericText LIKE '%[^0-9]%'
+               OR LEN(@NumericText) > 9
+                THROW 51007, 'Hora invalida. Formato esperado: TRUNC(SYSDATE)+1+H/24.', 1;
+
+            SET @Hours = CONVERT(INT, @NumericText);
+
+            IF @Hours < 0 OR @Hours > 23
                 THROW 51007, 'Hora invalida. Formato esperado: TRUNC(SYSDATE)+1+H/24.', 1;
 
             SET @FreqType = 4;
@@ -162,9 +180,16 @@ BEGIN
         -- SYSDATE+N es un intervalo de N dias entre ejecuciones.
         ELSE IF @IntervalClean LIKE 'SYSDATE+%' AND @IntervalClean NOT LIKE '%/%'
         BEGIN
-            SET @Days = TRY_CONVERT(INT, REPLACE(@IntervalClean, 'SYSDATE+', ''));
+            SET @NumericText = REPLACE(@IntervalClean, 'SYSDATE+', '');
 
-            IF @Days IS NULL OR @Days <= 0
+            IF @NumericText = ''
+               OR @NumericText LIKE '%[^0-9]%'
+               OR LEN(@NumericText) > 9
+                THROW 51008, 'Intervalo diario invalido. Formato esperado: SYSDATE+N.', 1;
+
+            SET @Days = CONVERT(INT, @NumericText);
+
+            IF @Days <= 0
                 THROW 51008, 'Intervalo diario invalido. Formato esperado: SYSDATE+N.', 1;
 
             SET @FreqType = 4;
@@ -179,10 +204,29 @@ BEGIN
         ELSE IF @IntervalClean LIKE 'SYSDATE+%/%'
         BEGIN
             SET @IntervalExpr = REPLACE(@IntervalClean, 'SYSDATE+', '');
-            SET @Numerator = TRY_CONVERT(INT, LEFT(@IntervalExpr, CHARINDEX('/', @IntervalExpr) - 1));
-            SET @Denominator = TRY_CONVERT(INT, SUBSTRING(@IntervalExpr, CHARINDEX('/', @IntervalExpr) + 1, 4000));
+            SET @SlashPosition = CHARINDEX('/', @IntervalExpr);
 
-            IF @Numerator IS NULL OR @Denominator IS NULL OR @Numerator <= 0 OR @Denominator <= 0
+            -- Debe existir una sola diagonal, con digitos a ambos lados.
+            IF @SlashPosition <= 1
+               OR @SlashPosition >= LEN(@IntervalExpr)
+               OR CHARINDEX('/', @IntervalExpr, @SlashPosition + 1) > 0
+                THROW 51009, 'Intervalo fraccionario invalido. Formato esperado: SYSDATE+N/D.', 1;
+
+            SET @NumeratorText = LEFT(@IntervalExpr, @SlashPosition - 1);
+            SET @DenominatorText = SUBSTRING(@IntervalExpr, @SlashPosition + 1, 4000);
+
+            IF @NumeratorText = ''
+               OR @DenominatorText = ''
+               OR @NumeratorText LIKE '%[^0-9]%'
+               OR @DenominatorText LIKE '%[^0-9]%'
+               OR LEN(@NumeratorText) > 9
+               OR LEN(@DenominatorText) > 9
+                THROW 51009, 'Intervalo fraccionario invalido. Formato esperado: SYSDATE+N/D.', 1;
+
+            SET @Numerator = CONVERT(INT, @NumeratorText);
+            SET @Denominator = CONVERT(INT, @DenominatorText);
+
+            IF @Numerator <= 0 OR @Denominator <= 0
                 THROW 51009, 'Intervalo fraccionario invalido. Formato esperado: SYSDATE+N/D.', 1;
 
             SET @TotalSeconds = (CONVERT(DECIMAL(18,6), @Numerator) * 86400.0) / @Denominator;
@@ -252,7 +296,7 @@ BEGIN
             IF @ReturnCode <> 0
                 THROW 51013, 'Error al actualizar el schedule en SQL Server Agent.', 1;
 
-            UPDATE dbo.Job_Oracle_SQLAgent_Map
+            UPDATE [EAI_OWNER].[Job_Oracle_SQLAgent_Map]
                SET Last_Interval = @pInterval,
                    Last_Update_Date = SYSDATETIME(),
                    Last_Update_User = SUSER_SNAME()

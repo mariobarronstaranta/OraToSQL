@@ -1,4 +1,12 @@
-CREATE PROCEDURE EAI_OWNER.WA_ACCNT_REFOLEO
+/*
+    Procedure : EAI_OWNER.WA_ACCNT_REFOLEO
+    Objetivo  : Sustituir una referencia SAP por su folio T3MX cuando existe un
+                refoleo DOI y el cliente del documento coincide.
+    Auditoría : Cada cambio se registra en T3.CFDI_REFOLEO_LOG con referencia
+                anterior y nueva.
+    Integridad: Actualización y bitácora se confirman en una sola transacción.
+*/
+CREATE OR ALTER PROCEDURE EAI_OWNER.WA_ACCNT_REFOLEO
 (
       @pDiasIni      INT = 0,
       @pDiasFin      INT = 0,
@@ -29,19 +37,24 @@ BEGIN
                 Acc.Processed,
                 Acc.Status,
                 RF.Cliente_SAP,
-                dbo.FN_CFDI_REFOLEO
-                (
-                    Acc.ReferenceDocNumber,
-                    'DOI'
-                ) AS CFDI_Refoleo
+                COALESCE(Mapa.Docto_T3MX, Acc.ReferenceDocNumber) AS CFDI_Refoleo
             FROM EAI_OWNER.tmp_Account_Header Acc
+            OUTER APPLY
+            (
+                /*
+                    El DDL MSSQL no contiene la función T3.FN_CFDI_REFOLEO.
+                    Su resultado se obtiene directamente del catálogo generado
+                    por T3.WA_CFDI_REFOLEOS. Si no hay mapa, se conserva la
+                    referencia original y el documento no se actualiza.
+                */
+                SELECT TOP (1) R.Docto_T3MX
+                FROM T3.CFDI_REFOLEO R
+                WHERE R.Docto_SAP = Acc.ReferenceDocNumber
+                  AND R.Tipo_Registro = 'DOI'
+                ORDER BY R.Fecha DESC
+            ) Mapa
             LEFT JOIN T3.Registro_Fiscal RF
-                ON RF.Factura =
-                   dbo.FN_CFDI_REFOLEO
-                   (
-                       Acc.ReferenceDocNumber,
-                       'DOI'
-                   )
+                ON RF.Factura = COALESCE(Mapa.Docto_T3MX, Acc.ReferenceDocNumber)
             WHERE
                 Acc.Created >
                     CAST(DATEADD(DAY,-@pDiasIni,GETDATE()) AS DATE)
@@ -146,7 +159,7 @@ BEGIN
             NULL
         );
 
-        THROW;
+        -- Oracle registra el error y termina sin propagarlo.
 
     END CATCH
 

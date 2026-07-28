@@ -1,12 +1,21 @@
+/*
+    Procedure : EAI_OWNER.INVOICE_TO_OTROS
+    Objetivo  : Migrar facturas que no siguen el flujo estándar hacia las tablas
+                T3.Otros_General, Otros_Detalle y Otros_Condiciones.
+    Entrada   : @sInvoiceID identifica el documento temporal.
+    Reglas    : Excluye ZI02, ZI04 e IVS; aplica datos fiscales CCE cuando la
+                referencia bancaria lo indica y ejecuta homologación SAT al final.
+    Errores   : Se usa autocommit para conservar el límite transaccional de Oracle;
+                el error se registra y no se propaga al integrador.
+*/
 CREATE OR ALTER PROCEDURE EAI_OWNER.INVOICE_TO_OTROS
 (
-    @sInvoiceID VARCHAR(50)
+    @sInvoiceID VARCHAR(30)
 )
 AS
 BEGIN
 
     SET NOCOUNT ON;
-    SET XACT_ABORT ON;
 
     DECLARE
         @sMsg NVARCHAR(500),
@@ -22,8 +31,8 @@ BEGIN
 
     BEGIN TRY
 
-        BEGIN TRAN;
-
+        -- El cursor mantiene el procesamiento documento por documento de Oracle
+        -- y permite aplicar reglas fiscales particulares a cada encabezado.
         DECLARE curGeneral CURSOR LOCAL FAST_FORWARD FOR
 
         SELECT
@@ -50,7 +59,7 @@ BEGIN
               Head.Valor_Subt,
               Head.Valor_IVA,
 
-              TRY_CONVERT
+              CONVERT
               (
                    DATE,
                    LEFT(Head.DocumentDate,8),
@@ -67,7 +76,7 @@ BEGIN
               Head.Ciudad,
               Head.Estado,
 
-              dbo.GETCONV('ECC_T3 Country',Head.Pais),
+              EAI_OWNER.GETCONV('ECC_T3 Country',Head.Pais),
 
               Head.CodigoPostal,
 
@@ -140,6 +149,9 @@ BEGIN
         BEGIN
 
             SET @sFacturaV3 = @Factura;
+            -- Una asignación SELECT sin filas conserva el valor anterior en
+            -- SQL Server. Se reinicia para imitar el cursor ScrValida de Oracle.
+            SET @sProcesar = NULL;
 
             SELECT
                 @sProcesar =
@@ -157,6 +169,8 @@ BEGIN
             IF @sProcesar = 'SI'
             BEGIN
 
+                -- Se reconstruye el documento completo para evitar combinar la
+                -- versión nueva con detalles o condiciones de una carga anterior.
                 DELETE T3.Otros_General
                 WHERE Factura=@sFacturaV3;
 
@@ -252,6 +266,26 @@ BEGIN
                     @Observaciones
                 );
 
+                /*
+                    Complemento de comercio exterior (CCE). Oracle reemplaza
+                    método y referencia bancaria con los valores configurados;
+                    omitirlo cambia datos fiscales de salida.
+                */
+                IF TRIM(UPPER(@ReferenciaBancaria)) = 'CCE'
+                BEGIN
+                    SET @sMetodoDePago = EAI_OWNER.GETCONV(
+                        'TMD_PAC Payment Method', 'Import/Export');
+                    SET @sNumCtaPago = EAI_OWNER.GETCONV(
+                        'TMD_PAC Payment Method', 'Import/Export Ref Banco');
+
+                    UPDATE T3.Otros_General
+                       SET MetodoPago = @sMetodoDePago,
+                           ReferenciaBancaria = @sNumCtaPago,
+                           Incoterms = '',
+                           Complemento_CE = 'CCE'
+                     WHERE Factura = @Factura;
+                END;
+
                 INSERT INTO T3.Otros_Detalle
                 (
                     Factura,
@@ -274,11 +308,9 @@ BEGIN
                     Det.Cantidad,
                     Det.UnidadMedida,
 
-                    CASE
-                        WHEN Det.Cantidad = 0
-                            THEN 0
-                        ELSE Det.Valor_Subt / Det.Cantidad
-                    END,
+                    -- Oracle no sustituye una cantidad cero: la división debe
+                    -- fallar y quedar registrada, evitando fabricar un precio 0.
+                    Det.Valor_Subt / Det.Cantidad,
 
                     Det.Valor_Subt,
                     Det.Valor_IVA,
@@ -339,20 +371,20 @@ BEGIN
         CLOSE curGeneral;
         DEALLOCATE curGeneral;
 
+        -- Enriquecimientos posteriores: claves SAT, retenciones y corrección de
+        -- partners. El orden coincide con el procedimiento Oracle.
         EXEC EAI_OWNER.INVOICE_TO_OTROS_V33 @sInvoiceID;
         EXEC EAI_OWNER.INVOICE_TO_OTROS_RETENTION @sInvoiceID;
         EXEC EAI_OWNER.INVOICE_TO_OTROS_PARTNERS @sInvoiceID;
-
-        COMMIT;
 
     END TRY
 
     BEGIN CATCH
 
-        IF @@TRANCOUNT > 0
-            ROLLBACK;
+        IF CURSOR_STATUS('local', 'curGeneral') >= 0 CLOSE curGeneral;
+        IF CURSOR_STATUS('local', 'curGeneral') > -3 DEALLOCATE curGeneral;
 
-        SET @sErrorCode = CAST(ERROR_NUMBER() AS VARCHAR(20));
+        SET @sErrorCode = 'SQL-' + CAST(ERROR_NUMBER() AS VARCHAR(20));
 
         SET @sMsg =
             LEFT
@@ -388,7 +420,8 @@ BEGIN
             @sErrorCode
         );
 
-        THROW;
+        -- Oracle confirma lo ejecutado antes del error, registra la incidencia
+        -- y no la propaga. El modo autocommit de SQL Server conserva ese límite.
 
     END CATCH
 

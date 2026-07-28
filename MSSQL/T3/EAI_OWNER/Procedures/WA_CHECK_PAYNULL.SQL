@@ -1,4 +1,11 @@
-CREATE PROCEDURE EAI_OWNER.WA_CHECK_PAYNULL
+/*
+    Procedure : EAI_OWNER.WA_CHECK_PAYNULL
+    Objetivo  : Detectar documentos contables sin PaymentAmount, consultar su
+                saldo real y completar método/importe cuando el pago es aplicable.
+    Entradas  : @pDays limita la antigüedad; @pSequence habilita la corrección
+                automática únicamente a partir de 100.
+*/
+CREATE OR ALTER PROCEDURE EAI_OWNER.WA_CHECK_PAYNULL
 (
       @pDays       INT = 0,
       @pSequence   INT = 0
@@ -12,7 +19,7 @@ BEGIN
     DECLARE
         @sErrorCode       VARCHAR(30),
         @sMsg             VARCHAR(300),
-        @nPID             INT = @@SPID,
+        @nPID             INT = NULL,
         @rsDoc_Num        VARCHAR(30),
         @rsCliente_SAP    VARCHAR(10),
         @rnAmount         DECIMAL(15,2),
@@ -139,7 +146,7 @@ BEGIN
             (
                 SELECT
                     Pay.IDocNumber,
-                    dbo.getConv(
+                    EAI_OWNER.GETCONV(
                         'V3_ECC PaymentMethod',
                         ISNULL(Cte.Metodo_Pago,'-')
                     ) AS PayMethod,
@@ -154,8 +161,9 @@ BEGIN
                 AND ISNULL(Pay.Doc_Amount,0) > 0
             ) P
                 ON T.IDocNumber = P.IDocNumber
-            WHERE
-                T.PaymentMethod <> P.PayMethod;
+            -- Oracle compara el método del cliente contra su conversión, no
+            -- contra el valor actual almacenado en el encabezado.
+            WHERE P.Metodo_Pago <> P.PayMethod;
         END
 
         PRINT 'Fin -> '
@@ -163,6 +171,9 @@ BEGIN
 
     END TRY
     BEGIN CATCH
+
+        IF CURSOR_STATUS('local', 'curDoc') >= 0 CLOSE curDoc;
+        IF CURSOR_STATUS('local', 'curDoc') > -3 DEALLOCATE curDoc;
 
         SET @sErrorCode =
             'SQL-' + CAST(ERROR_NUMBER() AS VARCHAR);
@@ -208,7 +219,7 @@ BEGIN
             NULL
         );
 
-        THROW;
+        -- La incidencia queda en la bitácora y no se propaga, como en Oracle.
 
     END CATCH
 END

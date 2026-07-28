@@ -1,3 +1,12 @@
+/*
+    Procedure : EAI_OWNER.SF_GET_INVOICE_DATA
+    Objetivo  : Resolver una factura por folio, entrega o referencia y devolver
+                cliente, importe, pagos aplicados y saldo pendiente.
+    Prioridad : Venta inmediata, preventa y finalmente cancelación de pago.
+    Regla SAT : Para RFC configurados, el importe fiscal puede sustituir al total
+                operativo; la decisión queda registrada en Trace_EAI_OWNER.
+    Salidas   : Se asignan tanto en éxito como en error para proteger al caller.
+*/
 CREATE OR ALTER PROCEDURE EAI_OWNER.SF_GET_INVOICE_DATA
 (
       @pInvoiceRef      VARCHAR(500),
@@ -40,6 +49,11 @@ BEGIN
             @sRFC = '',
             @nSAT_Amount = 0,
             @nReq_SAT_Amt = 0;
+
+        -- Evita que la variable de referencia de 30 caracteres se trunque y
+        -- produzca salidas asociadas con otra factura.
+        IF LEN(@pInvoiceRef) > 30
+            THROW 50022, 'La referencia de factura excede 30 caracteres.', 1;
 
         ---------------------------------------------------
         -- PROMPT SALES
@@ -195,6 +209,12 @@ BEGIN
            AND @sRFC <> 'XAXX010101000'
         BEGIN
 
+            INSERT INTO EAI_OWNER.Trace_EAI_OWNER
+                (Created, Object_Type, Object_Reference, Description)
+            VALUES
+                (GETDATE(), 'SF_GET_INVOICE_DATA', @pInvoiceRef,
+                 CONCAT('Check ', @sRFC));
+
             SELECT
                 @nReq_SAT_Amt =
                 MAX(CAST(COALESCE(Target,'0') AS INT))
@@ -206,6 +226,12 @@ BEGIN
                AND @nSAT_Amount > 0
             BEGIN
                 SET @nAmount = @nSAT_Amount;
+
+                INSERT INTO EAI_OWNER.Trace_EAI_OWNER
+                    (Created, Object_Type, Object_Reference, Description)
+                VALUES
+                    (GETDATE(), 'SF_GET_INVOICE_DATA', @pInvoiceRef,
+                     'WA -> SAT Amount');
             END
         END
 

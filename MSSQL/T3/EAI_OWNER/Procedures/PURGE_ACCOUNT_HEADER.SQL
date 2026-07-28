@@ -1,3 +1,12 @@
+/*
+    Procedure : EAI_OWNER.PURGE_ACCOUNT_HEADER
+    Objetivo  : Eliminar encabezados contables temporales por ventanas de días.
+    Entradas  : Fecha inicial, fecha final y tamaño opcional de ventana (7 días).
+    Auditoría : Cada ventana registra inicio, fin y número de filas eliminadas
+                en MX_PURGE_LEGDB_LOG.
+    Integridad: Cada ventana se procesa en una transacción independiente para
+                que el DELETE y su bitácora se confirmen o reviertan juntos.
+*/
 CREATE OR ALTER PROCEDURE EAI_OWNER.PURGE_ACCOUNT_HEADER
 (
       @dtStartingPurge DATE
@@ -24,6 +33,12 @@ BEGIN
 
         SET @nPeriod = COALESCE(@nDiasIntervalo, 7);
         SET @nIteracion = 0;
+
+        -- Evita ciclos infinitos y garantiza que ningún DELETE se ejecute con
+        -- una ventana incompleta o invertida por un intervalo inválido.
+        IF @dtStartingPurge IS NULL OR @dtEndingPurge IS NULL OR @nPeriod <= 0
+            THROW 50010, 'Las fechas son obligatorias y el intervalo debe ser mayor que cero.', 1;
+
         SET @dtStarting = DATEADD(DAY,-@nPeriod,@dtStartingPurge);
 
         WHILE (1 = 1)
@@ -48,8 +63,13 @@ BEGIN
 
             SET @sStage = 'ACCOUNT_HEADER';
 
+            -- La bitácora y la eliminación forman una sola unidad: no debe
+            -- existir una purga sin su conteo final, ni una bitácora sin purga.
+            BEGIN TRANSACTION;
+
+            -- La secuencia pertenece a EAI_OWNER, igual que en Oracle.
             SET @nSequence =
-                NEXT VALUE FOR dbo.Seq_Purge_LEGDB;
+                NEXT VALUE FOR EAI_OWNER.Seq_Purge_LEGDB;
 
             INSERT INTO EAI_OWNER.MX_PURGE_LEGDB_LOG
             (
@@ -68,6 +88,8 @@ BEGIN
                 , NULL
             );
 
+            -- El límite superior incluye todo el último día de la ventana sin
+            -- aplicar una función sobre Created, permitiendo usar un índice.
             DELETE FROM EAI_OWNER.TMP_ACCOUNT_HEADER
             WHERE Created >= @dtStarting
               AND Created < DATEADD(DAY,1,@dtEnding);
@@ -80,6 +102,7 @@ BEGIN
              WHERE PID = @nSequence;
 
             COMMIT TRANSACTION;
+
         END;
 
     END TRY

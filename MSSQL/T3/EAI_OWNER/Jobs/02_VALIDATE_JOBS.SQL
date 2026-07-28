@@ -1,8 +1,8 @@
 /* Ejecutar en la base de datos de la aplicacion despues de 01_CREATE_OR_UPDATE_JOBS.SQL. */
 SET NOCOUNT ON;
 
-IF OBJECT_ID(N'dbo.Job_Oracle_SQLAgent_Map', N'U') IS NULL
-   OR OBJECT_ID(N'dbo.Job_Oracle_Migration_Catalog', N'U') IS NULL
+IF OBJECT_ID(N'[EAI_OWNER].[Job_Oracle_SQLAgent_Map]', N'U') IS NULL
+   OR OBJECT_ID(N'[EAI_OWNER].[Job_Oracle_Migration_Catalog]', N'U') IS NULL
 BEGIN
     THROW 51010, 'Falta ejecutar 01_CREATE_OR_UPDATE_JOBS.SQL.', 1;
 END;
@@ -29,8 +29,8 @@ SELECT
       WHEN j.[enabled]<>0 THEN N'UNEXPECTEDLY_ENABLED'
       ELSE N'OK'
     END AS Deployment_Status
-FROM dbo.Job_Oracle_Migration_Catalog AS c
-LEFT JOIN dbo.Job_Oracle_SQLAgent_Map AS m
+FROM [EAI_OWNER].[Job_Oracle_Migration_Catalog] AS c
+LEFT JOIN [EAI_OWNER].[Job_Oracle_SQLAgent_Map] AS m
   ON m.Oracle_Job_No=c.Oracle_Job_No
 LEFT JOIN msdb.dbo.sysjobs AS j
   ON j.job_id=m.SqlAgent_Job_Id
@@ -47,8 +47,8 @@ SELECT
     SUM(CASE WHEN OBJECT_ID(QUOTENAME(c.Required_Schema)+N'.'+QUOTENAME(c.Required_Procedure),N'P') IS NULL THEN 1 ELSE 0 END) AS Missing_Dependencies,
     SUM(CASE WHEN j.job_id IS NULL THEN 1 ELSE 0 END) AS Missing_Agent_Jobs,
     SUM(CASE WHEN j.[enabled]=1 THEN 1 ELSE 0 END) AS Currently_Enabled
-FROM dbo.Job_Oracle_Migration_Catalog AS c
-LEFT JOIN dbo.Job_Oracle_SQLAgent_Map AS m ON m.Oracle_Job_No=c.Oracle_Job_No
+FROM [EAI_OWNER].[Job_Oracle_Migration_Catalog] AS c
+LEFT JOIN [EAI_OWNER].[Job_Oracle_SQLAgent_Map] AS m ON m.Oracle_Job_No=c.Oracle_Job_No
 LEFT JOIN msdb.dbo.sysjobs AS j ON j.job_id=m.SqlAgent_Job_Id;
 
 /*

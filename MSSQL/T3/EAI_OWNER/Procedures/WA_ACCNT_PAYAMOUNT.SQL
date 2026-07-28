@@ -1,4 +1,11 @@
-CREATE PROCEDURE EAI_OWNER.WA_ACCNT_PAYAMOUNT
+/*
+    Procedure : EAI_OWNER.WA_ACCNT_PAYAMOUNT
+    Objetivo  : Completar el importe de pago de una factura usando su nota de
+                crédito asociada y aislar operaciones bancarias configuradas.
+    Integridad: Factura y nota se seleccionan con exactamente los mismos filtros;
+                la migración a TMP_ACCOUNT_BANK y el DELETE se confirman juntos.
+*/
+CREATE OR ALTER PROCEDURE EAI_OWNER.WA_ACCNT_PAYAMOUNT
 (
       @pDiasIni INT = 0,
       @pDiasFin INT = 0
@@ -21,33 +28,42 @@ BEGIN
         -- Actualización Factura desde Nota Crédito
         ---------------------------------------------------------
 
-        ;WITH DocInfo AS
-        (
-            SELECT
-                ClearingDocNumber,
-                MAX(CASE WHEN DC_Indicator='H' THEN PaymentAmount END) Nota_PaymentAmount,
-                MAX(CASE WHEN DC_Indicator='H' THEN IdocNumber END) Nota_IdocNumber,
-                MAX(CASE WHEN DC_Indicator='S' THEN IdocNumber END) Fact_IdocNumber,
-                COUNT(*) Cnt,
-                MAX(ISNULL(Reversal,' ')) Reversal
-            FROM EAI_OWNER.TMP_ACCOUNT_HEADER
-            WHERE Created > CAST(DATEADD(DAY,-@pDiasIni,GETDATE()) AS DATE)
-              AND Created < CAST(DATEADD(DAY,-@pDiasFin,GETDATE()) AS DATE)
-              AND ClearingDocNumber NOT LIKE '11000%'
-              AND DocumentType <> 'BK'
-            GROUP BY
-                ClearingDocNumber
-            HAVING COUNT(*) = 2
-        )
+        -- La tabla temporal materializa una sola vez los pares elegibles. Así la
+        -- factura y la nota reciben cambios bajo exactamente las mismas reglas.
+        SELECT
+            ClearingDocNumber,
+            ClearingDate,
+            MAX(CASE WHEN DC_Indicator='H' THEN PaymentAmount END) AS Nota_PaymentAmount,
+            MAX(CASE WHEN DC_Indicator='H' THEN IdocNumber END) AS Nota_IdocNumber,
+            MAX(CASE WHEN DC_Indicator='S' THEN IdocNumber END) AS Fact_IdocNumber,
+            MAX(CASE WHEN DC_Indicator='H' THEN ReferenceDocNumber END) AS Nota_Reference,
+            MAX(CASE WHEN DC_Indicator='H' THEN Status END) AS Nota_Status,
+            MAX(CASE WHEN DC_Indicator='S' THEN PaymentAmount END) AS Fact_PaymentAmount,
+            MAX(ISNULL(Reversal,' ')) AS Reversal
+        INTO #EligiblePayAmount
+        FROM EAI_OWNER.TMP_ACCOUNT_HEADER
+        WHERE Created > CAST(DATEADD(DAY,-@pDiasIni,GETDATE()) AS DATE)
+          AND Created < CAST(DATEADD(DAY,-@pDiasFin,GETDATE()) AS DATE)
+          AND ClearingDocNumber NOT LIKE '11000%'
+          AND DocumentType <> 'BK'
+        GROUP BY ClearingDocNumber, ClearingDate
+        HAVING COUNT(ClearingDocNumber) = 2
+           AND MAX(CASE WHEN DC_Indicator='H' THEN ReferenceDocNumber END) IS NOT NULL;
+
+        DELETE FROM #EligiblePayAmount
+        WHERE Nota_Status IS NULL
+           OR Nota_Status = 'Processed'
+           OR Fact_PaymentAmount IS NOT NULL
+           OR Reversal <> ' ';
 
         UPDATE F
            SET F.PaymentAmount       = D.Nota_PaymentAmount,
-               F.Original_PaymentAmt = D.Nota_PaymentAmount
+               -- Oracle evalúa PaymentAmount con el valor anterior de la fila.
+               F.Original_PaymentAmt = F.PaymentAmount
         FROM EAI_OWNER.TMP_ACCOUNT_HEADER F
-        INNER JOIN DocInfo D
+        INNER JOIN #EligiblePayAmount D
            ON F.IdocNumber = D.Fact_IdocNumber
-        WHERE D.Reversal=' '
-          AND F.PaymentAmount IS NULL;
+        WHERE F.PaymentAmount IS NULL;
 
         ---------------------------------------------------------
         -- Reactivar Nota Crédito
@@ -57,16 +73,7 @@ BEGIN
            SET Processed = NULL,
                Status    = NULL
         FROM EAI_OWNER.TMP_ACCOUNT_HEADER N
-        INNER JOIN
-        (
-            SELECT MAX(CASE WHEN DC_Indicator='H'
-                            THEN IdocNumber END) Nota_IdocNumber
-            FROM EAI_OWNER.TMP_ACCOUNT_HEADER
-            WHERE Created > CAST(DATEADD(DAY,-@pDiasIni,GETDATE()) AS DATE)
-              AND Created < CAST(DATEADD(DAY,-@pDiasFin,GETDATE()) AS DATE)
-            GROUP BY ClearingDocNumber
-            HAVING COUNT(*) = 2
-        ) X
+        INNER JOIN #EligiblePayAmount X
             ON X.Nota_IdocNumber = N.IdocNumber;
 
         ---------------------------------------------------------
@@ -204,7 +211,7 @@ BEGIN
             NULL,
             GETDATE(),
             NULL,
-            @@SPID,
+            NULL,
             'Error',
             'WA_ACCNT_COMPLEMENT',
             @sMsg,
@@ -215,7 +222,7 @@ BEGIN
             NULL
         );
 
-        THROW;
+        -- Oracle registra la incidencia sin propagarla al proceso invocador.
 
     END CATCH
 

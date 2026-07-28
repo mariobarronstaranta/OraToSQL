@@ -1,15 +1,15 @@
 /* Rollback operativo: deshabilita los jobs migrados sin borrarlos ni perder historial. */
 SET NOCOUNT ON;
 
-IF OBJECT_ID(N'dbo.Job_Oracle_SQLAgent_Map',N'U') IS NULL
+IF OBJECT_ID(N'[EAI_OWNER].[Job_Oracle_SQLAgent_Map]',N'U') IS NULL
 BEGIN
-    THROW 51030, 'No existe dbo.Job_Oracle_SQLAgent_Map.', 1;
+    THROW 51030, 'No existe EAI_OWNER.Job_Oracle_SQLAgent_Map.', 1;
 END;
 
 DECLARE @JobId UNIQUEIDENTIFIER,@JobName SYSNAME;
 DECLARE DisableCursor CURSOR LOCAL FAST_FORWARD FOR
 SELECT j.job_id,j.[name]
-FROM dbo.Job_Oracle_SQLAgent_Map AS m
+FROM [EAI_OWNER].[Job_Oracle_SQLAgent_Map] AS m
 INNER JOIN msdb.dbo.sysjobs AS j ON j.job_id=m.SqlAgent_Job_Id;
 
 OPEN DisableCursor;

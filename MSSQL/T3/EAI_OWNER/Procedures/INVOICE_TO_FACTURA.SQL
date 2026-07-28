@@ -1,9 +1,22 @@
-ALTER PROCEDURE EAI_OWNER.INVOICE_TO_FACTURA
+/*
+    Procedure : EAI_OWNER.INVOICE_TO_FACTURA
+    Objetivo  : Transformar encabezado y detalles temporales en una factura T3,
+                calcular impuestos/bonificaciones y relacionar el pedido.
+    Entrada   : @sInvoiceID identifica el mensaje temporal.
+    Salida    : @pFolioFiscal devuelve el folio T3 sólo al finalizar con éxito;
+                permanece NULL cuando no se procesa o sucede un error.
+    Integridad: Antes de reconstruir una factura se eliminan sus filas previas;
+                conversiones inválidas se registran y no generan valores falsos.
+*/
+CREATE OR ALTER PROCEDURE EAI_OWNER.INVOICE_TO_FACTURA
     @sInvoiceID VARCHAR(30),
     @pFolioFiscal VARCHAR(30) OUTPUT
 AS
 BEGIN
     SET NOCOUNT ON;
+    -- Un parámetro OUT de Oracle inicia en NULL. SQL Server, en cambio, puede
+    -- conservar el valor enviado por el caller si no lo sobrescribimos.
+    SET @pFolioFiscal = NULL;
     BEGIN TRY
         -- Variables locales
         DECLARE @sMsg VARCHAR(500) = NULL;
@@ -85,22 +98,22 @@ BEGIN
             Head.FacturaSAP,
             SUBSTRING(Head.FacturaSAP, 1, 3),
             Head.ShippingPoint,
-            dbo.CONV_PLANT_TO_DIST(Head.ShippingPoint),
+            EAI.CONV_PLANT_TO_DIST(Head.ShippingPoint),
             Head.ReferenceID,
-            TRY_CONVERT(DATE, SUBSTRING(Head.DocumentDate, 1, 8), 112),
-            TRY_CONVERT(DATE, SUBSTRING(Head.Fecha_Vencimiento, 1, 8), 112),
+            CONVERT(DATE, SUBSTRING(Head.DocumentDate, 1, 8), 112),
+            CONVERT(DATE, SUBSTRING(Head.Fecha_Vencimiento, 1, 8), 112),
             CASE 
                 WHEN Head.DeliveryType = 'C005' THEN 'C003'
                 WHEN Head.DeliveryType = 'C006' THEN 'C004'
                 ELSE Head.DeliveryType 
             END,
-            dbo.FN_GET_CLIENTE_TMD(Head.Cust_to_SAP),
+            EAI_OWNER.FN_GET_CLIENTE_TMD(Head.Cust_to_SAP),
             Head.Cust_to_SAP,
             Head.Cust_to_SAP,
             ISNULL(Head.Bill_to_SAP, Head.Cust_to_SAP),
             'NULL',
             Head.PedidoSAP,
-            TRY_CONVERT(DATE, SUBSTRING(Head.DocumentDate, 1, 8), 112),
+            CONVERT(DATE, SUBSTRING(Head.DocumentDate, 1, 8), 112),
             ISNULL(Head.Valor_Subt, 0),
             ISNULL(Head.Valor_IVA, 0),
             '11',
@@ -181,7 +194,8 @@ BEGIN
                 IF @Clase_Factura IN ('C003', 'C004', 'C005', 'C006', 'C019', 'C0FX', 'C025', 'C030', 'C031')
                     SET @nFact_Subt = @nFact_Subt - @nFact_IVA;
                 
-                -- Limpiar registros previos
+                -- Reconstrucción controlada: borrar primero evita mezclar líneas
+                -- de una ejecución anterior con el documento que acaba de llegar.
                 DELETE FROM T3.Factura_General WHERE Factura = @sFacturaV3;
                 DELETE FROM T3.Factura_Detalle WHERE Factura = @sFacturaV3;
                 DELETE FROM T3.RF_Complemento WHERE Factura = @sFacturaV3;
@@ -193,11 +207,12 @@ BEGIN
                     (Factura, Hora_Factura, Anio_Aprob, Folio_Aprob, Order_Num, Rep_ID, 
                      X_DelRep_Invloc, Volumen, Sociedad, Cadena_Original, Sello_Digital, Dias_Pago)
                 VALUES 
-                    (@sFacturaV3, FORMAT(GETDATE(), 'HH:mm:ss'), 'Error', 'Error', '', 'U00000000', 
+                    (@sFacturaV3, CONVERT(VARCHAR(8), GETDATE(), 108), 'Error', 'Error', '', 'U00000000',
                      '', NULL, 'MX06', 'CFDI - Documento', 'CFDI - Documento', 
                      DATEDIFF(DAY, @Fecha_Factura, @Fecha_Pago));
                 
-                -- Insertar encabezado de factura
+                -- El encabezado se inserta antes del detalle porque todas las
+                -- líneas comparten este folio y sus datos comerciales.
                 INSERT INTO T3.Factura_General
                     (Factura, Entrega, Distribuidor, Cliente_V3, Fecha_Factura, Ubicacion, 
                      Fecha_Pago, Row_ID, Fecha_TRN, Tipo_Docto, Cliente_SAP, Clte_Factura_SAP, 
@@ -229,7 +244,9 @@ BEGIN
                         Head.FacturaSAP AS Factura,
                         SUBSTRING(Head.FacturaSAP, 1, 3) AS Prefijo,
                         Det.ItemID AS Num_Linea,
-                        CAST(TRIM(Det.Material) AS VARCHAR(18)) AS Material,
+                        -- Oracle aplica TO_NUMBER antes de volver a texto: elimina
+                        -- ceros a la izquierda y rechaza materiales no numéricos.
+                        CONVERT(VARCHAR(18), CONVERT(NUMERIC(38,0), TRIM(Det.Material))) AS Material,
                         ISNULL(Det.UnidadMedida, 'UA') AS Unidad_Med_Vta,
                         CASE WHEN Det.Status_Producto = 'MALO' THEN 'Q' ELSE ' ' END AS Status_Prod,
                         0 AS Tasa_IEPS,
@@ -247,7 +264,8 @@ BEGIN
                         END AS Tasa_IVA
                     FROM EAI_Owner.Tmp_Document_Header Head
                     INNER JOIN EAI_Owner.Tmp_Document_Detail Det ON Head.ReferenceID = Det.ReferenceID
-                    LEFT JOIN T3.Material Mat ON CAST(TRIM(Det.Material) AS VARCHAR(18)) = Mat.Material
+                    LEFT JOIN T3.Material Mat
+                      ON CONVERT(VARCHAR(18), CONVERT(NUMERIC(38,0), TRIM(Det.Material))) = Mat.Material
                     WHERE Head.ReferenceID = @sInvoiceID
                 ) DetailAgg
                 GROUP BY Factura, Prefijo, Num_Linea, Material, Unidad_Med_Vta, Status_Prod;
@@ -310,7 +328,7 @@ BEGIN
                     
                     -- Convertir unidad de medida
                     SET @sUnidad_Med_Vta = @Unidad_Med_Vta_Det;
-                    EXEC @sUnidad_Med_Vta = EAI_OWNER.GETCONV @p1='ECC_V3 UOM', @p2=@sUnidad_Med_Vta OUTPUT;
+                    SET @sUnidad_Med_Vta = EAI_OWNER.GETCONV('ECC_V3 UOM', @sUnidad_Med_Vta);
                     
                     -- Workaround para ciertos tipos de factura
                     IF @Clase_Factura IN ('C030', 'C031')
@@ -323,7 +341,8 @@ BEGIN
                     
                     -- Calcular valores totales
                     SET @nDet_ValorTot = (ISNULL(@nDet_Subt, 0) + ISNULL(@nDet_IVA, 0));
-                    SET @nDet_PrecioUnit = ROUND((ISNULL(@nDet_Subt, 0)) / NULLIF(@nCantidad_Vta, 0), 2);
+                    -- NVL(cantidad,1) en Oracle: NULL usa 1; cero sigue siendo error.
+                    SET @nDet_PrecioUnit = ROUND(ISNULL(@nDet_Subt, 0) / ISNULL(@nCantidad_Vta, 1), 2);
                     
                     -- Insertar detalle de factura
                     INSERT INTO T3.Factura_Detalle 
@@ -372,9 +391,8 @@ BEGIN
             Credito_Subt = PD_Agg.Credito_Subt,
             Credito_IVA = PD_Agg.Credito_IVA
         FROM T3.Factura_General PG
-        INNER JOIN (
-            SELECT 
-                PD.Factura,
+        CROSS APPLY (
+            SELECT
                 SUM(ISNULL(PD.Bonif_Subt, 0)) AS Bonif_Subt,
                 SUM(ISNULL(PD.Bonif_IVA, 0)) AS Bonif_IVA,
                 SUM(ISNULL(PD.Valor_Subt, 0)) AS Valor_Subt,
@@ -384,11 +402,12 @@ BEGIN
                 SUM(ISNULL(PD.Credito_Subt, 0)) AS Credito_Subt,
                 SUM(ISNULL(PD.Credito_IVA, 0)) AS Credito_IVA
             FROM T3.Factura_Detalle PD
-            GROUP BY PD.Factura
-        ) PD_Agg ON PG.Factura = PD_Agg.Factura
+            WHERE PD.Factura = PG.Factura
+        ) PD_Agg
         WHERE PG.Factura = @sFacturaV3;
         
-        -- Marcar como procesado
+        -- Sólo se marca el mensaje después de terminar encabezado, detalles y
+        -- acumulados. Así un fallo previo permite identificarlo como pendiente.
         UPDATE EAI_Owner.Tmp_Document_Header  
         SET Procesado = GETDATE()
         WHERE ReferenceID = @sInvoiceID;
@@ -401,6 +420,14 @@ BEGIN
         
     END TRY
     BEGIN CATCH
+        -- Un error puede ocurrir dentro de cualquiera de los cursores. Se
+        -- liberan sólo si llegaron a crearse para no ocultar el error original.
+        IF CURSOR_STATUS('local', 'ScrDetalle') >= 0 CLOSE ScrDetalle;
+        IF CURSOR_STATUS('local', 'ScrDetalle') > -3 DEALLOCATE ScrDetalle;
+        IF CURSOR_STATUS('local', 'ScrValida') >= 0 CLOSE ScrValida;
+        IF CURSOR_STATUS('local', 'ScrValida') > -3 DEALLOCATE ScrValida;
+        IF CURSOR_STATUS('local', 'ScrGeneral') >= 0 CLOSE ScrGeneral;
+        IF CURSOR_STATUS('local', 'ScrGeneral') > -3 DEALLOCATE ScrGeneral;
         -- Manejo de errores
         SET @sErrorCode = 'SQL-' + CAST(ERROR_NUMBER() AS VARCHAR(10));
         SET @sMsg = CAST(ERROR_NUMBER() AS VARCHAR(10)) + '-' + ERROR_MESSAGE();
@@ -413,7 +440,7 @@ BEGIN
             ('Sending to T3', @v_ID, GETDATE(), NULL, 'Error', 'Invoice to T3', 
              @sMsg, 'XML', @sErrorCode, NULL, NULL, NULL);
         
-        COMMIT TRANSACTION;
-        THROW;
+        -- Oracle conserva el folio de salida en NULL y registra el error sin
+        -- propagar una excepción al integrador.
     END CATCH;
 END;

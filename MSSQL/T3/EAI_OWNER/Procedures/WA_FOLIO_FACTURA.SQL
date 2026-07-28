@@ -1,3 +1,11 @@
+/*
+    Procedure : EAI_OWNER.WA_FOLIO_FACTURA
+    Objetivo  : Obtener o generar el folio interno T3 para una factura SAP.
+    Salida    : @sFolioT3 devuelve una relación existente, un nuevo consecutivo
+                NRIV o el folio SAP cuando no existe rango configurado.
+    Concurrencia: Los bloqueos UPDLOCK/HOLDLOCK evitan entregar el mismo folio a
+                  dos sesiones simultáneas.
+*/
 CREATE OR ALTER PROCEDURE [EAI_Owner].[WA_FOLIO_FACTURA]
 (
     @pFolioSAP       VARCHAR(50),
@@ -31,6 +39,15 @@ BEGIN
         SET @sCalcular = 'NO';
         SET @nFolio    = 0;
         SET @sFolioT3  = NULL;
+
+        -- Oracle asigna el folio a una variable VARCHAR2(20). Rechazar un valor
+        -- mayor evita generar una relación usando un identificador truncado.
+        IF LEN(@pFolioSAP) > 20
+            THROW 50030, 'El folio SAP excede 20 caracteres.', 1;
+
+        IF @pClaseFactura IN ('C005', 'C006', 'REM', 'INVT')
+           AND LEN(@pCentro) > 4
+            THROW 50032, 'El centro excede 4 caracteres.', 1;
 
         /*
             Determinación de clases que requieren cálculo de folio.

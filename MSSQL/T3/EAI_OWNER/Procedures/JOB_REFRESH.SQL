@@ -24,8 +24,8 @@ BEGIN
         Traduccion SQL Server:
             - USER_JOBS se aproxima con msdb.dbo.sysjobs, sysjobsteps,
               sysjobschedules, sysschedules, sysjobactivity y sysjobhistory.
-            - dbo.Job_Oracle_SQLAgent_Map conserva el numero Oracle JOBNO y el
-              schedule principal migrado.
+            - EAI_OWNER.Job_Oracle_SQLAgent_Map conserva el numero Oracle JOBNO
+              y el schedule principal migrado.
             - LAST_DATE se toma de la ultima ejecucion exitosa, porque en
               Oracle USER_JOBS.LAST_DATE representa la ultima ejecucion correcta.
             - THIS_DATE se toma de sysjobactivity cuando el job esta corriendo.
@@ -38,8 +38,8 @@ BEGIN
         IF OBJECT_ID(N'[EAI_OWNER].[INTERNAL_JOBS]', N'U') IS NULL
             THROW 51000, 'No existe la tabla EAI_OWNER.INTERNAL_JOBS.', 1;
 
-        IF OBJECT_ID(N'dbo.Job_Oracle_SQLAgent_Map', N'U') IS NULL
-            THROW 51001, 'No existe dbo.Job_Oracle_SQLAgent_Map para mapear DBMS_JOB a SQL Server Agent.', 1;
+        IF OBJECT_ID(N'[EAI_OWNER].[Job_Oracle_SQLAgent_Map]', N'U') IS NULL
+            THROW 51001, 'No existe EAI_OWNER.Job_Oracle_SQLAgent_Map para mapear DBMS_JOB a SQL Server Agent.', 1;
 
         BEGIN TRANSACTION;
 
@@ -240,7 +240,7 @@ BEGIN
                 ) AS NLS_ENV,
 
                 LEFT(CONVERT(VARCHAR(128), @@SERVERNAME), 128) AS INSTANCE_JOB
-            FROM dbo.Job_Oracle_SQLAgent_Map AS Map
+            FROM [EAI_OWNER].[Job_Oracle_SQLAgent_Map] AS Map
             INNER JOIN msdb.dbo.sysjobs AS Job
                 ON Job.job_id = Map.SqlAgent_Job_Id
             LEFT JOIN LastSuccessfulRun AS LastRun

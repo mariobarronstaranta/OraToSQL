@@ -32,7 +32,7 @@ BEGIN
         para mantener el mismo comportamiento ante configuracion incompleta.
 
         JOB_NEXT_RUN sustituye DBMS_JOB.BROKEN(job, FALSE, dtNextRun) y usa
-        dbo.Job_Oracle_SQLAgent_Map para resolver el numero DBMS_JOB hacia el
+        EAI_OWNER.Job_Oracle_SQLAgent_Map para resolver el numero DBMS_JOB hacia el
         job y schedule correspondientes de SQL Server Agent.
     */
 

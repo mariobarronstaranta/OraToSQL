@@ -1,4 +1,11 @@
-CREATE  PROCEDURE EAI_OWNER.WA_ACCNT_COMPLEMENT
+/*
+    Procedure : EAI_OWNER.WA_ACCNT_COMPLEMENT
+    Objetivo  : Completar factura, nota de crédito y RFC en encabezados contables
+                usando referencias 4428 y el histórico fiscal del cliente.
+    Integridad: Todas las columnas del complemento se actualizan juntas dentro
+                de una transacción para evitar encabezados parcialmente llenos.
+*/
+CREATE OR ALTER PROCEDURE EAI_OWNER.WA_ACCNT_COMPLEMENT
 (
       @pDias INT = 0
 )
@@ -27,9 +34,9 @@ BEGIN
                 , H.Cte_CreditMemo
                 , H.Cte_Tax_ID
 
-                , dbo.get_4428_Reference(H.Assignment) AS Ref_Assignment
+                , EAI_OWNER.GET_4428_REFERENCE(H.Assignment) AS Ref_Assignment
 
-                , dbo.get_4428_Reference
+                , EAI_OWNER.GET_4428_REFERENCE
                   (
                       COALESCE(H.BillingDocument,H.ReferenceDocNumber)
                   ) AS Ref_Billing
@@ -153,7 +160,7 @@ BEGIN
             , NULL
             , GETDATE()
             , NULL
-            , @@SPID
+              , NULL
             , 'Error'
             , 'WA_ACCNT_COMPLEMENT'
             , @Msg
@@ -164,7 +171,7 @@ BEGIN
             , NULL
         );
 
-        THROW;
+        -- Oracle registra la incidencia y finaliza sin propagarla.
 
     END CATCH
 

@@ -1,3 +1,10 @@
+/*
+    Procedure : EAI_OWNER.SF_GET_CREDIT_DATA
+    Objetivo  : Localizar una nota de crédito en ventas o preventas y devolver
+                documento, cliente, importe total, saldo pendiente y pagado.
+    Salidas   : Todos los parámetros OUTPUT se asignan también en error para no
+                devolver valores anteriores proporcionados por el caller.
+*/
 CREATE OR ALTER PROCEDURE EAI_OWNER.SF_GET_CREDIT_DATA
 (
       @pInvoiceRef      VARCHAR(500)
@@ -31,6 +38,12 @@ BEGIN
         , @sDocType = 'None';
 
     BEGIN TRY
+
+        -- Oracle copia la referencia a v_ID VARCHAR2(30); una referencia mayor
+        -- es inválida. Se rechaza explícitamente para que SQL Server no la
+        -- trunque y termine consultando un documento diferente.
+        IF LEN(@pInvoiceRef) > 30
+            THROW 50020, 'La referencia de factura excede 30 caracteres.', 1;
 
         ------------------------------------------------------------------
         -- PROMPT SALES
@@ -162,7 +175,9 @@ BEGIN
         -- AJUSTE IVA
         ------------------------------------------------------------------
 
-        SET @nTaxIssue = COALESCE(dbo.FN_GET_TAX_ISSUE(@pInvoiceRef),0);
+        -- Ajuste conocido de diferencias de IVA calculado por la función del
+        -- esquema EAI_OWNER.
+        SET @nTaxIssue = COALESCE(EAI_OWNER.FN_GET_TAX_ISSUE(@pInvoiceRef),0);
 
         SET @nAmount += @nTaxIssue;
 

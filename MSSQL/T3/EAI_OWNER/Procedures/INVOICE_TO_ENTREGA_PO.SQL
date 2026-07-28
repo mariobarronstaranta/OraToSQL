@@ -1,3 +1,11 @@
+/*
+    Procedure : EAI_OWNER.INVOICE_TO_ENTREGA_PO
+    Objetivo  : Asociar el pedido bancario recibido con el folio de interfaz.
+    Entrada   : @sInvoiceID identifica el documento; @nOutput habilita trazas.
+    Reglas    : Se excluyen referencias iguales al pedido y prefijos OV/OD.
+                CreadoPor determina si corresponde UPDATE o INSERT, tal como
+                lo hace NVL(FE.CreadoPor,'INSERT') en Oracle.
+*/
 CREATE OR ALTER PROCEDURE EAI_OWNER.INVOICE_TO_ENTREGA_PO
 (
       @sInvoiceID VARCHAR(30),
@@ -42,6 +50,7 @@ BEGIN
         -- UPDATE EXISTENTES
         -------------------------------------------------------------------
 
+        -- Filas con CreadoPor informado ya existen y sólo actualizan el pedido.
         UPDATE FE
            SET FE.Pedido       = DOC.ReferenciaBancaria,
                FE.Modificacion = GETDATE()
@@ -52,7 +61,9 @@ BEGIN
           AND DOC.ReferenciaBancaria IS NOT NULL
           AND DOC.ReferenciaBancaria <> DOC.PedidoV3
           AND DOC.ReferenciaBancaria NOT LIKE 'OV%'
-          AND DOC.ReferenciaBancaria NOT LIKE 'OD%';
+          AND DOC.ReferenciaBancaria NOT LIKE 'OD%'
+          -- Oracle usa NVL(FE.CreadoPor,'INSERT') para decidir la operación.
+          AND FE.CreadoPor IS NOT NULL;
 
         IF @@ROWCOUNT > 0
         BEGIN
@@ -79,6 +90,8 @@ BEGIN
         -- INSERT NUEVOS
         -------------------------------------------------------------------
 
+        -- Una coincidencia sin CreadoPor se considera INSERT por compatibilidad
+        -- con Oracle; si existe una restricción duplicada, el error se registra.
         INSERT INTO EAI.IFC_Folios_FE
         (
             Row_ID,
@@ -101,7 +114,7 @@ BEGIN
           AND DOC.ReferenciaBancaria <> DOC.PedidoV3
           AND DOC.ReferenciaBancaria NOT LIKE 'OV%'
           AND DOC.ReferenciaBancaria NOT LIKE 'OD%'
-          AND FE.Var_1 IS NULL;
+          AND FE.CreadoPor IS NULL;
 
         IF @@ROWCOUNT > 0
         BEGIN
@@ -192,7 +205,7 @@ BEGIN
             NULL
         );
 
-        THROW;
+        -- Se conserva el contrato Oracle: registrar el error y finalizar.
 
     END CATCH
 

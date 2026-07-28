@@ -1,4 +1,11 @@
-CREATE OR ALTER PROCEDURE dbo.PROC_REPLENISHMENT_SUBDEPOT
+/*
+    Procedure : EAI_OWNER.PROC_REPLENISHMENT_SUBDEPOT
+    Objetivo  : Enviar una entrega de reabasto al subdepósito únicamente cuando
+                el cliente está habilitado en MX_PRINT_DELIVERY.
+    Entrada   : @sReferenceID identifica el encabezado temporal recibido.
+    Seguridad : No modifica la entrega cuando el cliente no está autorizado.
+*/
+CREATE OR ALTER PROCEDURE EAI_OWNER.PROC_REPLENISHMENT_SUBDEPOT
 (
     @sReferenceID VARCHAR(50)
 )
@@ -8,6 +15,8 @@ BEGIN
 
     BEGIN TRY
 
+        -- La llamada se habilita sólo si el documento es Receive Other y el
+        -- cliente aparece en el catálogo de impresión para subdepósitos.
         IF EXISTS
         (
             SELECT 1
@@ -84,7 +93,7 @@ BEGIN
             NULL
         );
 
-        THROW;
+        -- Oracle registra la incidencia y termina sin propagarla al integrador.
 
     END CATCH
 END;

@@ -1,3 +1,12 @@
+/*
+    Procedure : EAI_OWNER.INVOICE_FIX_TAX
+    Objetivo  : Corregir redondeos de IVA en detalles de preventa para las
+                clases de factura autorizadas y recalcular el encabezado.
+    Entrada   : @sInvoiceID es el folio de la factura/preventa.
+    Integridad: El encabezado sólo se recalcula cuando al menos un detalle
+                necesitó corrección; una división entre cero se registra como
+                error en vez de ocultarse con un valor inventado.
+*/
 CREATE OR ALTER PROCEDURE EAI_OWNER.INVOICE_FIX_TAX
 (
     @sInvoiceID VARCHAR(30)
@@ -34,6 +43,8 @@ BEGIN
             -- Detectar registros incorrectos
             --------------------------------------------------
 
+            -- Primero contamos diferencias para saber si es necesario tocar
+            -- los acumulados del encabezado.
             SELECT
                 @nItems = COUNT(*)
             FROM T3.Preventa_Detalle
@@ -45,7 +56,7 @@ BEGIN
                         ROUND
                         (
                             Valor_IVA * 100.0 /
-                            NULLIF(Valor_Subt,0),
+                            Valor_Subt,
                             0
                         )
                         /100.0,
@@ -56,6 +67,8 @@ BEGIN
             -- Corrección masiva
             --------------------------------------------------
 
+            -- La tasa se obtiene del propio detalle, se redondea al porcentaje
+            -- entero y luego se vuelve a aplicar sobre el subtotal.
             UPDATE PD
                SET Valor_IVA =
                    ROUND
@@ -64,7 +77,7 @@ BEGIN
                        ROUND
                        (
                            PD.Valor_IVA * 100.0 /
-                           NULLIF(PD.Valor_Subt,0),
+                           PD.Valor_Subt,
                            0
                        )
                        /100.0,
@@ -79,7 +92,7 @@ BEGIN
                       ROUND
                       (
                           PD.Valor_IVA * 100.0 /
-                          NULLIF(PD.Valor_Subt,0),
+                          PD.Valor_Subt,
                           0
                       )
                       /100.0,
@@ -171,7 +184,7 @@ BEGIN
             NULL
         );
 
-        THROW;
+        -- Oracle registra la incidencia y no propaga la excepción al caller.
 
     END CATCH
 END

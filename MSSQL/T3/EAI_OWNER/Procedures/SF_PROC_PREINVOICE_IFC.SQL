@@ -1,4 +1,13 @@
-CREATE PROCEDURE [EAI_OWNER].[SF_PROC_PREINVOICE_IFC]
+/*
+    Procedure : EAI_OWNER.SF_PROC_PREINVOICE_IFC
+    Objetivo  : Descomponer un XML de factura SAP en encabezado, condiciones y
+                detalles temporales, y enviarlo al flujo T3 correspondiente.
+    Integridad: La reconstrucción temporal se ejecuta en una transacción para
+                evitar mezclar datos nuevos con restos de una ejecución anterior.
+    Errores   : Se revierten los cambios, se libera cualquier cursor abierto y
+                se registra la incidencia sin propagarla, como en Oracle.
+*/
+CREATE OR ALTER PROCEDURE [EAI_OWNER].[SF_PROC_PREINVOICE_IFC]
 (
     @sRow_ID   VARCHAR(50),
     @nRowNum   INT = 1,
@@ -391,7 +400,9 @@ BEGIN
 
                     SELECT @sNumLinea = [EAI_OWNER].[LINE_ITEM_TEXT](@sNumLinea);
 
-                    IF TRY_CONVERT(INT, @sNumLinea) > 9999
+                    -- LINE_ITEM_TEXT debe producir un número. Oracle usa
+                    -- TO_NUMBER, por lo que un valor inválido debe causar error.
+                    IF CONVERT(DECIMAL(38,0), @sNumLinea) > 9999
                         SET @sNumLinea = CONVERT(NVARCHAR(50), @nItems);
 
                     SELECT TOP (1)
@@ -520,11 +531,11 @@ BEGIN
                             COALESCE(SKU.CIG_X_CLL, 0) AS CIG_X_CLL,
                             CASE
                                 WHEN COALESCE(SKU.CIG_X_CLL, 0) = 0 THEN 1
-                                ELSE TRY_CONVERT(DECIMAL(18,6), SKU.CIG_X_PAQ) / NULLIF(TRY_CONVERT(DECIMAL(18,6), SKU.CIG_X_CLL), 0)
+                                ELSE CONVERT(DECIMAL(18,6), SKU.CIG_X_PAQ) / CONVERT(DECIMAL(18,6), SKU.CIG_X_CLL)
                             END AS CASE_PACK,
                             CASE
                                 WHEN COALESCE(SKU.CIG_X_CLL, 0) = 0 THEN 1
-                                ELSE TRY_CONVERT(DECIMAL(18,6), SKU.CIG_X_CT) / NULLIF(TRY_CONVERT(DECIMAL(18,6), SKU.CIG_X_CLL), 0)
+                                ELSE CONVERT(DECIMAL(18,6), SKU.CIG_X_CT) / CONVERT(DECIMAL(18,6), SKU.CIG_X_CLL)
                             END AS MASTER_CASE
                         FROM [T3].[MATERIAL] SKU
                         WHERE SKU.MATERIAL = @sMaterialUOM;
@@ -537,7 +548,7 @@ BEGIN
                         IF COALESCE(@UOM_Fact, '') <> COALESCE(@UOM_SKU, '')
                         BEGIN
                             SET @sUnidadMedVta = @UOM_SKU;
-                            SET @CantidadDecimal = TRY_CONVERT(DECIMAL(18,6), @sCantidadVta);
+                            SET @CantidadDecimal = CONVERT(DECIMAL(18,6), @sCantidadVta);
 
                             IF @UOM_Fact = 'PAQ'
                                 SET @sCantidadVta = CONVERT(NVARCHAR(50), @CantidadDecimal * @CASE_PACK);
@@ -755,35 +766,22 @@ BEGIN
         COMMIT;
     END TRY
     BEGIN CATCH
-        IF CURSOR_STATUS('local', 'curOrg') >= -1
-        BEGIN
-            CLOSE curOrg;
-            DEALLOCATE curOrg;
-        END;
-
-        IF CURSOR_STATUS('local', 'curHeaderText') >= -1
-        BEGIN
-            CLOSE curHeaderText;
-            DEALLOCATE curHeaderText;
-        END;
-
-        IF CURSOR_STATUS('local', 'curItemData') >= -1
-        BEGIN
-            CLOSE curItemData;
-            DEALLOCATE curItemData;
-        END;
-
-        IF CURSOR_STATUS('local', 'curItemText') >= -1
-        BEGIN
-            CLOSE curItemText;
-            DEALLOCATE curItemText;
-        END;
-
-        IF CURSOR_STATUS('local', 'curSKU') >= -1
-        BEGIN
-            CLOSE curSKU;
-            DEALLOCATE curSKU;
-        END;
+        -- Un error puede ocurrir dentro de cursores anidados. Se cierran sólo
+        -- los que estén abiertos y después se liberan si llegaron a declararse.
+        IF CURSOR_STATUS('local', 'curHeaderLine') >= 0 CLOSE curHeaderLine;
+        IF CURSOR_STATUS('local', 'curHeaderLine') > -3 DEALLOCATE curHeaderLine;
+        IF CURSOR_STATUS('local', 'curItemTextLine') >= 0 CLOSE curItemTextLine;
+        IF CURSOR_STATUS('local', 'curItemTextLine') > -3 DEALLOCATE curItemTextLine;
+        IF CURSOR_STATUS('local', 'curItemText') >= 0 CLOSE curItemText;
+        IF CURSOR_STATUS('local', 'curItemText') > -3 DEALLOCATE curItemText;
+        IF CURSOR_STATUS('local', 'curSKU') >= 0 CLOSE curSKU;
+        IF CURSOR_STATUS('local', 'curSKU') > -3 DEALLOCATE curSKU;
+        IF CURSOR_STATUS('local', 'curItemData') >= 0 CLOSE curItemData;
+        IF CURSOR_STATUS('local', 'curItemData') > -3 DEALLOCATE curItemData;
+        IF CURSOR_STATUS('local', 'curHeaderText') >= 0 CLOSE curHeaderText;
+        IF CURSOR_STATUS('local', 'curHeaderText') > -3 DEALLOCATE curHeaderText;
+        IF CURSOR_STATUS('local', 'curOrg') >= 0 CLOSE curOrg;
+        IF CURSOR_STATUS('local', 'curOrg') > -3 DEALLOCATE curOrg;
 
         IF XACT_STATE() <> 0
             ROLLBACK;
@@ -804,7 +802,8 @@ BEGIN
             @sErrorCode, NULL, NULL, NULL
         );
 
-        THROW;
+        -- El proceso que consume la cola consulta el estado y la bitácora; no
+        -- se propaga la excepción porque el procedure Oracle tampoco lo hace.
     END CATCH;
 END;
 GO

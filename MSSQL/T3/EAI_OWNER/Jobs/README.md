@@ -36,8 +36,8 @@ Cada job se crea como `ORA_<numero>_<schema>_<procedimiento>` y cada schedule
 como `SCH_ORA_<numero>`. Los schedules no se comparten porque los procedimientos
 migrados `JOB_INTERVAL` y `JOB_NEXT_RUN` administran jobs por su número Oracle.
 
-`dbo.Job_Oracle_SQLAgent_Map` mantiene la correspondencia necesaria para esos
-procedimientos. `dbo.Job_Oracle_Migration_Catalog` conserva el comando, estado,
+`EAI_OWNER.Job_Oracle_SQLAgent_Map` mantiene la correspondencia necesaria para esos
+procedimientos. `EAI_OWNER.Job_Oracle_Migration_Catalog` conserva el comando, estado,
 dependencia y calendario de origen para auditoría y validación.
 
 Las cinco llamadas `EAI_OWNER.RECV_TO_SEND_V3.*` se cambiaron a los nombres

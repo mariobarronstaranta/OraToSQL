@@ -1,4 +1,14 @@
-CREATE PROCEDURE EAI_OWNER.DEBITNOTE_TO_IFC
+/*
+    Procedure : EAI_OWNER.DEBITNOTE_TO_IFC
+    Objetivo  : Copiar una nota de débito recibida en las tablas temporales
+                hacia la interfaz T3.DEBIT_NOTE_IFC.
+    Entrada   : @sInvoiceID identifica el mensaje/documento temporal.
+    Regla clave: Sólo procesa documentos llamados DebitNote y evita insertar
+                 nuevamente una nota que ya existe por DEBIT_NOTE.
+    Errores   : Se registran en MX_EAI_MESSAGE_LOG sin propagarlos, igual que
+                el procedimiento Oracle original.
+*/
+CREATE OR ALTER PROCEDURE EAI_OWNER.DEBITNOTE_TO_IFC
 (
     @sInvoiceID VARCHAR(50)
 )
@@ -15,6 +25,8 @@ BEGIN
 
     BEGIN TRY
 
+        -- Cada detalle genera una fila de interfaz. Los importes de Oracle
+        -- vienen expresados en centavos, por eso se dividen entre 100.
         INSERT INTO T3.DEBIT_NOTE_IFC
         (
             DEBIT_NOTE,
@@ -54,6 +66,8 @@ BEGIN
         ) PD
             ON PD.ReferenceID = PG.ReferenceID
 
+        -- LEFT JOIN permite detectar si la nota ya fue enviada. La condición
+        -- DN.SAP_DOCUMENT IS NULL funciona como protección contra duplicados.
         LEFT JOIN T3.DEBIT_NOTE_IFC DN
             ON PG.PedidoV3 = DN.DEBIT_NOTE
 

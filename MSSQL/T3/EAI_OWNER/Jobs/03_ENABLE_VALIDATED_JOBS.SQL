@@ -13,8 +13,8 @@ BEGIN
     THROW 51020, 'Activacion cancelada. Cambie @ConfirmEnable a 1 durante la ventana autorizada.', 1;
 END;
 
-IF OBJECT_ID(N'dbo.Job_Oracle_SQLAgent_Map',N'U') IS NULL
-   OR OBJECT_ID(N'dbo.Job_Oracle_Migration_Catalog',N'U') IS NULL
+IF OBJECT_ID(N'[EAI_OWNER].[Job_Oracle_SQLAgent_Map]',N'U') IS NULL
+   OR OBJECT_ID(N'[EAI_OWNER].[Job_Oracle_Migration_Catalog]',N'U') IS NULL
 BEGIN
     THROW 51021, 'No existe el catalogo de migracion de jobs.', 1;
 END;
@@ -44,7 +44,7 @@ END;
 IF @AllowPartialEnable=0 AND EXISTS
 (
     SELECT 1
-    FROM dbo.Job_Oracle_Migration_Catalog
+    FROM [EAI_OWNER].[Job_Oracle_Migration_Catalog]
     WHERE Oracle_Broken=0
       AND OBJECT_ID(QUOTENAME(Required_Schema)+N'.'+QUOTENAME(Required_Procedure),N'P') IS NULL
 )
@@ -55,8 +55,8 @@ END;
 DECLARE @JobId UNIQUEIDENTIFIER, @JobName SYSNAME;
 DECLARE EnableCursor CURSOR LOCAL FAST_FORWARD FOR
 SELECT j.job_id,j.[name]
-FROM dbo.Job_Oracle_Migration_Catalog AS c
-INNER JOIN dbo.Job_Oracle_SQLAgent_Map AS m ON m.Oracle_Job_No=c.Oracle_Job_No
+FROM [EAI_OWNER].[Job_Oracle_Migration_Catalog] AS c
+INNER JOIN [EAI_OWNER].[Job_Oracle_SQLAgent_Map] AS m ON m.Oracle_Job_No=c.Oracle_Job_No
 INNER JOIN msdb.dbo.sysjobs AS j ON j.job_id=m.SqlAgent_Job_Id
 INNER JOIN msdb.dbo.sysjobsteps AS js ON js.job_id=j.job_id AND js.step_id=1
 WHERE c.Oracle_Broken=0

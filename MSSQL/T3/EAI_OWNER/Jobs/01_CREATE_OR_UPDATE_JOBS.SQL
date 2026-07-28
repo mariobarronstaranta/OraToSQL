@@ -28,9 +28,13 @@ BEGIN
     THROW 51001, 'El login configurado en @JobOwner no existe.', 1;
 END;
 
-IF OBJECT_ID(N'dbo.Job_Oracle_SQLAgent_Map', N'U') IS NULL
+IF OBJECT_ID(N'[EAI_OWNER].[Job_Oracle_SQLAgent_Map]', N'U') IS NULL
 BEGIN
-    CREATE TABLE dbo.Job_Oracle_SQLAgent_Map
+    /*
+        Esta tabla pertenece a la aplicacion, no a SQL Server Agent. Se conserva
+        en EAI_OWNER para evitar objetos funcionales bajo el esquema dbo.
+    */
+    CREATE TABLE [EAI_OWNER].[Job_Oracle_SQLAgent_Map]
     (
         Oracle_Job_No       INT              NOT NULL PRIMARY KEY,
         SqlAgent_Job_Id     UNIQUEIDENTIFIER NOT NULL,
@@ -44,10 +48,36 @@ BEGIN
     );
 END;
 
-/* Catalogo auditable de la conversion; no sustituye las tablas de msdb. */
-IF OBJECT_ID(N'dbo.Job_Oracle_Migration_Catalog', N'U') IS NULL
+/*
+    Copia no destructiva para ambientes que ya utilizaron la version anterior
+    del instalador, donde la tabla puente se creaba bajo dbo.
+*/
+IF OBJECT_ID(N'[dbo].[Job_Oracle_SQLAgent_Map]', N'U') IS NOT NULL
 BEGIN
-    CREATE TABLE dbo.Job_Oracle_Migration_Catalog
+    INSERT INTO [EAI_OWNER].[Job_Oracle_SQLAgent_Map]
+    (
+        Oracle_Job_No, SqlAgent_Job_Id, SqlAgent_Job_Name, Schedule_Id,
+        Original_Interval, Last_Interval, Last_Update_Date,
+        Last_Update_User, Is_Active
+    )
+    SELECT
+        Legacy.Oracle_Job_No, Legacy.SqlAgent_Job_Id,
+        Legacy.SqlAgent_Job_Name, Legacy.Schedule_Id,
+        Legacy.Original_Interval, Legacy.Last_Interval,
+        Legacy.Last_Update_Date, Legacy.Last_Update_User, Legacy.Is_Active
+    FROM [dbo].[Job_Oracle_SQLAgent_Map] AS Legacy
+    WHERE NOT EXISTS
+    (
+        SELECT 1
+        FROM [EAI_OWNER].[Job_Oracle_SQLAgent_Map] AS CurrentMap
+        WHERE CurrentMap.Oracle_Job_No = Legacy.Oracle_Job_No
+    );
+END;
+
+/* Catalogo auditable de la conversion; no sustituye las tablas de msdb. */
+IF OBJECT_ID(N'[EAI_OWNER].[Job_Oracle_Migration_Catalog]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [EAI_OWNER].[Job_Oracle_Migration_Catalog]
     (
         Oracle_Job_No       INT            NOT NULL PRIMARY KEY,
         Required_Schema     SYSNAME        NOT NULL,
@@ -60,6 +90,30 @@ BEGIN
         Converted_Start_Time      INT      NOT NULL,
         Migration_Date      DATETIME2(0)   NOT NULL,
         Migration_User      SYSNAME        NOT NULL
+    );
+END;
+
+IF OBJECT_ID(N'[dbo].[Job_Oracle_Migration_Catalog]', N'U') IS NOT NULL
+BEGIN
+    INSERT INTO [EAI_OWNER].[Job_Oracle_Migration_Catalog]
+    (
+        Oracle_Job_No, Required_Schema, Required_Procedure, Step_Command,
+        Oracle_Broken, Original_Interval, Converted_Subday_Type,
+        Converted_Subday_Interval, Converted_Start_Time, Migration_Date,
+        Migration_User
+    )
+    SELECT
+        Legacy.Oracle_Job_No, Legacy.Required_Schema,
+        Legacy.Required_Procedure, Legacy.Step_Command, Legacy.Oracle_Broken,
+        Legacy.Original_Interval, Legacy.Converted_Subday_Type,
+        Legacy.Converted_Subday_Interval, Legacy.Converted_Start_Time,
+        Legacy.Migration_Date, Legacy.Migration_User
+    FROM [dbo].[Job_Oracle_Migration_Catalog] AS Legacy
+    WHERE NOT EXISTS
+    (
+        SELECT 1
+        FROM [EAI_OWNER].[Job_Oracle_Migration_Catalog] AS CurrentCatalog
+        WHERE CurrentCatalog.Oracle_Job_No = Legacy.Oracle_Job_No
     );
 END;
 
@@ -225,22 +279,27 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM msdb.dbo.sysjobservers WHERE job_id=@JobId)
         EXEC msdb.dbo.sp_add_jobserver @job_id=@JobId, @server_name=N'(LOCAL)';
 
-    MERGE dbo.Job_Oracle_SQLAgent_Map AS target
+    MERGE [EAI_OWNER].[Job_Oracle_SQLAgent_Map] AS target
     USING (SELECT @OracleJobNo AS Oracle_Job_No) AS source
        ON target.Oracle_Job_No=source.Oracle_Job_No
     WHEN MATCHED THEN UPDATE SET
         SqlAgent_Job_Id=@JobId, SqlAgent_Job_Name=@JobName, Schedule_Id=@ScheduleId,
         Original_Interval=@OriginalInterval, Last_Interval=@OriginalInterval,
         Last_Update_Date=SYSDATETIME(), Last_Update_User=SUSER_SNAME(),
-        Is_Active=CASE @OracleBroken WHEN 'N' THEN 1 ELSE 0 END
+        /*
+            Is_Active indica que el mapeo sigue vigente; no representa el
+            estado enabled del job. Incluso un job suspendido necesita un
+            mapeo activo para que JOB_MANAGE pueda reanudarlo.
+        */
+        Is_Active=1
     WHEN NOT MATCHED THEN INSERT
        (Oracle_Job_No,SqlAgent_Job_Id,SqlAgent_Job_Name,Schedule_Id,
         Original_Interval,Last_Interval,Last_Update_Date,Last_Update_User,Is_Active)
     VALUES
        (@OracleJobNo,@JobId,@JobName,@ScheduleId,@OriginalInterval,@OriginalInterval,
-        SYSDATETIME(),SUSER_SNAME(),CASE @OracleBroken WHEN 'N' THEN 1 ELSE 0 END);
+         SYSDATETIME(),SUSER_SNAME(),1);
 
-    MERGE dbo.Job_Oracle_Migration_Catalog AS target
+    MERGE [EAI_OWNER].[Job_Oracle_Migration_Catalog] AS target
     USING (SELECT @OracleJobNo AS Oracle_Job_No) AS source
        ON target.Oracle_Job_No=source.Oracle_Job_No
     WHEN MATCHED THEN UPDATE SET

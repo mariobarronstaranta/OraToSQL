@@ -42,7 +42,7 @@ BEGIN
             Time destruiria la recurrencia original del job.
 
         Dependencia de migracion:
-            dbo.Job_Oracle_SQLAgent_Map debe mapear:
+            EAI_OWNER.Job_Oracle_SQLAgent_Map debe mapear:
                 Oracle_Job_No   -> DBMS_JOB.Job
                 SqlAgent_Job_Id -> msdb.dbo.sysjobs.job_id
                 Schedule_Id     -> msdb.dbo.sysschedules.schedule_id
@@ -52,24 +52,27 @@ BEGIN
         RETURN 0;
 
     BEGIN TRY
-        IF OBJECT_ID(N'dbo.Job_Oracle_SQLAgent_Map', N'U') IS NULL
-            THROW 51000, 'No existe dbo.Job_Oracle_SQLAgent_Map para mapear DBMS_JOB a SQL Server Agent.', 1;
+        IF OBJECT_ID(N'[EAI_OWNER].[Job_Oracle_SQLAgent_Map]', N'U') IS NULL
+            THROW 51000, 'No existe EAI_OWNER.Job_Oracle_SQLAgent_Map para mapear DBMS_JOB a SQL Server Agent.', 1;
 
         /*
-            Oracle esperaba exactamente dd/mm/yyyy hh24:mi:ss.
-            TRY_CONVERT con estilo 103 interpreta dd/mm/yyyy; al recibir CHAR(19)
-            conserva la hora cuando viene en formato 24 horas.
+            Oracle esperaba exactamente dd/mm/yyyy hh24:mi:ss. Se usa un bloque
+            TRY/CATCH alrededor de CONVERT porque TRY_CONVERT no esta disponible
+            en niveles de compatibilidad antiguos. El estilo 103 conserva el
+            orden dia/mes/anio y la parte de hora recibida en CHAR(19).
         */
-        SET @FechaExec = TRY_CONVERT(DATETIME2(0), @v_Fecha_Exec, 103);
-
-        IF @FechaExec IS NULL
+        BEGIN TRY
+            SET @FechaExec = CONVERT(DATETIME2(0), @v_Fecha_Exec, 103);
+        END TRY
+        BEGIN CATCH
             THROW 51001, 'Formato de fecha invalido. Use dd/mm/yyyy hh24:mi:ss.', 1;
+        END CATCH;
 
         SELECT
             @SqlAgentJobId   = M.SqlAgent_Job_Id,
             @SqlAgentJobName = M.SqlAgent_Job_Name,
             @ScheduleId      = M.Schedule_Id
-        FROM dbo.Job_Oracle_SQLAgent_Map AS M
+        FROM [EAI_OWNER].[Job_Oracle_SQLAgent_Map] AS M
         WHERE M.Oracle_Job_No = @P_JOB
           AND M.Is_Active = 1;
 
@@ -133,7 +136,7 @@ BEGIN
             IF @ReturnCode <> 0
                 THROW 51007, 'Error al actualizar active_start_date/time del schedule.', 1;
 
-            UPDATE dbo.Job_Oracle_SQLAgent_Map
+            UPDATE [EAI_OWNER].[Job_Oracle_SQLAgent_Map]
                SET Last_Update_Date = SYSDATETIME(),
                    Last_Update_User = SUSER_SNAME()
              WHERE Oracle_Job_No = @P_JOB

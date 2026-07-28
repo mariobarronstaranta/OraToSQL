@@ -1,4 +1,10 @@
-CREATE PROCEDURE EAI_OWNER.SF_WA_PROC_REPLENISHMENT
+/*
+    Procedure : EAI_OWNER.SF_WA_PROC_REPLENISHMENT
+    Objetivo  : Reprocesar mensajes recientes de VanReplenishment cuya factura
+                todavía no tiene una entrega creada en T3.
+    Entrada   : @nDays define cuántos días hacia atrás se revisan.
+*/
+CREATE OR ALTER PROCEDURE EAI_OWNER.SF_WA_PROC_REPLENISHMENT
 (
     @nDays INT = 0
 )
@@ -84,6 +90,9 @@ BEGIN
     END TRY
 
     BEGIN CATCH
+
+        IF CURSOR_STATUS('local', 'curData') >= 0 CLOSE curData;
+        IF CURSOR_STATUS('local', 'curData') > -3 DEALLOCATE curData;
 
         SET @sErrorCode =
             'SQL-' + CAST(ERROR_NUMBER() AS VARCHAR(20));

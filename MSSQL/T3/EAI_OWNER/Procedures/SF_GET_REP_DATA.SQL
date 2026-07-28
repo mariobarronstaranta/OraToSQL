@@ -1,3 +1,10 @@
+/*
+    Procedure : EAI_OWNER.SF_GET_REP_DATA
+    Objetivo  : Obtener datos fiscales y del vehículo del representante asociado
+                al territorio incluido en una factura de venta inmediata.
+    Salidas   : Se inicializan antes de la consulta para evitar conservar datos
+                enviados previamente por el caller cuando no existe representante.
+*/
 CREATE OR ALTER PROCEDURE EAI_OWNER.SF_GET_REP_DATA
 (
       @pInvoiceRef   VARCHAR(500)
@@ -34,6 +41,9 @@ BEGIN
     SET @rtPesoMax  = 0;
 
     BEGIN TRY
+
+        IF LEN(@pInvoiceRef) > 30
+            THROW 50023, 'La referencia de factura excede 30 caracteres.', 1;
 
         IF SUBSTRING(@sInvoiceRef,6,1) = '-'
         BEGIN
@@ -111,7 +121,7 @@ BEGIN
             , NULL
         );
 
-        THROW;
+        -- Oracle conserva las salidas inicializadas y sólo registra el error.
 
     END CATCH
 

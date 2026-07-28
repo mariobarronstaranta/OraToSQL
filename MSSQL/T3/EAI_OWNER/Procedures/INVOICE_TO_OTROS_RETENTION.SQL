@@ -1,6 +1,16 @@
+/*
+    Procedure : EAI_OWNER.INVOICE_TO_OTROS_RETENTION
+    Objetivo  : Completar claves SAT y calcular la retención de IVA de una
+                factura del flujo Otros.
+    Entrada   : @sInvoiceID identifica la factura.
+    Fuentes   : OTROS_PRODSERV_RETENTION aporta catálogo y tasas; GETCONV aporta
+                la configuración del caso especial por sociedad y RFC.
+    Integridad: El total del encabezado sólo se recalcula si al menos un detalle
+                recibió retención, evitando sobrescribir importes existentes.
+*/
 CREATE OR ALTER PROCEDURE EAI_OWNER.INVOICE_TO_OTROS_RETENTION
 (
-    @sInvoiceID VARCHAR(50)
+    @sInvoiceID VARCHAR(30)
 )
 AS
 BEGIN
@@ -27,26 +37,28 @@ BEGIN
 
         SELECT
             @sRetCode =
-                dbo.getConv('CFG Settings','RetentionVAT-Code'),
+                EAI_OWNER.GETCONV('CFG Settings','RetentionVAT-Code'),
 
             @sRetDesc =
-                dbo.getConv('CFG Settings','RetentionVAT-Description'),
+                EAI_OWNER.GETCONV('CFG Settings','RetentionVAT-Description'),
 
             @nRetRate =
-                TRY_CONVERT(
+                CONVERT(
                     DECIMAL(6,2),
-                    dbo.getConv('CFG Settings','RetentionVAT-Rate')
+                    EAI_OWNER.GETCONV('CFG Settings','RetentionVAT-Rate')
                 ),
 
             @sBillInfo =
-                dbo.getConv('CFG Settings','RetentionVAT-CompanyCode')
+                EAI_OWNER.GETCONV('CFG Settings','RetentionVAT-CompanyCode')
                 + '-'
-                + dbo.getConv('CFG Settings','RetentionVAT-TaxID');
+                + EAI_OWNER.GETCONV('CFG Settings','RetentionVAT-TaxID');
 
         -----------------------------------------------------------------
         -- Actualizar SAT
         -----------------------------------------------------------------
 
+        -- Primera fase: enriquecer el producto con sus claves SAT. Esta fase no
+        -- implica por sí sola que exista una retención monetaria.
         UPDATE OD
            SET
                SAT_ProdID = SAT.SAT_CLAVE,
@@ -61,6 +73,8 @@ BEGIN
         -- Retención por catálogo SAT
         -----------------------------------------------------------------
 
+        -- Segunda fase: aplicar la tasa del catálogo cuando su descripción está
+        -- contenida en la leyenda o descripción del detalle.
         UPDATE OD
            SET Retencion_IVA =
                ROUND(
@@ -87,6 +101,8 @@ BEGIN
                 )
               ) > 0;
 
+        SET @nUpdated = @@ROWCOUNT;
+
         -----------------------------------------------------------------
         -- Retención especial configurable
         -----------------------------------------------------------------
@@ -104,10 +120,15 @@ BEGIN
           AND OD.Material = @sRetCode
           AND CONCAT(OG.Sociedad,'-',OG.RFC) = @sBillInfo;
 
+        SET @nUpdated += @@ROWCOUNT;
+
         -----------------------------------------------------------------
         -- Actualización única del encabezado
         -----------------------------------------------------------------
 
+        -- Oracle recalcula el encabezado únicamente cuando al menos un detalle
+        -- recibió retención; así no se sobrescribe un valor previo por accidente.
+        IF @nUpdated > 0
         UPDATE OG
            SET Retencion_IVA =
                (
@@ -165,7 +186,6 @@ BEGIN
             NULL
         );
 
-        THROW;
     END CATCH
 END;
 GO

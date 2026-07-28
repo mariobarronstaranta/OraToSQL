@@ -1,3 +1,11 @@
+/*
+    Procedure : EAI_OWNER.INVOICE_TO_OTROS_PARTNERS
+    Objetivo  : Sustituir los datos Sold-to por los datos Bill-to cuando la
+                factura contiene la combinación especial de clientes.
+    Entrada   : @sInvoiceID identifica la referencia temporal.
+    Alcance   : La combinación especial funciona como disparador; una vez
+                encontrada, se actualizan todos los partners de la referencia.
+*/
 CREATE OR ALTER PROCEDURE EAI_OWNER.INVOICE_TO_OTROS_PARTNERS
 (
     @sInvoiceID VARCHAR(30)
@@ -14,6 +22,20 @@ BEGIN
 
     BEGIN TRY
 
+        /*
+            Oracle primero detecta si existe al menos un partner con la
+            combinación especial y, cuando existe, actualiza TODOS los partners
+            de la factura. No se debe limitar el UPDATE solamente a la fila que
+            contiene los códigos especiales.
+        */
+        IF EXISTS
+        (
+            SELECT 1
+            FROM EAI_OWNER.tmp_Document_Partners
+            WHERE ReferenceID = @sInvoiceID
+              AND Sold_to_Customer = 'PC-00-CR08'
+              AND Bill_to_Customer = 'IC-00-CR10'
+        )
         UPDATE PF
            SET Sold_to_Name      = Bill_to_Name,
                Sold_to_Address   = Bill_to_Address,
@@ -23,9 +45,7 @@ BEGIN
                Sold_to_Country   = Bill_to_Country,
                Sold_to_Zipcode   = Bill_to_ZipCode
         FROM EAI_OWNER.tmp_Document_Partners PF
-        WHERE PF.ReferenceID = @sInvoiceID
-          AND PF.Sold_to_Customer = 'PC-00-CR08'
-          AND PF.Bill_to_Customer = 'IC-00-CR10';
+        WHERE PF.ReferenceID = @sInvoiceID;
 
     END TRY
     BEGIN CATCH
@@ -73,7 +93,7 @@ BEGIN
             NULL
         );
 
-        THROW;
+        --  registra el error sin devolver una excepción al integrador.
 
     END CATCH
 END;

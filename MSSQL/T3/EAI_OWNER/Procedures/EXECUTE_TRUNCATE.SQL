@@ -1,4 +1,12 @@
-CREATE PROCEDURE EAI_OWNER.EXECUTE_TRUNCATE
+/*
+    Procedure : EAI_OWNER.EXECUTE_TRUNCATE
+    Objetivo  : Vaciar una tabla de trabajo autorizada mediante TRUNCATE TABLE.
+    Entrada   : @pTableName acepta tabla o esquema.tabla.
+    Seguridad : El nombre debe existir en EAI_TRUNC_TABLE. QUOTENAME delimita
+                los identificadores y evita ejecutar texto SQL inyectado.
+    Auditoría : Todo TRUNCATE exitoso queda registrado en EAI_TRUNC_LOG.
+*/
+CREATE OR ALTER PROCEDURE EAI_OWNER.EXECUTE_TRUNCATE
 (
     @pTableName VARCHAR(255)
 )
@@ -19,6 +27,7 @@ BEGIN
         ------------------------------------------------------------------
         -- Validar tabla autorizada
         ------------------------------------------------------------------
+        -- Si la tabla no está en la lista blanca, no se ejecuta ninguna acción.
         IF EXISTS
         (
             SELECT 1
@@ -35,8 +44,15 @@ BEGIN
                 @SchemaName SYSNAME,
                 @TableOnly  SYSNAME;
 
-            SET @SchemaName = PARSENAME(@v_ID,2);
+            -- Oracle resuelve un nombre sin esquema dentro de EAI_OWNER.
+            -- Se aplica la misma regla para evitar construir un comando NULL.
+            SET @SchemaName = COALESCE(PARSENAME(@v_ID,2), 'EAI_OWNER');
             SET @TableOnly  = PARSENAME(@v_ID,1);
+
+            -- La lista blanca ya validó el valor completo. Esta comprobación
+            -- adicional rechaza nombres de tres o más partes (servidor/base).
+            IF @TableOnly IS NULL OR PARSENAME(@v_ID,3) IS NOT NULL
+                THROW 50001, 'El nombre de tabla autorizado debe tener una o dos partes.', 1;
 
             SET @SQL =
                 N'TRUNCATE TABLE '
@@ -120,7 +136,8 @@ BEGIN
             NULL
         );
 
-        THROW;
+        -- El procedimiento Oracle registra el error y no lo propaga al caller.
+        -- Se conserva ese contrato para no alterar a los procesos consumidores.
 
     END CATCH
 
