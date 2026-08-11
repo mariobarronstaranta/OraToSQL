@@ -4,3 +4,4 @@
 *.userosscache
 *.sln.docstates
 /ORA/T3/EAI/DATOS/
+/ORA/T3/EAI_OWNER/DATOS/*

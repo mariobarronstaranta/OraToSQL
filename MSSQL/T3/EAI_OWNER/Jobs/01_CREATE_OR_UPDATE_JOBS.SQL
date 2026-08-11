@@ -3,10 +3,12 @@
 
     SEGURIDAD DE DESPLIEGUE
     ----------------------
-    - Ejecute este archivo conectado a la base de datos de la aplicacion T3.
+    - Ejecute este archivo conectado a la base de datos T3QA.
     - No lo ejecute en master, model, msdb ni tempdb.
     - Todos los jobs se crean DESHABILITADOS, incluso los activos en Oracle.
-    - Cambie @JobOwner por un login estable administrado por el DBA.
+    - Los jobs quedan a nombre del login SQL AT85233588.
+    - Puede ejecutarlo AT85233588 (sin especificar @owner_login_name) o un
+      sysadmin, que si puede asignar explicitamente dicho propietario.
     - Cada job recibe un schedule exclusivo porque JOB_INTERVAL puede modificarlo.
 
     SQL Server no tiene PACKAGE. Las llamadas RECV_TO_SEND_V3.* se dirigen a los
@@ -15,17 +17,45 @@
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
 
-IF DB_NAME() IN (N'master', N'model', N'msdb', N'tempdb')
+IF DB_NAME() <> N'T3QA'
 BEGIN
-    THROW 51000, 'Ejecute este script en la base de datos de la aplicacion T3.', 1;
+    THROW 51000, 'Ejecute este script conectado a la base de datos T3QA.', 1;
 END;
 
-DECLARE @TargetDatabase SYSNAME = DB_NAME();
-DECLARE @JobOwner SYSNAME = N'sa'; -- Ajustar conforme a la politica del ambiente.
+DECLARE @TargetDatabase SYSNAME = N'T3QA';
+DECLARE @JobOwner SYSNAME = N'AT85233588';
 
 IF SUSER_ID(@JobOwner) IS NULL
 BEGIN
     THROW 51001, 'El login configurado en @JobOwner no existe.', 1;
+END;
+
+/*
+    Un usuario no-sysadmin solo puede crear jobs a su propio nombre y debe
+    omitir @owner_login_name. Un sysadmin si puede ejecutar el despliegue en
+    representacion de AT85233588 y asignarlo explicitamente como propietario.
+*/
+IF SUSER_SID() <> SUSER_SID(@JobOwner)
+   AND IS_SRVROLEMEMBER(N'sysadmin') <> 1
+BEGIN
+    THROW 51002, 'Ejecute el script como AT85233588 o solicite que lo ejecute un miembro de sysadmin.', 1;
+END;
+
+IF IS_SRVROLEMEMBER(N'sysadmin') <> 1
+   AND NOT EXISTS
+   (
+       SELECT 1
+       FROM msdb.sys.database_role_members AS drm
+       INNER JOIN msdb.sys.database_principals AS role_principal
+           ON role_principal.principal_id = drm.role_principal_id
+       INNER JOIN msdb.sys.database_principals AS member_principal
+           ON member_principal.principal_id = drm.member_principal_id
+       WHERE member_principal.[sid] = SUSER_SID()
+         AND role_principal.[name] IN
+             (N'SQLAgentUserRole', N'SQLAgentReaderRole', N'SQLAgentOperatorRole')
+   )
+BEGIN
+    THROW 51003, 'AT85233588 necesita pertenecer a un rol de SQL Server Agent en msdb.', 1;
 END;
 
 IF OBJECT_ID(N'[EAI_OWNER].[Job_Oracle_SQLAgent_Map]', N'U') IS NULL
@@ -221,20 +251,33 @@ BEGIN
 
     IF @JobId IS NULL
     BEGIN
-        EXEC msdb.dbo.sp_add_job
-            @job_name = @JobName,
-            @enabled = 0,
-            @description = @Description,
-            @owner_login_name = @JobOwner,
-            @job_id = @JobId OUTPUT;
+        IF IS_SRVROLEMEMBER(N'sysadmin') = 1
+            EXEC msdb.dbo.sp_add_job
+                @job_name = @JobName,
+                @enabled = 0,
+                @description = @Description,
+                @owner_login_name = @JobOwner,
+                @job_id = @JobId OUTPUT;
+        ELSE
+            EXEC msdb.dbo.sp_add_job
+                @job_name = @JobName,
+                @enabled = 0,
+                @description = @Description,
+                @job_id = @JobId OUTPUT;
     END
     ELSE
     BEGIN
-        EXEC msdb.dbo.sp_update_job
-            @job_id = @JobId,
-            @enabled = 0,
-            @description = @Description,
-            @owner_login_name = @JobOwner;
+        IF IS_SRVROLEMEMBER(N'sysadmin') = 1
+            EXEC msdb.dbo.sp_update_job
+                @job_id = @JobId,
+                @enabled = 0,
+                @description = @Description,
+                @owner_login_name = @JobOwner;
+        ELSE
+            EXEC msdb.dbo.sp_update_job
+                @job_id = @JobId,
+                @enabled = 0,
+                @description = @Description;
     END;
 
     IF EXISTS (SELECT 1 FROM msdb.dbo.sysjobsteps WHERE job_id=@JobId AND step_id=1)
