@@ -57,7 +57,14 @@ BEGIN
             Ldr.Head_Office,
             ISNULL(CS.Forma_Pago,'Central Payment'),
             LTRIM(RTRIM(Ldr.SAP_Reference)),
-            TRY_CONVERT(date,Ldr.Document_Date),
+
+            -- DOCUMENT_DATE es VARCHAR en la tabla destino. Por ese motivo,
+            -- la fecha se convierte explicitamente a texto con el estilo 23,
+            -- que siempre genera el formato YYYY-MM-DD.
+            -- Si se inserta un DATE directamente en un VARCHAR, SQL Server
+            -- puede usar el formato de la sesion (por ejemplo, "Aug 10 2026").
+            CONVERT(VARCHAR(10), Ldr.Document_Date, 23),
+
             LTRIM(RTRIM(Ldr.Document_Type)),
             Ldr.SFDC_Reference,
             Ldr.SAP_Amount
@@ -69,7 +76,10 @@ BEGIN
                 Asignacion AS SAP_Assignment,
                 AccountDocument AS SAP_Reference,
 
-                CONVERT(date, Fecha_Doc, 112) AS Document_Date,
+                -- Se reutiliza la fecha que fue validada y convertida en el
+                -- CROSS APPLY. A partir de este punto se trabaja con DATE y
+                -- no con la cadena YYYYMMDD recibida desde la tabla de carga.
+                Parsed.Document_Date,
 
                 CASE
                     WHEN Tipo_Doc IN ('KP','Z2','ZD')
@@ -93,7 +103,19 @@ BEGIN
 
             FROM EAI.TAO_CARTERA_SAP_LDR
 
-            WHERE Fecha_Doc >= '20190101'
+            -- Fecha_Doc llega como VARCHAR(8) con formato YYYYMMDD (estilo
+            -- 112). TRY_CONVERT devuelve NULL cuando el valor no representa
+            -- una fecha valida, evitando que un dato incorrecto detenga todo
+            -- el procedimiento.
+            CROSS APPLY
+            (
+                VALUES (TRY_CONVERT(DATE, Fecha_Doc, 112))
+            ) Parsed (Document_Date)
+
+            -- La comparacion se realiza entre valores DATE. Esto evita que el
+            -- resultado dependa de una comparacion alfabetica entre cadenas.
+            -- Los valores invalidos son NULL y no cumplen esta condicion.
+            WHERE Parsed.Document_Date >= CONVERT(DATE, '20190101', 112)
 
               AND Referencia NOT IN
               (

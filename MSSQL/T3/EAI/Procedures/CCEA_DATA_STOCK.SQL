@@ -21,6 +21,11 @@ BEGIN
 
         EXEC EAI_OWNER.Log_Start @nProceso;
 
+        -- Esta fecha pertenece a la bitacora de ejecucion, no al reporte de
+        -- inventario. La columna Inicio es de tipo fecha/hora, por lo que se
+        -- guarda GETDATE() directamente y no se convierte a VARCHAR.
+        -- Los formatos como YYYY-MM-DD solo aplican cuando la tabla destino
+        -- exige almacenar una fecha como texto.
         INSERT INTO T3.RF_PROCESOS_LOG
         (
             PID,
@@ -39,6 +44,10 @@ BEGIN
         SET @nProceso3 = 0;
         SET @nProceso4 = 0;
 
+        -- CC_DATA_STOCK no contiene columnas de fecha. Sus campos representan
+        -- planta, territorio, socio de stock, material, unidades y cantidades.
+        -- Por lo tanto, esta carga no necesita conversiones de fecha ni tiene
+        -- riesgo de generar valores como "Aug 10 2026" en el reporte.
         TRUNCATE TABLE EAI.CC_DATA_STOCK;
 
         INSERT INTO EAI.CC_DATA_STOCK
@@ -107,6 +116,9 @@ BEGIN
            SET Status = 1
          WHERE Component = @nProceso;
 
+        -- Fin tambien es un dato de auditoria con tipo fecha/hora. Se conserva
+        -- como GETDATE() para mantener tanto la fecha como la hora exacta en
+        -- que termino el procedimiento.
         UPDATE T3.RF_PROCESOS_LOG
            SET Fin        = GETDATE(),
                Proceso_1  = 0,
@@ -124,6 +136,9 @@ BEGIN
         SET @sMsg =
             LEFT(ERROR_MESSAGE(),250);
 
+        -- CREATED registra el momento del error en una columna fecha/hora.
+        -- No se aplica formato de texto porque hacerlo eliminaria informacion
+        -- util, como la hora en que ocurrio la falla.
         INSERT INTO EAI_OWNER.MX_EAI_MESSAGE_LOG
         (
             DIRECTION,

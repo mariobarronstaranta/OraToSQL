@@ -88,7 +88,6 @@ BEGIN
         SELECT
               ClearingDocNumber
             , MAX(ClearingDate) AS ClearingDate
-            , MAX(ClearingDate) AS PostingDate
             , COUNT(*)          AS Records
             , COUNT(DISTINCT DC_Indicator) AS Cnt_DC
             , MAX(DC_Indicator) AS Max_DC
@@ -185,7 +184,29 @@ BEGIN
                 -- EXEC no admite expresiones como valores de parametros.
                 -- Se calculan primero los equivalentes de SUBSTR y TO_DATE.
                 SET @payAllocIDocNumber = SUBSTRING(@S_IDocNumber, 7, 10);
-                SET @payAllocPostingDate = CONVERT(DATE, @ClearingDate, 112);
+
+                /*
+                    ClearingDate es VARCHAR porque conserva el dato recibido de
+                    SAP. Oracle esperaba YYYYMMDD, pero algunas interfaces ya lo
+                    entregan como YYYY-MM-DD. TRY_CONVERT permite validar ambos
+                    formatos sin depender del idioma configurado en SQL Server.
+                */
+                SET @payAllocPostingDate = COALESCE
+                (
+                    TRY_CONVERT(DATE, @ClearingDate, 112), -- YYYYMMDD
+                    TRY_CONVERT(DATE, @ClearingDate, 23)   -- YYYY-MM-DD
+                );
+
+                IF @payAllocPostingDate IS NULL
+                BEGIN
+                    SET @sMsg = CONCAT
+                    (
+                        'ClearingDate no tiene un formato valido. Valor recibido: ',
+                        COALESCE(@ClearingDate, 'NULL'),
+                        '. Formatos permitidos: YYYYMMDD o YYYY-MM-DD.'
+                    );
+                    THROW 50001, @sMsg, 1;
+                END;
 
                 EXEC [EAI_OWNER].[SF_PROC_CENTRAL_PAYALLOC]
                     @pIDocNumber = @payAllocIDocNumber,
@@ -231,7 +252,25 @@ BEGIN
                     WHERE IdocNumber = @waMinDcH;
 
                     SET @payAllocIDocNumber = SUBSTRING(@S_IDocNumber, 7, 10);
-                    SET @payAllocPostingDate = CONVERT(DATE, @ClearingDate, 112);
+
+                    -- Aplicar la misma validacion usada para el caso de dos
+                    -- registros; asi ambos caminos aceptan los mismos formatos.
+                    SET @payAllocPostingDate = COALESCE
+                    (
+                        TRY_CONVERT(DATE, @ClearingDate, 112), -- YYYYMMDD
+                        TRY_CONVERT(DATE, @ClearingDate, 23)   -- YYYY-MM-DD
+                    );
+
+                    IF @payAllocPostingDate IS NULL
+                    BEGIN
+                        SET @sMsg = CONCAT
+                        (
+                            'ClearingDate no tiene un formato valido. Valor recibido: ',
+                            COALESCE(@ClearingDate, 'NULL'),
+                            '. Formatos permitidos: YYYYMMDD o YYYY-MM-DD.'
+                        );
+                        THROW 50001, @sMsg, 1;
+                    END;
 
                     EXEC [EAI_OWNER].[SF_PROC_CENTRAL_PAYALLOC]
                         @pIDocNumber = @payAllocIDocNumber,

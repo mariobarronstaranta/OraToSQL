@@ -74,14 +74,15 @@ BEGIN
         SELECT
             Doc.ShippingPoint,
             SUBSTRING(Cte.Nombre,15,4),
-            CONCAT
-            (
-                SUBSTRING(Doc.DocumentDate,1,4),
-                '-',
-                SUBSTRING(Doc.DocumentDate,5,2),
-                '-',
-                SUBSTRING(Doc.DocumentDate,7,2)
-            ),
+
+            -- DOCUMENT_DATE se almacena como texto en la tabla destino.
+            -- Primero se convierte el valor de origen a DATE y despues se
+            -- genera el texto con estilo 23, cuyo formato es YYYY-MM-DD.
+            -- No se deben extraer posiciones con SUBSTRING: si SQL Server
+            -- representa la fecha como "Aug 10 2026", el resultado seria
+            -- incorrecto (por ejemplo, "Aug -10- 2").
+            CONVERT(VARCHAR(10), Parsed.DocumentDate, 23),
+
             Doc.ReferenceID,
             Det.Material,
             Det.UnidadMedida,
@@ -99,9 +100,21 @@ BEGIN
             LTRIM(RTRIM(CAST(
                 COALESCE(Mat.Cig_x_PAQ,0)
                 AS VARCHAR(50))))
-        FROM TW
-        INNER JOIN EAI_OWNER.tmp_Document_Header Doc
-            ON SUBSTRING(Doc.DocumentDate,1,6) >= TW.Begins
+        FROM EAI_OWNER.tmp_Document_Header Doc
+
+        -- La conversion se realiza una sola vez para reutilizar una fecha
+        -- tipada en el SELECT, la ventana de tiempo y el filtro inferior.
+        -- TRY_CONVERT devuelve NULL si llega un valor que no es una fecha
+        -- valida; dicho registro no cumplira los filtros y no se insertara.
+        CROSS APPLY
+        (
+            VALUES (TRY_CONVERT(DATE, Doc.DocumentDate))
+        ) Parsed (DocumentDate)
+
+        INNER JOIN TW
+            -- El estilo 112 genera YYYYMM y permite compararlo con TW.Begins,
+            -- que contiene el periodo inicial en ese mismo formato.
+            ON CONVERT(CHAR(6), Parsed.DocumentDate, 112) >= TW.Begins
         INNER JOIN EAI_OWNER.tmp_Document_Detail Det
             ON Doc.ReferenceID = Det.ReferenceID
         INNER JOIN T3.Material Mat
@@ -110,7 +123,9 @@ BEGIN
             ON Det.Material = Conv.Material
         INNER JOIN T3.Mov_Cliente Cte
             ON Doc.Cust_to_SAP = Cte.Cliente_SAP
-        WHERE Doc.DocumentDate >= '20200917'
+        -- Se compara como DATE, no como texto, para evitar que el idioma o el
+        -- formato de la sesion cambien el resultado de la comparacion.
+        WHERE Parsed.DocumentDate >= CONVERT(DATE, '20200917', 112)
           AND Doc.MetodoPago = 'Van Replenishment'
           AND Doc.DeliveryType = 'Receive Other'
           AND Doc.Cust_to_SAP LIKE '009%'

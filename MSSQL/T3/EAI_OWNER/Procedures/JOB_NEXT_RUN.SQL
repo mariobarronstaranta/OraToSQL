@@ -13,7 +13,6 @@ BEGIN
         @SqlAgentJobId    UNIQUEIDENTIFIER,
         @SqlAgentJobName  SYSNAME,
         @ScheduleId       INT,
-        @ScheduleJobCount INT,
         @ActiveStartDate  INT,
         @ActiveStartTime  INT,
         @Enabled          BIT,
@@ -41,8 +40,8 @@ BEGIN
               de ejecucion a pNextRun.
 
         Traduccion SQL Server:
-            - sp_update_job @enabled = 0/1 sustituye DBMS_JOB.BROKEN.
-            - sp_update_schedule active_start_date/time aproxima pNextRun.
+            - msdb.dbo.T3_JOB_NEXT_RUN encapsula sp_update_job y
+              sp_update_schedule bajo el login tecnico T3_SQLAGENT_OWNER.
             - No se cambian freq_type, freq_interval ni subday settings; esas
               reglas pertenecen a JOB_INTERVAL y al schedule ya migrado.
 
@@ -76,42 +75,6 @@ BEGIN
         IF @SqlAgentJobId IS NULL OR @ScheduleId IS NULL
             THROW 51001, 'No existe mapeo activo con job y schedule para el pJOB recibido.', 1;
 
-        IF NOT EXISTS
-        (
-            SELECT 1
-            FROM msdb.dbo.sysjobs AS J
-            WHERE J.job_id = @SqlAgentJobId
-        )
-            THROW 51002, 'El SqlAgent_Job_Id mapeado no existe en SQL Server Agent.', 1;
-
-        IF NOT EXISTS
-        (
-            SELECT 1
-            FROM msdb.dbo.sysschedules AS S
-            WHERE S.schedule_id = @ScheduleId
-        )
-            THROW 51003, 'El Schedule_Id mapeado no existe en SQL Server Agent.', 1;
-
-        IF NOT EXISTS
-        (
-            SELECT 1
-            FROM msdb.dbo.sysjobschedules AS JS
-            WHERE JS.job_id = @SqlAgentJobId
-              AND JS.schedule_id = @ScheduleId
-        )
-            THROW 51004, 'El Schedule_Id mapeado no esta asociado al job en SQL Server Agent.', 1;
-
-        /*
-            DBMS_JOB tiene NEXT_DATE por job. SQL Server permite compartir un
-            schedule entre jobs; moverlo compartido afectaria otros procesos.
-        */
-        SELECT @ScheduleJobCount = COUNT(*)
-        FROM msdb.dbo.sysjobschedules AS JS
-        WHERE JS.schedule_id = @ScheduleId;
-
-        IF @ScheduleJobCount > 1
-            THROW 51005, 'El schedule esta asociado a mas de un job; no se actualiza para evitar afectar otros procesos.', 1;
-
         IF @pNextRun IS NOT NULL
         BEGIN
             SET @ActiveStartDate = CONVERT(INT, CONVERT(CHAR(8), CAST(@pNextRun AS DATE), 112));
@@ -125,28 +88,20 @@ BEGIN
 
         BEGIN TRANSACTION;
 
-            EXEC @ReturnCode = msdb.dbo.sp_update_job
-                @job_id = @SqlAgentJobId,
-                @enabled = @Enabled;
+            /*
+                El wrapper de msdb valida existencia, asociacion, exclusividad,
+                lista permitida y propietario antes de modificar SQL Agent.
+                El caller solo requiere EXECUTE sobre este modulo controlado.
+            */
+            EXEC @ReturnCode = msdb.dbo.T3_JOB_NEXT_RUN
+                @JobId = @SqlAgentJobId,
+                @ScheduleId = @ScheduleId,
+                @Enabled = @Enabled,
+                @ActiveDate = @ActiveStartDate,
+                @ActiveTime = @ActiveStartTime;
 
             IF @ReturnCode <> 0
-                THROW 51006, 'Error al actualizar el estado enabled del job en SQL Server Agent.', 1;
-
-            /*
-                Se actualiza fecha/hora base aunque el job quede deshabilitado.
-                Esto conserva el pNextRun enviado por Oracle y evita perder la
-                intencion del caller si luego alguien reactiva el job.
-            */
-            IF @pNextRun IS NOT NULL
-            BEGIN
-                EXEC @ReturnCode = msdb.dbo.sp_update_schedule
-                    @schedule_id = @ScheduleId,
-                    @active_start_date = @ActiveStartDate,
-                    @active_start_time = @ActiveStartTime;
-
-                IF @ReturnCode <> 0
-                    THROW 51007, 'Error al actualizar active_start_date/time del schedule.', 1;
-            END;
+                THROW 51006, 'El wrapper msdb.dbo.T3_JOB_NEXT_RUN no pudo actualizar el job y su schedule.', 1;
 
             UPDATE [EAI_OWNER].[Job_Oracle_SQLAgent_Map]
                SET Last_Update_Date = SYSDATETIME(),

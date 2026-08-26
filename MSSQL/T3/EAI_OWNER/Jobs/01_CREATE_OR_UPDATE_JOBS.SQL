@@ -6,9 +6,9 @@
     - Ejecute este archivo conectado a la base de datos T3QA.
     - No lo ejecute en master, model, msdb ni tempdb.
     - Todos los jobs se crean DESHABILITADOS, incluso los activos en Oracle.
-    - Los jobs quedan a nombre del login SQL AT85233588.
-    - Puede ejecutarlo AT85233588 (sin especificar @owner_login_name) o un
-      sysadmin, que si puede asignar explicitamente dicho propietario.
+    - Los jobs quedan a nombre del login tecnico T3_SQLAGENT_OWNER.
+    - Puede ejecutarlo T3_SQLAGENT_OWNER (sin especificar @owner_login_name) o
+      un sysadmin, que si puede asignar explicitamente dicho propietario.
     - Cada job recibe un schedule exclusivo porque JOB_INTERVAL puede modificarlo.
 
     SQL Server no tiene PACKAGE. Las llamadas RECV_TO_SEND_V3.* se dirigen a los
@@ -23,7 +23,7 @@ BEGIN
 END;
 
 DECLARE @TargetDatabase SYSNAME = N'T3QA';
-DECLARE @JobOwner SYSNAME = N'AT85233588';
+DECLARE @JobOwner SYSNAME = N'T3_SQLAGENT_OWNER';
 
 IF SUSER_ID(@JobOwner) IS NULL
 BEGIN
@@ -33,12 +33,13 @@ END;
 /*
     Un usuario no-sysadmin solo puede crear jobs a su propio nombre y debe
     omitir @owner_login_name. Un sysadmin si puede ejecutar el despliegue en
-    representacion de AT85233588 y asignarlo explicitamente como propietario.
+    representacion de T3_SQLAGENT_OWNER y asignarlo explicitamente como
+    propietario.
 */
 IF SUSER_SID() <> SUSER_SID(@JobOwner)
    AND IS_SRVROLEMEMBER(N'sysadmin') <> 1
 BEGIN
-    THROW 51002, 'Ejecute el script como AT85233588 o solicite que lo ejecute un miembro de sysadmin.', 1;
+    THROW 51002, 'Ejecute el script como T3_SQLAGENT_OWNER o solicite que lo ejecute un miembro de sysadmin.', 1;
 END;
 
 IF IS_SRVROLEMEMBER(N'sysadmin') <> 1
@@ -55,7 +56,7 @@ IF IS_SRVROLEMEMBER(N'sysadmin') <> 1
              (N'SQLAgentUserRole', N'SQLAgentReaderRole', N'SQLAgentOperatorRole')
    )
 BEGIN
-    THROW 51003, 'AT85233588 necesita pertenecer a un rol de SQL Server Agent en msdb.', 1;
+    THROW 51003, 'T3_SQLAGENT_OWNER necesita pertenecer a un rol de SQL Server Agent en msdb.', 1;
 END;
 
 IF OBJECT_ID(N'[EAI_OWNER].[Job_Oracle_SQLAgent_Map]', N'U') IS NULL
@@ -298,21 +299,38 @@ BEGIN
 
     IF @ScheduleId IS NULL
     BEGIN
-        EXEC msdb.dbo.sp_add_schedule
-            @schedule_name=@ScheduleName, @enabled=1,
-            @freq_type=4, @freq_interval=1,
-            @freq_subday_type=@SubdayType, @freq_subday_interval=@SubdayInterval,
-            @active_start_date=@ActiveStartDate, @active_start_time=@StartTime,
-            @active_end_time=235959, @schedule_id=@ScheduleId OUTPUT;
+        IF IS_SRVROLEMEMBER(N'sysadmin') = 1
+            EXEC msdb.dbo.sp_add_schedule
+                @schedule_name=@ScheduleName, @enabled=1,
+                @freq_type=4, @freq_interval=1,
+                @freq_subday_type=@SubdayType, @freq_subday_interval=@SubdayInterval,
+                @active_start_date=@ActiveStartDate, @active_start_time=@StartTime,
+                @active_end_time=235959, @owner_login_name=@JobOwner,
+                @schedule_id=@ScheduleId OUTPUT;
+        ELSE
+            EXEC msdb.dbo.sp_add_schedule
+                @schedule_name=@ScheduleName, @enabled=1,
+                @freq_type=4, @freq_interval=1,
+                @freq_subday_type=@SubdayType, @freq_subday_interval=@SubdayInterval,
+                @active_start_date=@ActiveStartDate, @active_start_time=@StartTime,
+                @active_end_time=235959, @schedule_id=@ScheduleId OUTPUT;
     END
     ELSE
     BEGIN
-        EXEC msdb.dbo.sp_update_schedule
-            @schedule_id=@ScheduleId, @enabled=1,
-            @freq_type=4, @freq_interval=1,
-            @freq_subday_type=@SubdayType, @freq_subday_interval=@SubdayInterval,
-            @active_start_date=@ActiveStartDate, @active_start_time=@StartTime,
-            @active_end_time=235959;
+        IF IS_SRVROLEMEMBER(N'sysadmin') = 1
+            EXEC msdb.dbo.sp_update_schedule
+                @schedule_id=@ScheduleId, @enabled=1,
+                @freq_type=4, @freq_interval=1,
+                @freq_subday_type=@SubdayType, @freq_subday_interval=@SubdayInterval,
+                @active_start_date=@ActiveStartDate, @active_start_time=@StartTime,
+                @active_end_time=235959, @owner_login_name=@JobOwner;
+        ELSE
+            EXEC msdb.dbo.sp_update_schedule
+                @schedule_id=@ScheduleId, @enabled=1,
+                @freq_type=4, @freq_interval=1,
+                @freq_subday_type=@SubdayType, @freq_subday_interval=@SubdayInterval,
+                @active_start_date=@ActiveStartDate, @active_start_time=@StartTime,
+                @active_end_time=235959;
     END;
 
     IF NOT EXISTS

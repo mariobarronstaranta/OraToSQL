@@ -56,7 +56,12 @@ BEGIN
         )
         SELECT
             B.Ctro,
+
+            -- INVOICE_DATE es VARCHAR(30) en la tabla destino. El estilo 23
+            -- convierte el DATETIME2 de origen a texto con formato
+            -- YYYY-MM-DD, sin depender del idioma o formato de la sesion.
             CONVERT(VARCHAR(10), B.Invc_dt, 23),
+
             CASE
                 WHEN PG.Entrega IS NULL THEN 'Prompt'
                 ELSE 'Presales'
@@ -109,11 +114,18 @@ BEGIN
         LEFT JOIN EAI.CFDI_Informe I
             ON B.Nota_Venta_CFDI = I.Folio_Interno
         CROSS JOIN EAI.FC__TIME_WINDOW TW
+
+        -- Invc_dt es DATETIME2. Se convierte a DATE en los filtros para
+        -- comparar solamente el dia e ignorar la hora del movimiento.
+        -- Start_Date es texto con formato DD/MM/YYYY (estilo 103).
         WHERE CAST(B.Invc_dt AS DATE)
               >= CONVERT(DATE,TW.Start_Date,103)
           AND CAST(B.Invc_dt AS DATE)
               < CAST(GETDATE() AS DATE)
-          AND B.Invc_dt >= '20200921'
+
+          -- La fecha fija se convierte explicitamente con el estilo 112
+          -- (YYYYMMDD), evitando una conversion implicita de texto a fecha.
+          AND B.Invc_dt >= CONVERT(DATE, '20200921', 112)
           AND B.Doc_Num NOT LIKE 'DESC-%';
 
         SET @nProceso4 = @@ROWCOUNT;
@@ -157,8 +169,11 @@ BEGIN
                 SAP.Doc_Num_Ref2,
                 SAP.Customer,
                 (SAP.Doc_NetAmt + SAP.Doc_TaxAmt) Amount,
-                CONVERT(VARCHAR(10),
-                        CONVERT(DATE,SAP.Doc_Date,112),23) Doc_Date_Str,
+
+                -- CC_DATA_SALE.INVOICE_DATE recibe texto YYYY-MM-DD. La fecha
+                -- ya fue validada en Parsed y el estilo 23 genera ese formato.
+                CONVERT(VARCHAR(10), Parsed.Doc_Date, 23) Doc_Date_Str,
+
                 CASE
                     WHEN FG.Entrega IS NOT NULL THEN 'Prompt'
                     WHEN PG.Entrega IS NOT NULL THEN 'Presale'
@@ -170,10 +185,19 @@ BEGIN
             LEFT JOIN T3.Preventa_General PG
                 ON SAP.Doc_Num_R3 = PG.Entrega
             CROSS JOIN EAI.FC__TIME_WINDOW TW
-            WHERE SAP.Doc_Date >=
-                  CONVERT(VARCHAR(8),
-                          CONVERT(DATE,TW.Start_Date,103),112)
-              AND SAP.Doc_Date >= '20200921'
+
+            -- SAP.Doc_Date es VARCHAR(8) y debe contener YYYYMMDD (estilo
+            -- 112). TRY_CONVERT devuelve NULL si el dato no es una fecha
+            -- valida, evitando que un solo registro detenga el procedimiento.
+            CROSS APPLY
+            (
+                VALUES (TRY_CONVERT(DATE, SAP.Doc_Date, 112))
+            ) Parsed (Doc_Date)
+
+            -- Las comparaciones se realizan entre valores DATE y no entre
+            -- cadenas. Los valores invalidos son NULL y no pasan el filtro.
+            WHERE Parsed.Doc_Date >= CONVERT(DATE,TW.Start_Date,103)
+              AND Parsed.Doc_Date >= CONVERT(DATE, '20200921', 112)
               AND SAP.Doc_Status = 'C'
               AND SAP.Customer NOT IN
               (

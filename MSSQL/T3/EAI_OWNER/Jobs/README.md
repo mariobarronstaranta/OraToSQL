@@ -1,301 +1,693 @@
-# Migración de Oracle `USER_JOBS` a SQL Server Agent
+# Jobs T3: migración, seguridad, despliegue y operación
 
-Esta carpeta contiene la migración de los 37 registros de Oracle `DBMS_JOB`
-incluidos en [`USER_JOBS_SOURCE.csv`](./USER_JOBS_SOURCE.csv) hacia SQL Server
-Agent.
+## 1. Objetivo de esta guía
 
-La configuración de este ambiente es fija:
+Esta carpeta contiene la migración de 37 procesos programados de Oracle
+`DBMS_JOB` a SQL Server Agent. Esta guía explica, desde cero:
 
-- Base de datos destino: `T3QA`.
-- Propietario esperado de los jobs: login SQL `AT85233588`.
-- Total de jobs: 37.
-- Jobs activos en Oracle (`BROKEN=N`): 32.
-- Jobs suspendidos en Oracle (`BROKEN=Y`): 5.
+- Qué es un job y cómo se relaciona con un schedule y un procedimiento.
+- Por qué los jobs no deben pertenecer a una cuenta personal.
+- Qué hace el login técnico `T3_SQLAGENT_OWNER`.
+- Qué permisos reciben los desarrolladores y cuáles no deben recibir.
+- Para qué sirven los scripts `A` a `E` y `00` a `04`.
+- En qué orden deben ejecutarse.
+- Cómo validar el despliegue y resolver los errores más comunes.
+- Cómo habilitar, deshabilitar o eliminar los jobs de forma segura.
 
-> **Importante:** ningún script de esta carpeta debe ejecutarse desde `master`,
-> `msdb` u otra base. Todos validan o esperan estar conectados a `T3QA`.
+La guía está escrita para un desarrollador JR. No presupone experiencia previa
+administrando SQL Server Agent.
 
-## Archivos incluidos
+### Mapa rápido de lectura
 
-| Archivo | Función | ¿Modifica datos? |
-|---|---|---:|
-| `USER_JOBS_SOURCE.csv` | Inventario original exportado desde Oracle. | No |
-| `00_ROLLBACK_CREATE_OR_UPDATE_JOBS.SQL` | Elimina los objetos creados o administrados por el instalador. | Sí, destructivo |
-| `01_CREATE_OR_UPDATE_JOBS.SQL` | Crea o actualiza los 37 jobs, schedules y tablas de control. Todos quedan deshabilitados. | Sí |
-| `02_VALIDATE_JOBS.SQL` | Valida configuración, dependencias y permisos antes de habilitar. | No |
-| `03_ENABLE_VALIDATED_JOBS.SQL` | Habilita los 32 jobs que estaban activos en Oracle. | Sí |
-| `04_DISABLE_MIGRATED_JOBS.SQL` | Deshabilita los jobs sin eliminarlos ni borrar historial. | Sí |
+- Si es la primera vez que trabajas con jobs, lee las secciones 2 a 5.
+- Si vas a desplegar, sigue las secciones 7 a 12 sin cambiar el orden.
+- Si recibiste un error, ve a la sección 19.
+- Si necesitas detener o eliminar jobs, revisa las secciones 13 y 14.
+- Antes de liberar, completa la lista de la sección 21.
 
-## Prerrequisitos de seguridad
+## 2. Resumen del ambiente
 
-### Login propietario
+| Concepto | Valor esperado |
+|---|---|
+| Base funcional | `T3QA` |
+| Base de SQL Server Agent | `msdb` |
+| Propietario técnico | `T3_SQLAGENT_OWNER` |
+| Jobs migrados | 37 |
+| Jobs activos en Oracle | 32 |
+| Jobs `BROKEN` en Oracle | 5 |
+| Fuente original | `USER_JOBS_SOURCE.csv` |
+| Wrapper de seguridad | `msdb.dbo.T3_JOB_NEXT_RUN` |
 
-Los jobs pertenecen al login SQL local:
+Los cinco jobs que estaban `BROKEN=Y` en Oracle son:
 
 ```text
+216, 229, 236, 550 y 648
+```
+
+Permanecen deshabilitados durante el despliegue inicial. Los procedimientos
+`SF_JOB_MANAGE` y `SF_JOB_MANAGE_EOD` pueden suspenderlos o reactivarlos como
+parte de los procesos BOD/EOD.
+
+## 3. Conceptos básicos
+
+### 3.1 Login de servidor
+
+Un login permite autenticarse en la instancia de SQL Server. Existe en el
+nivel del servidor, no dentro de una base específica.
+
+Ejemplos:
+
+```text
+T3_SQLAGENT_OWNER
 AT85233588
+IX85234150
 ```
 
-No es una cuenta de dominio y no se utiliza `sa` como propietario.
+### 3.2 Usuario de base de datos
 
-Cuando `01_CREATE_OR_UPDATE_JOBS.SQL` es ejecutado por `AT85233588`, el script
-omite deliberadamente `@owner_login_name`. SQL Server asigna automáticamente el
-job al login actual. Esto es necesario porque un usuario que no pertenece a
-`sysadmin` no puede establecer explícitamente el propietario de un job.
+Para que un login pueda usar una base, normalmente necesita un usuario mapeado
+dentro de esa base.
 
-Un DBA miembro de `sysadmin` también puede ejecutar el instalador; en ese caso,
-el script asigna explícitamente `AT85233588` como propietario.
+En esta solución, `T3_SQLAGENT_OWNER` tiene usuario en:
 
-### Permisos de SQL Server Agent
+- `msdb`, para ser propietario y administrar sus jobs/schedules.
+- `T3QA`, para ejecutar los procedimientos de los steps.
 
-`AT85233588` no pertenece a `sysadmin`. Debe existir como usuario en `msdb` y
-pertenecer, como mínimo, a uno de estos roles:
+Un login y un usuario pueden tener el mismo nombre, pero son objetos distintos.
+El vínculo real se comprueba mediante su `SID`.
 
-- `SQLAgentUserRole`
-- `SQLAgentReaderRole`
-- `SQLAgentOperatorRole`
+### 3.3 Rol
 
-Para administrar únicamente sus propios jobs, `SQLAgentUserRole` es el permiso
-mínimo habitual. La asignación debe realizarla un DBA de acuerdo con la política
-del ambiente.
+Un rol agrupa permisos. En lugar de conceder permisos uno por uno a cada
+persona, se concede el permiso al rol y se agregan usuarios al rol.
 
-Comprobación para el developer:
+### 3.4 Job
+
+Un job de SQL Server Agent representa un proceso programado. Cada job migrado
+tiene:
+
+- Un propietario.
+- Un step T-SQL.
+- Una base de ejecución, `T3QA`.
+- Un schedule exclusivo.
+- Un estado habilitado o deshabilitado.
+
+### 3.5 Step
+
+El step contiene el comando que ejecuta el job. Ejemplo:
 
 ```sql
-SELECT
-    SUSER_SNAME() AS Login_Actual,
-    IS_SRVROLEMEMBER(N'sysadmin') AS Es_Sysadmin;
-
-USE [msdb];
-SELECT
-    IS_ROLEMEMBER(N'SQLAgentUserRole') AS Es_SQLAgentUserRole,
-    IS_ROLEMEMBER(N'SQLAgentReaderRole') AS Es_SQLAgentReaderRole,
-    IS_ROLEMEMBER(N'SQLAgentOperatorRole') AS Es_SQLAgentOperatorRole;
-
-USE [T3QA];
+EXEC [EAI_OWNER].[RECV_CUSTOMER];
 ```
 
-### Permisos en `T3QA`
+Los steps de esta migración usan el subsistema `TSQL` y ejecutan en `T3QA`.
 
-El login necesita permisos suficientes para:
+### 3.6 Schedule
 
-- Crear las tablas de control bajo el esquema `EAI_OWNER`, si no existen.
-- Consultar, insertar y actualizar las tablas de control.
-- Ejecutar los procedimientos utilizados por los jobs.
-- Consultar la definición de `PROC_T3_EOD` y `PROC_T3_BOD` mediante
-  `VIEW DEFINITION` para detectar referencias Oracle incompatibles.
+El schedule define cuándo se ejecuta un job. Cada job tiene un schedule
+exclusivo porque varios procedimientos migrados pueden cambiar su fecha/hora:
 
-Los permisos deben ser otorgados por un DBA. No se recomienda elevar
-permanentemente `AT85233588` a `sysadmin`.
+- `JOB_INTERVAL`
+- `JOB_NEXT_DATE`
+- `JOB_NEXT_RUN`
+- `JOB_MANAGE`
 
-## Secuencia normal de despliegue
+Un schedule compartido sería peligroso: cambiar la fecha de un job también
+cambiaría la de otros jobs.
 
-### 1. Confirmar el contexto
+### 3.7 Propietario de job y propietario de schedule
 
-Abra una conexión con el login `AT85233588`, seleccione `T3QA` y ejecute:
+Job y schedule almacenan su propietario por separado. Cambiar únicamente el
+propietario del job no cambia automáticamente el del schedule.
 
-```sql
-SELECT DB_NAME() AS Base_Actual, SUSER_SNAME() AS Login_Actual;
+Los 37 jobs y los 37 schedules deben pertenecer a:
+
+```text
+T3_SQLAGENT_OWNER
 ```
 
-El resultado esperado es:
+Si un schedule sigue perteneciendo a una cuenta personal, una ejecución hecha
+por otro usuario puede producir:
 
-| Base_Actual | Login_Actual |
+```text
+Only owner of a job schedule or members of sysadmin role can modify or delete
+the job schedule.
+```
+
+El script `C_SECURITY_REASSIGN_T3_JOB_OWNERS.SQL` corrige ambos propietarios.
+
+## 4. Arquitectura funcional y de seguridad
+
+El flujo relevante para BOD es:
+
+```text
+Usuario del equipo
+    |
+    v
+T3.PROC_T3_BOD
+    |
+    v
+EAI_OWNER.SF_JOB_MANAGE
+    |
+    v
+EAI_OWNER.JOB_NEXT_RUN
+    |
+    v
+msdb.dbo.T3_JOB_NEXT_RUN
+    |
+    +--> msdb.dbo.sp_update_job
+    |
+    +--> msdb.dbo.sp_update_schedule
+```
+
+El usuario humano no recibe permiso directo sobre `sp_update_job` ni sobre
+`sp_update_schedule`. Sólo puede ejecutar el wrapper controlado.
+
+El wrapper:
+
+- Se ejecuta como `T3_SQLAGENT_OWNER`.
+- Acepta únicamente cinco parejas job/schedule autorizadas.
+- Comprueba que el job exista.
+- Comprueba que el schedule exista.
+- Comprueba que estén asociados.
+- Comprueba que el schedule sea exclusivo.
+- Comprueba que ambos pertenezcan a `T3_SQLAGENT_OWNER`.
+- Sólo cambia `enabled`, `active_start_date` y `active_start_time`.
+- No permite cambiar comandos, frecuencia, propietario ni otros jobs.
+
+## 5. Modelo de seguridad
+
+### 5.1 Principio principal
+
+Las cuentas personales no son propietarias de jobs. El propietario es un login
+técnico estable. Los desarrolladores reciben únicamente permiso para iniciar el
+flujo funcional autorizado.
+
+### 5.2 Roles utilizados
+
+| Base | Rol | Miembros | Propósito |
+|---|---|---|---|
+| `msdb` | `SQLAgentUserRole` | `T3_SQLAGENT_OWNER` | Permite administrar únicamente jobs/schedules propios. |
+| `msdb` | `T3JobExecutors` | Login técnico y equipo autorizado | Permite ejecutar el wrapper controlado. |
+| `T3QA` | `T3SqlAgentJobExecutor` | `T3_SQLAGENT_OWNER` | Permite ejecutar los entry points de los 37 jobs. |
+| `T3QA` | `T3BODExecutors` | Equipo autorizado | Permite ejecutar `T3.PROC_T3_BOD`. |
+
+### 5.3 Usuarios humanos autorizados actualmente
+
+El script `D_SECURITY_GRANT_T3_JOB_EXECUTORS.SQL` contiene esta lista:
+
+```text
+IX85234150
+AT85233588
+AT85233589
+T3
+```
+
+Todos deben existir previamente como logins de servidor. El script crea sus
+usuarios en `msdb` y `T3QA` cuando sea necesario y los agrega a los roles
+controlados.
+
+Si se agrega otra persona, se añade una fila en `@TeamLogins` y se vuelve a
+ejecutar `D`. El script es idempotente: no duplica membresías existentes.
+
+### 5.4 Permisos que no se deben conceder
+
+No se debe:
+
+- Agregar desarrolladores a `sysadmin`.
+- Agregar desarrolladores a `db_owner`.
+- Concederles `EXECUTE` directo sobre `sp_update_job` o `sp_update_schedule`.
+- Conceder `IMPERSONATE` sobre la cuenta técnica.
+- Activar `TRUSTWORTHY ON` como solución rápida.
+- Volver a colocar un usuario personal como propietario.
+- Agregar usuarios humanos a `T3SqlAgentJobExecutor`.
+
+## 6. Archivos incluidos
+
+### 6.1 Scripts funcionales
+
+| Archivo | Función | Modifica estado |
+|---|---|---:|
+| `00_ROLLBACK_CREATE_OR_UPDATE_JOBS.SQL` | Elimina jobs, schedules y filas de control de la migración. | Sí, destructivo |
+| `01_CREATE_OR_UPDATE_JOBS.SQL` | Crea/actualiza 37 jobs, schedules y tablas de control; deja jobs deshabilitados. | Sí |
+| `02_VALIDATE_JOBS.SQL` | Valida objetos, configuración, propietarios, permisos y dependencias. | No |
+| `03_ENABLE_VALIDATED_JOBS.SQL` | Habilita los 32 jobs que estaban activos en Oracle. | Sí |
+| `04_DISABLE_MIGRATED_JOBS.SQL` | Deshabilita los 37 jobs sin eliminarlos. | Sí |
+
+### 6.2 Scripts de seguridad
+
+| Archivo | Base principal | Función |
+|---|---|---|
+| `A_SECURITY_CREATE_T3_SQLAGENT_OWNER.SQL` | `master`, `msdb`, `T3QA` | Crea el login técnico y sus usuarios. |
+| `B_SECURITY_CREATE_MSDB_T3_JOB_NEXT_RUN.SQL` | `msdb` | Crea el wrapper de privilegio controlado. |
+| `C_SECURITY_REASSIGN_T3_JOB_OWNERS.SQL` | `msdb` | Reasigna los 37 jobs y schedules al login técnico. |
+| `D_SECURITY_GRANT_T3_JOB_EXECUTORS.SQL` | `msdb`, `T3QA` | Crea roles y agrega a los usuarios humanos autorizados. |
+| `E_SECURITY_GRANT_T3_SQLAGENT_OWNER_EXECUTE.SQL` | `T3QA` | Concede al login técnico permisos mínimos sobre los entry points. |
+
+### 6.3 Archivos de soporte
+
+| Archivo | Función |
 |---|---|
-| `T3QA` | `AT85233588` |
+| `USER_JOBS_SOURCE.csv` | Inventario original exportado desde Oracle. |
+| `MSSQL/T3/EAI_OWNER/Procedures/JOB_NEXT_RUN.SQL` | Procedimiento funcional que llama al wrapper de `msdb`. |
 
-Confirme también que el servicio SQL Server Agent esté iniciado.
+## 7. Prerrequisitos
 
-### 2. Limpiar un intento anterior fallido, si aplica
+Antes de ejecutar cualquier despliegue, confirmar:
 
-Si `01_CREATE_OR_UPDATE_JOBS.SQL` ya falló y se necesita regresar a un estado
-limpio, revise y ejecute `00_ROLLBACK_CREATE_OR_UPDATE_JOBS.SQL` antes de repetir
-el despliegue.
+1. La instancia es la correcta.
+2. Existe la base `T3QA`.
+3. SQL Server Agent está instalado e iniciado.
+4. La ejecución no se hace en LocalDB; LocalDB no proporciona SQL Server Agent.
+5. El DBA dispone de una cuenta `sysadmin` para los scripts de seguridad.
+6. Los cuatro logins humanos existen en `master.sys.server_principals`.
+7. Los procedimientos requeridos por los 37 jobs están desplegados en `T3QA`.
+8. Existe el esquema `EAI_OWNER` en `T3QA`.
 
-No ejecute el rollback como parte del flujo normal cuando no existe un intento
-fallido.
+Consulta de contexto:
 
-### 3. Crear los jobs deshabilitados
+```sql
+SELECT
+    @@SERVERNAME AS Server_Name,
+    DB_NAME() AS Database_Name,
+    SUSER_SNAME() AS Login_Name,
+    IS_SRVROLEMEMBER(N'sysadmin') AS Is_Sysadmin;
+```
 
-Ejecute:
+Consulta de logins humanos:
+
+```sql
+SELECT [name], [type_desc], is_disabled
+FROM master.sys.server_principals
+WHERE [name] IN
+(
+    N'IX85234150',
+    N'AT85233588',
+    N'AT85233589',
+    N'T3'
+)
+ORDER BY [name];
+```
+
+El resultado debe contener cuatro filas y `is_disabled` debe ser `0`.
+
+## 8. Orden completo de despliegue
+
+El orden obligatorio para un ambiente nuevo es:
+
+```text
+A
+-> 01
+-> B
+-> C
+-> D
+-> E
+-> desplegar EAI_OWNER.JOB_NEXT_RUN
+-> 02
+-> pruebas funcionales
+-> 03
+```
+
+| Paso | Archivo/acción | Ejecuta | Base seleccionada |
+|---:|---|---|---|
+| 1 | `A_SECURITY_CREATE_T3_SQLAGENT_OWNER.SQL` | DBA `sysadmin` | El script cambia de base internamente. |
+| 2 | `01_CREATE_OR_UPDATE_JOBS.SQL` | DBA `sysadmin` | Seleccionar `T3QA`. |
+| 3 | `B_SECURITY_CREATE_MSDB_T3_JOB_NEXT_RUN.SQL` | DBA `sysadmin` | El script selecciona `msdb`. |
+| 4 | `C_SECURITY_REASSIGN_T3_JOB_OWNERS.SQL` | DBA `sysadmin` | El script selecciona `msdb`. |
+| 5 | `D_SECURITY_GRANT_T3_JOB_EXECUTORS.SQL` | DBA `sysadmin` | El script selecciona `msdb` y usa `T3QA`. |
+| 6 | `E_SECURITY_GRANT_T3_SQLAGENT_OWNER_EXECUTE.SQL` | DBA `sysadmin` o `db_owner` | El script selecciona `T3QA`. |
+| 7 | `MSSQL/T3/EAI_OWNER/Procedures/JOB_NEXT_RUN.SQL` | DBA/deployer | Seleccionar `T3QA`. |
+| 8 | `02_VALIDATE_JOBS.SQL` | `T3_SQLAGENT_OWNER` | Seleccionar `T3QA`. |
+| 9 | Pruebas funcionales | Equipo autorizado | Seleccionar `T3QA`. |
+| 10 | `03_ENABLE_VALIDATED_JOBS.SQL` | `T3_SQLAGENT_OWNER` | Seleccionar `T3QA`. |
+
+Para un ambiente donde `A` y `01` ya se ejecutaron, aplicar:
+
+```text
+B -> C -> D -> E -> JOB_NEXT_RUN.SQL -> 02 -> pruebas
+```
+
+No ejecutar `03` hasta obtener `PASS` en `02`.
+
+## 9. Explicación paso a paso
+
+### Paso A: crear el propietario técnico
+
+Archivo:
+
+```text
+A_SECURITY_CREATE_T3_SQLAGENT_OWNER.SQL
+```
+
+Antes de la primera ejecución, cambiar la contraseña provisional. No guardar la
+contraseña real en Git.
+
+El script:
+
+- Crea el login SQL `T3_SQLAGENT_OWNER` si no existe.
+- Crea su usuario en `msdb`.
+- Lo agrega a `SQLAgentUserRole`.
+- Crea su usuario en `T3QA`.
+- No concede `sysadmin` ni `db_owner`.
+
+Es idempotente y no cambia la contraseña si el login ya existe.
+
+### Paso 01: crear los jobs deshabilitados
+
+Archivo:
 
 ```text
 01_CREATE_OR_UPDATE_JOBS.SQL
 ```
 
-El script:
+Debe ejecutarse conectado a `T3QA`. Crea o actualiza:
 
-- Exige estar conectado a `T3QA`.
-- Valida que exista el login `AT85233588`.
-- Valida acceso a SQL Server Agent antes de crear objetos.
-- Crea las tablas de control si no existen.
-- Crea o actualiza los 37 jobs.
-- Crea un schedule exclusivo por job.
-- Configura cada paso T-SQL para ejecutarse en `T3QA`.
-- Deja los 37 jobs deshabilitados para evitar ejecuciones accidentales.
+- 37 jobs.
+- 37 steps T-SQL.
+- 37 schedules exclusivos.
+- La asociación de cada job con su schedule.
+- El servidor local de ejecución.
+- `EAI_OWNER.Job_Oracle_SQLAgent_Map`.
+- `EAI_OWNER.Job_Oracle_Migration_Catalog`.
 
-Las tablas de control son:
+Todos los jobs se dejan deshabilitados. Esto evita ejecuciones accidentales
+antes de terminar la validación.
 
-- `[EAI_OWNER].[Job_Oracle_SQLAgent_Map]`: relaciona el número histórico Oracle
-  con los IDs de SQL Server Agent.
-- `[EAI_OWNER].[Job_Oracle_Migration_Catalog]`: conserva procedimiento, comando,
-  estado Oracle y calendario convertido para auditoría.
+Las tablas de control tienen funciones distintas:
 
-Si existen versiones históricas bajo `dbo`, se copian únicamente las filas que
-todavía no existen en `EAI_OWNER`; las tablas antiguas no se eliminan.
-
-### 4. Validar el despliegue
-
-Ejecute `02_VALIDATE_JOBS.SQL` como `AT85233588`.
-
-El archivo es de solo lectura y devuelve cuatro resultados de diagnóstico más
-un resultado final `PASS` o `FAIL`:
-
-1. Estado detallado de los 37 jobs.
-2. Resumen de jobs, procedimientos, pasos y schedules válidos.
-3. Dependencias internas o de segundo nivel.
-4. Revisión de referencias Oracle inválidas dentro de `PROC_T3_EOD` y
-   `PROC_T3_BOD`.
-
-En el primer resultado, `Deployment_Status` debe ser `OK` para los 37 registros.
-Las columnas intermedias permiten localizar el problema:
-
-| Columna | Qué comprueba |
+| Tabla | Propósito |
 |---|---|
-| `Catalog_Status` | Que exista la fila esperada en el catálogo. |
-| `Dependency_Status` | Que exista el procedimiento principal. |
-| `Execute_Permission_Status` | Que `AT85233588` pueda ejecutarlo. |
-| `Map_Status` | Que IDs y nombres del mapeo sean correctos. |
-| `Job_Status` | Existencia, propietario, estado y servidor asociado. |
-| `Step_Status` | Subsistema T-SQL, comando, base y acciones del paso. |
-| `Schedule_Status` | Existencia, asociación, frecuencia y horario. |
+| `Job_Oracle_SQLAgent_Map` | Relaciona el número Oracle con `job_id` y `schedule_id`. |
+| `Job_Oracle_Migration_Catalog` | Conserva comando, procedimiento, estado Oracle e intervalo convertido. |
 
-El resultado final debe ser:
+### Paso B: crear el wrapper de `msdb`
+
+Archivo:
+
+```text
+B_SECURITY_CREATE_MSDB_T3_JOB_NEXT_RUN.SQL
+```
+
+Crea:
+
+```text
+msdb.dbo.T3_JOB_NEXT_RUN
+```
+
+Se ejecuta con `WITH EXECUTE AS 'T3_SQLAGENT_OWNER'`. Su lista permitida incluye
+solamente:
+
+| Oracle job | Job SQL Agent | Schedule |
+|---:|---|---|
+| 216 | `ORA_216_EAI_OWNER_RECV_REPLENISHMENT` | `SCH_ORA_216` |
+| 229 | `ORA_229_EAI_OWNER_RECV_INVOICE_INTERCOMPANY` | `SCH_ORA_229` |
+| 236 | `ORA_236_EAI_OWNER_RECV_PAYMENT` | `SCH_ORA_236` |
+| 550 | `ORA_550_EAI_OWNER_RECV_INVOICE` | `SCH_ORA_550` |
+| 648 | `ORA_648_EAI_OWNER_RECV_CUSTOMER` | `SCH_ORA_648` |
+
+### Paso C: corregir propietarios
+
+Archivo:
+
+```text
+C_SECURITY_REASSIGN_T3_JOB_OWNERS.SQL
+```
+
+Reasigna los 37 jobs y los 37 schedules. Debe ejecutarlo un `sysadmin`, porque
+sólo `sysadmin` puede cambiar un propietario existente.
+
+El resultado esperado por fila es:
+
+```text
+JobOwner      = T3_SQLAGENT_OWNER
+ScheduleOwner = T3_SQLAGENT_OWNER
+OwnerStatus   = OK
+```
+
+Si falta un objeto, existe una asociación incorrecta o un schedule está
+compartido, el script no realiza una reasignación parcial.
+
+### Paso D: autorizar al equipo
+
+Archivo:
+
+```text
+D_SECURITY_GRANT_T3_JOB_EXECUTORS.SQL
+```
+
+El script contiene `@TeamLogins` con cuatro logins. Antes de modificar permisos:
+
+- Confirma que todos existan en el servidor.
+- Verifica que no haya usuarios homónimos con otro `SID`.
+- Confirma que existan el wrapper y `PROC_T3_BOD`.
+- Confirma que los nombres de los roles no estén ocupados por otro tipo de objeto.
+
+Después crea usuarios, roles y permisos dentro de una transacción.
+
+Resultado esperado en `msdb`:
+
+```text
+T3JobExecutors
+  - T3_SQLAGENT_OWNER
+  - IX85234150
+  - AT85233588
+  - AT85233589
+  - T3
+```
+
+Resultado esperado en `T3QA`:
+
+```text
+T3BODExecutors
+  - IX85234150
+  - AT85233588
+  - AT85233589
+  - T3
+```
+
+El login `T3` debe existir como login de servidor. No basta con que exista un
+esquema o un usuario llamado `T3` dentro de `T3QA`.
+
+### Paso E: autorizar al propietario técnico
+
+Archivo:
+
+```text
+E_SECURITY_GRANT_T3_SQLAGENT_OWNER_EXECUTE.SQL
+```
+
+Crea el rol:
+
+```text
+T3QA.T3SqlAgentJobExecutor
+```
+
+Agrega únicamente a `T3_SQLAGENT_OWNER` y concede:
+
+- `EXECUTE` sobre los 37 procedimientos principales del catálogo.
+- `SELECT` y `UPDATE` sobre `Job_Oracle_SQLAgent_Map`.
+- `SELECT` sobre `Job_Oracle_Migration_Catalog`.
+- `VIEW DEFINITION` sobre `JOB_NEXT_RUN`, `PROC_T3_BOD` y `PROC_T3_EOD`.
+
+No agregar usuarios humanos a este rol.
+
+El script exige que los 37 procedimientos existan. Si falta alguno, devuelve
+`51504`, muestra `Missing_Procedure` y no concede permisos parciales.
+
+Los cinco entry points de `SF_JOB_MANAGE` están en:
+
+```text
+MSSQL/T3/EAI_OWNER/Package/RECV_REPLENISHMENT.SQL
+MSSQL/T3/EAI_OWNER/Package/RECV_INVOICE_INTERCOMPANY.SQL
+MSSQL/T3/EAI_OWNER/Package/RECV_PAYMENT.SQL
+MSSQL/T3/EAI_OWNER/Package/RECV_INVOICE.SQL
+MSSQL/T3/EAI_OWNER/Package/RECV_CUSTOMER.SQL
+```
+
+### Desplegar `EAI_OWNER.JOB_NEXT_RUN`
+
+Archivo:
+
+```text
+MSSQL/T3/EAI_OWNER/Procedures/JOB_NEXT_RUN.SQL
+```
+
+La definición correcta contiene:
+
+```sql
+EXEC @ReturnCode = msdb.dbo.T3_JOB_NEXT_RUN
+    @JobId = @SqlAgentJobId,
+    @ScheduleId = @ScheduleId,
+    @Enabled = @Enabled,
+    @ActiveDate = @ActiveStartDate,
+    @ActiveTime = @ActiveStartTime;
+```
+
+No debe contener llamadas directas desde `JOB_NEXT_RUN` a:
+
+```text
+msdb.dbo.sp_update_job
+msdb.dbo.sp_update_schedule
+```
+
+## 10. Validación con `02_VALIDATE_JOBS.SQL`
+
+Ejecutar como `T3_SQLAGENT_OWNER`, conectado a `T3QA`.
+
+El script es de solo lectura y produce cinco grupos de resultados:
+
+1. Detalle de los 37 jobs.
+2. Resumen de objetos válidos.
+3. Dependencias de segundo nivel.
+4. Referencias Oracle inválidas.
+5. Wrapper, roles, integración y propietarios.
+
+### 10.1 Estados principales
+
+| Columna | Significado |
+|---|---|
+| `Catalog_Status` | La fila existe en el catálogo de migración. |
+| `Dependency_Status` | El procedimiento principal existe. |
+| `Execute_Permission_Status` | El propietario técnico puede ejecutarlo. |
+| `Map_Status` | El número Oracle apunta al job/schedule correctos. |
+| `Job_Status` | Job existente, deshabilitado, propietario correcto y servidor asociado. |
+| `Step_Status` | Step T-SQL con comando, base y acciones correctas. |
+| `Schedule_Status` | Schedule existente, asociado, configurado y con propietario correcto. La exclusividad de los cinco schedules controlados se revisa en el resultado 5. |
+| `Deployment_Status` | Primer error encontrado o `OK`. |
+
+Resultado esperado:
 
 ```text
 Validation_Result = PASS
+Ready_Jobs = 37
 ```
 
-Si existe cualquier problema, el script muestra `FAIL` y genera el error
-`51019`. Este error es intencional: no debe ejecutarse
-`03_ENABLE_VALIDATED_JOBS.SQL` hasta corregir todos los estados distintos de
-`OK`.
+Si cualquier estado es distinto de `OK`, no ejecutar `03`.
 
-> `02_VALIDATE_JOBS.SQL` es una validación previa a la activación y espera que
-> todos los jobs estén deshabilitados. Después de ejecutar correctamente `03`,
-> los 32 jobs activos aparecerán como `JOB_NOT_DISABLED`; eso no significa que
-> la activación haya fallado.
+`02` espera que los 37 jobs estén deshabilitados. Si se ejecuta después de `03`,
+los 32 jobs activos pueden aparecer como `JOB_NOT_DISABLED`. Esto no implica que
+la activación haya fallado; significa que `02` está diseñado como validación
+previa.
 
-### 5. Ejecutar pruebas funcionales
+## 11. Pruebas funcionales
 
-Antes de habilitar automáticamente los jobs:
+Antes de habilitar jobs:
 
-1. Ejecute manualmente cada `Step_Command` con el login `AT85233588`.
-2. Confirme que los parámetros generan el mismo resultado que en Oracle.
-3. Revise tiempos de ejecución y bloqueos.
-4. Confirme que ningún job permanece ejecutándose más tiempo que su intervalo.
-5. Verifique que las dependencias internas del resultado 3 existan.
+1. Ejecutar `T3.PROC_T3_BOD` con uno de los usuarios autorizados.
+2. Confirmar que no aparezca un error de propietario de schedule.
+3. Comprobar que los cinco jobs cambien de estado durante Suspend/Resume.
+4. Confirmar que `Last_Update_User` registre al usuario llamador.
+5. Ejecutar cada `Step_Command` con parámetros controlados.
+6. Comparar resultados con Oracle.
+7. Revisar duración, bloqueos y concurrencia.
+8. Revisar SQL Server Agent Job History.
 
-### 6. Habilitar los jobs validados
+Consulta de estado de los cinco jobs controlados:
 
-En `03_ENABLE_VALIDATED_JOBS.SQL`, cambie únicamente:
+```sql
+SELECT
+    J.[name] AS JobName,
+    J.[enabled],
+    SUSER_SNAME(J.owner_sid) AS JobOwner,
+    S.[name] AS ScheduleName,
+    SUSER_SNAME(S.owner_sid) AS ScheduleOwner
+FROM msdb.dbo.sysjobs AS J
+INNER JOIN msdb.dbo.sysjobschedules AS JS
+    ON JS.job_id = J.job_id
+INNER JOIN msdb.dbo.sysschedules AS S
+    ON S.schedule_id = JS.schedule_id
+WHERE J.[name] IN
+(
+    N'ORA_216_EAI_OWNER_RECV_REPLENISHMENT',
+    N'ORA_229_EAI_OWNER_RECV_INVOICE_INTERCOMPANY',
+    N'ORA_236_EAI_OWNER_RECV_PAYMENT',
+    N'ORA_550_EAI_OWNER_RECV_INVOICE',
+    N'ORA_648_EAI_OWNER_RECV_CUSTOMER'
+)
+ORDER BY J.[name];
+```
+
+Todos deben mostrar `T3_SQLAGENT_OWNER` como propietario del job y schedule.
+
+## 12. Habilitación con `03_ENABLE_VALIDATED_JOBS.SQL`
+
+Sólo después de recibir `PASS` en `02`, cambiar:
 
 ```sql
 DECLARE @ConfirmEnable BIT = 1;
 ```
 
-Después ejecute el archivo completo como `AT85233588` desde `T3QA`.
+Ejecutar como `T3_SQLAGENT_OWNER` desde `T3QA`.
 
-El script vuelve a comprobar la configuración crítica. Esto protege contra
-cambios realizados después de ejecutar `02`. La operación es transaccional:
-si un job no puede habilitarse, se revierten las habilitaciones efectuadas por
-ese lote.
+El script:
+
+- Repite validaciones críticas.
+- Habilita los 32 jobs que estaban activos en Oracle.
+- Mantiene deshabilitados los cinco `BROKEN`.
+- Usa una transacción para evitar una activación parcial.
 
 Resultado esperado:
 
-- 32 jobs habilitados, o reportados como previamente habilitados.
-- 5 jobs `BROKEN` conservados deshabilitados.
-- Estado final `ACTIVACION COMPLETADA`.
+```text
+ACTIVACION COMPLETADA
+```
 
-Los jobs `BROKEN` son: `216`, `229`, `236`, `550` y `648`.
-
-Al terminar, restaure la confirmación a cero en la copia de trabajo para evitar
-una activación accidental posterior:
+Al terminar, regresar la variable a:
 
 ```sql
 DECLARE @ConfirmEnable BIT = 0;
 ```
 
-## Deshabilitación operativa
+## 13. Deshabilitación operativa
 
-`04_DISABLE_MIGRATED_JOBS.SQL` se utiliza durante una contingencia o ventana de
-mantenimiento. Conserva jobs, schedules, catálogo e historial.
+Para impedir ejecuciones futuras sin eliminar objetos, usar:
 
-Antes de ejecutarlo, cambie:
+```text
+04_DISABLE_MIGRATED_JOBS.SQL
+```
+
+Cambiar temporalmente:
 
 ```sql
 DECLARE @ConfirmDisable BIT = 1;
 ```
 
-Puede ejecutarlo `AT85233588` o un miembro de `sysadmin`. El script:
+Puede ejecutarlo `T3_SQLAGENT_OWNER` o un `sysadmin`.
 
-- Busca directamente los 37 nombres esperados en `msdb`.
-- No depende de que las tablas de mapeo estén completas.
-- Se detiene sin modificar nada si encuentra un job propiedad de otro login.
-- Deshabilita todos los jobs encontrados dentro de una transacción.
-- Considera válido que falten jobs cuando el despliegue original fue parcial.
-- Muestra un resumen y el estado individual de los 37 nombres.
+Deshabilitar un job no detiene una ejecución que ya comenzó. Detener un job en
+curso requiere una decisión operativa del DBA porque puede dejar una transacción
+o proceso funcional incompleto.
 
-> Deshabilitar un job impide sus próximas ejecuciones, pero no detiene una
-> ejecución que ya comenzó. Si es necesario detener una ejecución en curso, el
-> DBA debe revisar primero su impacto transaccional y usar el procedimiento
-> operativo autorizado para detenerla.
+Al terminar, regresar `@ConfirmDisable` a `0`.
 
-Al terminar, restaure:
+## 14. Rollback completo
 
-```sql
-DECLARE @ConfirmDisable BIT = 0;
-```
+`00_ROLLBACK_CREATE_OR_UPDATE_JOBS.SQL` elimina:
 
-## Rollback completo
+- Los 37 jobs administrados.
+- Sus steps, historial y asociaciones.
+- Schedules exclusivos sin asociaciones.
+- Filas de las tablas de control.
+- Opcionalmente, tablas de control vacías.
 
-`00_ROLLBACK_CREATE_OR_UPDATE_JOBS.SQL` elimina los objetos administrados por el
-instalador:
+Es destructivo y debe ejecutarse únicamente con autorización del DBA.
 
-- Los 37 jobs identificados por nombre exacto.
-- Pasos, historial y asociaciones eliminados por `sp_delete_job`.
-- Schedules exclusivos que queden sin asociación.
-- Las 37 filas correspondientes en las tablas de control.
-- Las tablas de control, únicamente si quedan vacías y
-  `@DropEmptySupportTables=1`.
-
-Para conservar las tablas vacías, cambie:
+Para conservar las tablas vacías:
 
 ```sql
 DECLARE @DropEmptySupportTables BIT = 0;
 ```
 
-El rollback es idempotente: puede ejecutarse nuevamente si el intento anterior
-quedó incompleto. Debe ejecutarse conectado a `T3QA`.
+El instalador no conserva una copia de una definición preexistente con el mismo
+nombre. El rollback puede eliminarla, pero no reconstruirla.
 
-### Limitación del rollback
+## 15. Nomenclatura
 
-`01_CREATE_OR_UPDATE_JOBS.SQL` actualiza cualquier job o schedule preexistente
-que tenga uno de los nombres administrados. El instalador no conserva una copia
-de su definición anterior. El rollback puede eliminar ese objeto, pero no puede
-reconstruir automáticamente su configuración previa.
-
-Si un intento anterior alcanzó a crear jobs propiedad de `sa`, `AT85233588` no
-podrá eliminarlos. En ese caso, el rollback debe ejecutarlo un DBA miembro de
-`sysadmin`.
-
-## Nomenclatura
-
-Cada objeto sigue una convención determinística:
+La convención es determinística:
 
 ```text
-Job:      ORA_<numero>_<schema>_<procedimiento>
-Schedule: SCH_ORA_<numero>
+Job:      ORA_<numero Oracle>_<schema>_<procedimiento>
+Schedule: SCH_ORA_<numero Oracle>
 ```
 
 Ejemplo:
@@ -305,15 +697,21 @@ ORA_42_EAI_OWNER_WA_ERR_INTERCOMPANY
 SCH_ORA_42
 ```
 
-Los schedules no se comparten. Los procedimientos migrados `JOB_INTERVAL`,
-`JOB_NEXT_RUN`, `JOB_NEXT_DATE` y `JOB_MANAGE` necesitan identificar cada job
-mediante su número Oracle y la tabla de mapeo.
+Nunca cambiar manualmente un nombre sin actualizar también:
 
-## Conversión de llamadas de package
+- `01_CREATE_OR_UPDATE_JOBS.SQL`
+- `02_VALIDATE_JOBS.SQL`
+- `03_ENABLE_VALIDATED_JOBS.SQL`
+- `04_DISABLE_MIGRATED_JOBS.SQL`
+- `C_SECURITY_REASSIGN_T3_JOB_OWNERS.SQL`
+- Las listas permitidas del wrapper, si el job pertenece a `SF_JOB_MANAGE`.
+- Las tablas de mapeo y catálogo.
 
-SQL Server no tiene el concepto Oracle `PACKAGE`. Las cinco llamadas
-`EAI_OWNER.RECV_TO_SEND_V3.*` se convirtieron a procedimientos públicos bajo
-`EAI_OWNER`:
+## 16. Conversión desde Oracle
+
+### 16.1 Packages
+
+SQL Server no tiene packages Oracle. Las llamadas fueron convertidas así:
 
 | Oracle | SQL Server |
 |---|---|
@@ -323,103 +721,186 @@ SQL Server no tiene el concepto Oracle `PACKAGE`. Las cinco llamadas
 | `RECV_TO_SEND_V3.Recv_Invoice` | `[EAI_OWNER].[RECV_INVOICE]` |
 | `RECV_TO_SEND_V3.Recv_Customer` | `[EAI_OWNER].[RECV_CUSTOMER]` |
 
-Estas equivalencias deben confirmarse funcionalmente antes de habilitar los
-jobs.
+No reintroducir el prefijo `RECV_TO_SEND_V3` en comandos T-SQL.
 
-## Conversión de calendarios
+### 16.2 Calendarios
 
-| Expresión Oracle | Conversión SQL Server Agent |
+| Oracle | SQL Server Agent |
 |---|---|
 | `SYSDATE + N/1440` | Cada `N` minutos. |
 | `SYSDATE + N/24` | Cada `N` horas. |
-| `TRUNC(SYSDATE + 1) + N/1440` | Ejecución diaria en el minuto `N` del día. |
+| `TRUNC(SYSDATE + 1) + N/1440` | Ejecución diaria en el minuto `N`. |
 | `TRUNC(SYSDATE + 1) + N/24` | Ejecución diaria a la hora `N`. |
 
-Oracle vuelve a evaluar la expresión `INTERVAL`; SQL Server Agent usa una
-cuadrícula fija de calendario. Si un job dura más que su intervalo o comienza
-tarde, la siguiente ejecución puede diferir del comportamiento de `DBMS_JOB`.
-Esta diferencia debe compararse con el historial Oracle para los procesos
-críticos.
+Oracle recalcula `INTERVAL`; SQL Server Agent usa una cuadrícula fija. Si un job
+dura más que su intervalo, la siguiente ejecución puede diferir de Oracle.
 
-El CSV contiene `NEXT_DATE` sin hora, por lo que no permite recuperar la próxima
-ejecución original con precisión. El instalador comienza los schedules desde la
-fecha en que se ejecuta y utiliza la hora derivada de `INTERVAL`.
+El CSV no contiene la hora completa de `NEXT_DATE`; la fecha/hora inicial se
+deriva del intervalo durante el despliegue.
 
-## Dependencias conocidas de segundo nivel
+## 17. Dependencias conocidas
 
-Los procedimientos principales pueden existir y aun así fallar por objetos
-llamados internamente. `02` los reporta y `03` bloquea la activación mientras
-falte cualquiera:
+`02` valida estas dependencias de segundo nivel:
 
 - Procedimientos: `DELIVERY_CLEAR`, `PROC_V40_GENERAR_MX06_CM`,
-  `PROC_CFDI_GENERAR_PAGO`, `PROC_CFDI_GENERAR_PAGO_AGR` y
+  `PROC_CFDI_GENERAR_PAGO`, `PROC_CFDI_GENERAR_PAGO_AGR`,
   `PROC_T3_LANZA_REP`.
-- Funciones: `FN_ADDENDA_PARAM` y `FN_VALIDA_RFC`.
-- Secuencias: `SEQ_CFD` y `SEQ_PAGO_CENTRAL_AGR`.
+- Funciones: `FN_ADDENDA_PARAM`, `FN_VALIDA_RFC`.
+- Secuencias: `SEQ_CFD`, `SEQ_PAGO_CENTRAL_AGR`.
 - Tabla o vista: `FACTURA_GENERAL`.
 
-Existe un archivo para `[T3].[DELIVERY_CLEAR_Migrado]`, pero
-`PROC_CFDI_LIBERACION_REMISION` requiere el nombre exacto
-`[T3].[DELIVERY_CLEAR]`. Los nombres no son equivalentes.
+`DELIVERY_CLEAR_Migrado` no sustituye automáticamente a `DELIVERY_CLEAR`; SQL
+Server considera que son nombres distintos.
 
-Los archivos migrados de `PROC_T3_EOD` y `PROC_T3_BOD` todavía contienen una
-referencia con formato Oracle:
+`PROC_T3_EOD` y `PROC_T3_BOD` no deben conservar esta referencia Oracle:
 
 ```text
 T3.PKG_T3.PROC_T3_LANZA_REP
 ```
 
-En SQL Server debe reemplazarse por una llamada válida al procedimiento público:
+La llamada válida es:
 
 ```sql
 EXEC [T3].[PROC_T3_LANZA_REP] ...;
 ```
 
-Mientras la referencia inválida exista, `02` devolverá
-`INVALID_PACKAGE_REFERENCE` y `03` impedirá la activación.
+## 18. Consultas de seguridad y diagnóstico
 
-## Compatibilidad con procedimientos de administración
+### 18.1 Propietario técnico y rol de Agent
 
-Los cinco steps procedentes de `RECV_TO_SEND_V3` usan los nombres públicos y los
-nombres de los jobs tampoco incluyen `RECV_TO_SEND_V3`.
+```sql
+USE [msdb];
 
-`[EAI_OWNER].[GET_T3_ENABLE_EXECUTE]` todavía puede buscar ese texto en
-`msdb.dbo.sysjobs.name` o `sysjobsteps.command`. Debe comprobarse si la función
-necesita consultar las tablas de mapeo. No debe reintroducirse el prefijo de
-package en los procedimientos T-SQL.
+SELECT
+    DP.[name] AS UserName,
+    R.[name] AS RoleName
+FROM sys.database_role_members AS DRM
+INNER JOIN sys.database_principals AS R
+    ON R.principal_id = DRM.role_principal_id
+INNER JOIN sys.database_principals AS DP
+    ON DP.principal_id = DRM.member_principal_id
+WHERE DP.[name] = N'T3_SQLAGENT_OWNER';
+```
+
+Debe incluir `SQLAgentUserRole` y `T3JobExecutors`.
+
+### 18.2 Contexto del wrapper
+
+```sql
+USE [msdb];
+
+SELECT
+    P.[name] AS ProcedureName,
+    USER_NAME(M.execute_as_principal_id) AS ExecuteAsUser
+FROM sys.procedures AS P
+INNER JOIN sys.sql_modules AS M
+    ON M.object_id = P.object_id
+WHERE P.object_id = OBJECT_ID(N'dbo.T3_JOB_NEXT_RUN', N'P');
+```
+
+Resultado esperado:
+
+```text
+ProcedureName = T3_JOB_NEXT_RUN
+ExecuteAsUser = T3_SQLAGENT_OWNER
+```
+
+### 18.3 Miembros humanos en `msdb`
+
+```sql
+USE [msdb];
+
+SELECT M.[name]
+FROM sys.database_role_members AS DRM
+INNER JOIN sys.database_principals AS R
+    ON R.principal_id = DRM.role_principal_id
+INNER JOIN sys.database_principals AS M
+    ON M.principal_id = DRM.member_principal_id
+WHERE R.[name] = N'T3JobExecutors'
+ORDER BY M.[name];
+```
+
+### 18.4 Miembros humanos en `T3QA`
+
+```sql
+USE [T3QA];
+
+SELECT M.[name]
+FROM sys.database_role_members AS DRM
+INNER JOIN sys.database_principals AS R
+    ON R.principal_id = DRM.role_principal_id
+INNER JOIN sys.database_principals AS M
+    ON M.principal_id = DRM.member_principal_id
+WHERE R.[name] = N'T3BODExecutors'
+ORDER BY M.[name];
+```
+
+## 19. Errores frecuentes
+
+| Error/estado | Causa probable | Solución |
+|---|---|---|
+| `Only owner of a job schedule...` | Schedule pertenece a una cuenta personal. | Ejecutar `C` como `sysadmin`. |
+| `51405` en `D` | Uno o más logins de `@TeamLogins` no existen. | Revisar el result set `Missing_Server_Login`; crear/corregir el login. |
+| `51408` o `51409` en `D` | Existe un usuario homónimo con otro `SID`. | DBA debe corregir el mapeo; no eliminarlo sin investigar. |
+| `51504` en `E` | Faltan procedimientos del catálogo en `T3QA`. | Desplegar las filas mostradas como `Missing_Procedure` y repetir `E`. |
+| `WRONG_JOB_OWNER` | Job no pertenece al login técnico. | Ejecutar `C`. |
+| `WRONG_SCHEDULE_OWNER` | Schedule no pertenece al login técnico. | Ejecutar `C`. |
+| `WRAPPER_MISSING` | No se ejecutó `B`. | Ejecutar `B` como DBA. |
+| `WRONG_EXECUTE_AS` | Wrapper no ejecuta como login técnico. | Volver a ejecutar `B`. |
+| `EXECUTE_GRANT_MISSING` | Rol de `msdb` no tiene permiso sobre wrapper. | Ejecutar `D`. |
+| `TEAM_ROLE_MEMBER_MISSING` | No hay usuario humano en el rol de `msdb`. | Revisar `@TeamLogins` y ejecutar `D`. |
+| `T3QA_TEAM_MEMBER_MISSING` | Usuario está autorizado en `msdb`, pero no en `T3QA`. | Ejecutar `D`. |
+| `EXECUTE_PERMISSION_MISSING` | Propietario técnico no puede ejecutar un entry point. | Ejecutar `E`. |
+| `DEPENDENCY_MISSING` | Falta un objeto interno. | Desplegar el objeto indicado. |
+| `INVALID_PACKAGE_REFERENCE` | Queda sintaxis Oracle en BOD/EOD. | Corregir la llamada a `PROC_T3_LANZA_REP`. |
+| `WRONG_SCHEDULE_CONFIG` | Frecuencia/hora no coincide con catálogo. | Ejecutar `01`, luego `C` y `02`. |
+| Error de base actual | Script ejecutado desde otra base. | Seleccionar la base indicada en la tabla de despliegue. |
+
+## 20. Consideraciones adicionales
+
+### 20.1 Manejo de errores en `PROC_T3_BOD`
+
+La versión actual registra errores en `MX_EAI_MESSAGE_LOG`. También debe volver
+a lanzar el error con `THROW;` después del registro. Si sólo registra y no lanza,
+el llamador puede interpretar una ejecución fallida como exitosa.
+
+### 20.2 `GET_T3_ENABLE_EXECUTE`
+
+Debe comprobarse si `[EAI_OWNER].[GET_T3_ENABLE_EXECUTE]` busca nombres antiguos
+de package dentro de `sysjobs` o `sysjobsteps`. No se deben cambiar los nombres
+nuevos sólo para satisfacer una búsqueda histórica; la función debe adaptarse al
+catálogo/mapeo.
+
+### 20.3 `WA_CIERRE_FLUJOS`
 
 `WA_CIERRE_FLUJOS` llama `JOB_MANAGE('Suspend','Todos')`. La selección histórica
-de `Todos` usa patrones como `GEN_REPLICATION`, `GEN_OUTBOUND_XML` y
-`SEND_STAGE_T3`, que no aparecen en los nuevos comandos. Este flujo debe probarse
-o ajustarse para utilizar la tabla de mapeo antes de liberarlo.
+usa patrones que pueden no existir en los comandos migrados. Debe probarse antes
+de liberar ese flujo.
 
-## Diagnóstico rápido
+## 21. Lista final antes de liberar
 
-| Situación | Acción recomendada |
-|---|---|
-| Error de base de datos | Seleccionar `T3QA` y ejecutar nuevamente el archivo completo. |
-| Falta un rol de SQL Server Agent | Solicitar al DBA acceso en `msdb`. |
-| `WRONG_JOB_OWNER` | Solicitar al DBA revisar o reasignar el propietario. |
-| `EXECUTE_PERMISSION_MISSING` | Solicitar permiso `EXECUTE` sobre el procedimiento o esquema correspondiente. |
-| `DEPENDENCY_MISSING` | Desplegar o corregir el nombre del objeto indicado. |
-| `WRONG_SCHEDULE_CONFIG` | Volver a ejecutar `01` y después `02`. |
-| `INVALID_PACKAGE_REFERENCE` | Corregir el procedimiento migrado; no habilitar el job. |
-| Falló `01` y quedaron objetos parciales | Ejecutar `00`, revisar el resultado y repetir desde `01`. |
-| Se requiere detener futuras ejecuciones | Ejecutar `04` con confirmación explícita. |
-| Se requiere eliminar toda la migración | Ejecutar `00` con autorización del DBA. |
-
-## Lista de comprobación antes de liberar
-
-- [ ] La conexión apunta a `T3QA`.
-- [ ] El login actual es `AT85233588`.
+- [ ] La instancia y base `T3QA` son correctas.
 - [ ] SQL Server Agent está iniciado.
-- [ ] `01` terminó sin errores y dejó 37 jobs deshabilitados.
-- [ ] `02` devolvió `PASS` y 37 filas con `Deployment_Status=OK`.
-- [ ] Las diez dependencias de segundo nivel existen con el nombre exacto.
-- [ ] `PROC_T3_EOD` y `PROC_T3_BOD` no contienen referencias Oracle inválidas.
-- [ ] Los 37 comandos fueron probados manualmente con parámetros controlados.
-- [ ] Se revisaron duración, concurrencia y bloqueos de los jobs críticos.
-- [ ] Los jobs `216`, `229`, `236`, `550` y `648` permanecen deshabilitados.
-- [ ] Reintentos, Database Mail y operadores fueron definidos según la política
-      operativa; el CSV Oracle no contiene esa información.
-- [ ] La activación fue autorizada y `@ConfirmEnable` se cambió temporalmente a 1.
+- [ ] `T3_SQLAGENT_OWNER` existe y no es `sysadmin`.
+- [ ] El login técnico pertenece a `msdb.SQLAgentUserRole`.
+- [ ] Los cuatro logins humanos existen y están habilitados.
+- [ ] `01` creó 37 jobs deshabilitados.
+- [ ] `B` creó `msdb.dbo.T3_JOB_NEXT_RUN` con el contexto correcto.
+- [ ] `C` dejó 37 jobs y schedules a nombre del login técnico.
+- [ ] `D` agregó al equipo en `msdb` y `T3QA`.
+- [ ] `E` concedió permisos al propietario técnico sin error `51504`.
+- [ ] `EAI_OWNER.JOB_NEXT_RUN` llama al wrapper y no a las APIs directamente.
+- [ ] `02` devolvió `PASS` y `Ready_Jobs=37`.
+- [ ] Las dependencias de segundo nivel existen.
+- [ ] BOD/EOD no contienen referencias Oracle inválidas.
+- [ ] Un usuario humano ejecutó satisfactoriamente `PROC_T3_BOD`.
+- [ ] Se revisaron historia, duración, concurrencia y bloqueos.
+- [ ] Los jobs `216`, `229`, `236`, `550` y `648` permanecen deshabilitados antes de pruebas de Resume.
+- [ ] La activación fue autorizada.
+- [ ] `@ConfirmEnable` volvió a `0` después de usar `03`.
+- [ ] `@ConfirmDisable` volvió a `0` después de usar `04`.
+
+## 22. Regla de oro
+
+Si `02_VALIDATE_JOBS.SQL` no devuelve `PASS`, no habilitar jobs. Primero corregir
+el estado indicado, volver a ejecutar la validación y documentar el resultado.

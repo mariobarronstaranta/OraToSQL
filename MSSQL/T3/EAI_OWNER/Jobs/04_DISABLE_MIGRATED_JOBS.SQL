@@ -13,7 +13,7 @@ SET NOCOUNT ON;
 SET XACT_ABORT ON;
 
 DECLARE @TargetDatabase SYSNAME = N'T3QA';
-DECLARE @ExpectedOwner SYSNAME = N'AT85233588';
+DECLARE @ExpectedOwner SYSNAME = N'T3_SQLAGENT_OWNER';
 DECLARE @ConfirmDisable BIT = 0; -- Cambiar manualmente a 1 cuando se autorice detener la programacion.
 
 IF DB_NAME() <> @TargetDatabase
@@ -23,14 +23,14 @@ END;
 
 IF SUSER_ID(@ExpectedOwner) IS NULL
 BEGIN
-    THROW 51031, 'No existe el login SQL AT85233588 en esta instancia.', 1;
+    THROW 51031, 'No existe el login SQL T3_SQLAGENT_OWNER en esta instancia.', 1;
 END;
 
-/* AT85233588 puede modificar sus propios jobs; un sysadmin puede intervenir en una contingencia. */
+/* El login tecnico puede modificar sus jobs; un sysadmin puede intervenir en una contingencia. */
 IF SUSER_SID() <> SUSER_SID(@ExpectedOwner)
    AND IS_SRVROLEMEMBER(N'sysadmin') <> 1
 BEGIN
-    THROW 51032, 'Ejecute este archivo como AT85233588 o como un miembro de sysadmin.', 1;
+    THROW 51032, 'Ejecute este archivo como T3_SQLAGENT_OWNER o como un miembro de sysadmin.', 1;
 END;
 
 IF IS_SRVROLEMEMBER(N'sysadmin') <> 1
@@ -47,7 +47,7 @@ IF IS_SRVROLEMEMBER(N'sysadmin') <> 1
              (N'SQLAgentUserRole', N'SQLAgentReaderRole', N'SQLAgentOperatorRole')
    )
 BEGIN
-    THROW 51033, 'AT85233588 necesita pertenecer a un rol de SQL Server Agent en msdb.', 1;
+    THROW 51033, 'T3_SQLAGENT_OWNER necesita pertenecer a un rol de SQL Server Agent en msdb.', 1;
 END;
 
 /* Esta confirmacion evita deshabilitar los jobs por ejecutar el archivo accidentalmente. */
@@ -130,7 +130,7 @@ BEGIN
     WHERE j.owner_sid <> SUSER_SID(@ExpectedOwner)
     ORDER BY e.OracleJobNo;
 
-    THROW 51036, 'Hay jobs con propietario distinto de AT85233588. No se modifico ningun job.', 1;
+    THROW 51036, 'Hay jobs con propietario distinto de T3_SQLAGENT_OWNER. No se modifico ningun job.', 1;
 END;
 
 DECLARE

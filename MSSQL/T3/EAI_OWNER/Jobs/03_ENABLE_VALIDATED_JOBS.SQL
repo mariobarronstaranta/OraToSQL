@@ -5,7 +5,7 @@
     --------------
     1. Ejecutar 01_CREATE_OR_UPDATE_JOBS.SQL para crear los jobs deshabilitados.
     2. Ejecutar 02_VALIDATE_JOBS.SQL y corregir todo hasta obtener PASS.
-    3. Cambiar @ConfirmEnable a 1 y ejecutar este archivo como AT85233588.
+    3. Cambiar @ConfirmEnable a 1 y ejecutar este archivo como T3_SQLAGENT_OWNER.
 
     Este script habilita exactamente 32 jobs. Los cinco jobs marcados BROKEN en
     Oracle permanecen deshabilitados. La operacion es transaccional: si falla la
@@ -15,7 +15,7 @@ SET NOCOUNT ON;
 SET XACT_ABORT ON;
 
 DECLARE @TargetDatabase SYSNAME = N'T3QA';
-DECLARE @ExpectedOwner SYSNAME = N'AT85233588';
+DECLARE @ExpectedOwner SYSNAME = N'T3_SQLAGENT_OWNER';
 DECLARE @ConfirmEnable BIT = 0; -- Cambiar manualmente a 1 durante la ventana autorizada.
 
 /* Primera barrera: evita habilitar jobs desde una base o una cuenta incorrecta. */
@@ -26,7 +26,7 @@ END;
 
 IF SUSER_ID(@ExpectedOwner) IS NULL OR SUSER_SID() <> SUSER_SID(@ExpectedOwner)
 BEGIN
-    THROW 51021, 'Ejecute este archivo con el login SQL AT85233588.', 1;
+    THROW 51021, 'Ejecute este archivo con el login SQL T3_SQLAGENT_OWNER.', 1;
 END;
 
 /*
@@ -47,7 +47,7 @@ IF IS_SRVROLEMEMBER(N'sysadmin') <> 1
              (N'SQLAgentUserRole', N'SQLAgentReaderRole', N'SQLAgentOperatorRole')
    )
 BEGIN
-    THROW 51022, 'AT85233588 necesita pertenecer a un rol de SQL Server Agent en msdb.', 1;
+    THROW 51022, 'T3_SQLAGENT_OWNER necesita pertenecer a un rol de SQL Server Agent en msdb.', 1;
 END;
 
 IF @ConfirmEnable <> 1
@@ -121,6 +121,142 @@ BEGIN
 END;
 
 /*
+    Barrera de seguridad para SF_JOB_MANAGE: el wrapper, su contexto tecnico,
+    el rol de ejecucion y la integracion de JOB_NEXT_RUN deben estar completos.
+*/
+DECLARE @WrapperObjectId INT =
+(
+    SELECT P.object_id
+    FROM msdb.sys.procedures AS P
+    INNER JOIN msdb.sys.schemas AS S
+        ON S.schema_id = P.schema_id
+    WHERE S.[name] = N'dbo'
+      AND P.[name] = N'T3_JOB_NEXT_RUN'
+);
+
+IF @WrapperObjectId IS NULL
+   OR NOT EXISTS
+      (
+          SELECT 1
+          FROM msdb.sys.sql_modules AS M
+          INNER JOIN msdb.sys.database_principals AS DP
+              ON DP.principal_id = M.execute_as_principal_id
+          WHERE M.object_id = @WrapperObjectId
+            AND DP.[name] = @ExpectedOwner
+            AND DP.[sid] = SUSER_SID(@ExpectedOwner)
+      )
+   OR NOT EXISTS
+      (
+          SELECT 1
+          FROM msdb.sys.database_permissions AS P
+          INNER JOIN msdb.sys.database_principals AS R
+              ON R.principal_id = P.grantee_principal_id
+          WHERE R.[name] = N'T3JobExecutors'
+            AND P.class = 1
+            AND P.major_id = @WrapperObjectId
+            AND P.permission_name = N'EXECUTE'
+            AND P.state IN ('G', 'W')
+      )
+   OR NOT EXISTS
+      (
+          SELECT 1
+          FROM msdb.sys.database_role_members AS DRM
+          INNER JOIN msdb.sys.database_principals AS R
+              ON R.principal_id = DRM.role_principal_id
+          INNER JOIN msdb.sys.database_principals AS M
+              ON M.principal_id = DRM.member_principal_id
+          WHERE R.[name] = N'T3JobExecutors'
+            AND M.[name] = @ExpectedOwner
+      )
+   OR NOT EXISTS
+      (
+          SELECT 1
+          FROM msdb.sys.database_role_members AS DRM
+          INNER JOIN msdb.sys.database_principals AS R
+              ON R.principal_id = DRM.role_principal_id
+          INNER JOIN msdb.sys.database_principals AS M
+              ON M.principal_id = DRM.member_principal_id
+          WHERE R.[name] = N'T3JobExecutors'
+            AND M.[name] <> @ExpectedOwner
+      )
+   OR NOT EXISTS
+      (
+          SELECT 1
+          FROM T3QA.sys.database_permissions AS P
+          INNER JOIN T3QA.sys.database_principals AS R
+              ON R.principal_id = P.grantee_principal_id
+          INNER JOIN T3QA.sys.procedures AS PR
+              ON PR.object_id = P.major_id
+          INNER JOIN T3QA.sys.schemas AS S
+              ON S.schema_id = PR.schema_id
+          WHERE R.[name] = N'T3BODExecutors'
+            AND S.[name] = N'T3'
+            AND PR.[name] = N'PROC_T3_BOD'
+            AND P.permission_name = N'EXECUTE'
+            AND P.state IN ('G', 'W')
+      )
+   OR EXISTS
+      (
+          SELECT 1
+          FROM msdb.sys.database_role_members AS MDRM
+          INNER JOIN msdb.sys.database_principals AS MR
+              ON MR.principal_id = MDRM.role_principal_id
+          INNER JOIN msdb.sys.database_principals AS MM
+              ON MM.principal_id = MDRM.member_principal_id
+          WHERE MR.[name] = N'T3JobExecutors'
+            AND MM.[name] <> @ExpectedOwner
+            AND NOT EXISTS
+                (
+                    SELECT 1
+                    FROM T3QA.sys.database_role_members AS TDRM
+                    INNER JOIN T3QA.sys.database_principals AS TR
+                        ON TR.principal_id = TDRM.role_principal_id
+                    INNER JOIN T3QA.sys.database_principals AS TM
+                        ON TM.principal_id = TDRM.member_principal_id
+                    WHERE TR.[name] = N'T3BODExecutors'
+                      AND TM.[sid] = MM.[sid]
+                )
+      )
+   OR OBJECT_ID(N'[EAI_OWNER].[JOB_NEXT_RUN]', N'P') IS NULL
+   OR OBJECT_DEFINITION(OBJECT_ID(N'[EAI_OWNER].[JOB_NEXT_RUN]', N'P')) IS NULL
+   OR OBJECT_DEFINITION(OBJECT_ID(N'[EAI_OWNER].[JOB_NEXT_RUN]', N'P')) NOT LIKE N'%msdb.dbo.T3_JOB_NEXT_RUN%'
+   OR OBJECT_DEFINITION(OBJECT_ID(N'[EAI_OWNER].[JOB_NEXT_RUN]', N'P')) LIKE N'%msdb.dbo.sp_update_job%'
+   OR OBJECT_DEFINITION(OBJECT_ID(N'[EAI_OWNER].[JOB_NEXT_RUN]', N'P')) LIKE N'%msdb.dbo.sp_update_schedule%'
+   OR EXISTS
+      (
+          SELECT 1
+          FROM @ExpectedJobs AS E
+          LEFT JOIN msdb.dbo.sysjobs AS J
+              ON J.[name] = E.JobName
+          LEFT JOIN msdb.dbo.sysschedules AS S
+              ON S.[name] = E.ScheduleName
+          WHERE E.OracleJobNo IN (216, 229, 236, 550, 648)
+            AND
+            (
+                J.job_id IS NULL
+                OR S.schedule_id IS NULL
+                OR J.owner_sid <> SUSER_SID(@ExpectedOwner)
+                OR S.owner_sid <> SUSER_SID(@ExpectedOwner)
+                OR NOT EXISTS
+                   (
+                       SELECT 1
+                       FROM msdb.dbo.sysjobschedules AS JS
+                       WHERE JS.job_id = J.job_id
+                         AND JS.schedule_id = S.schedule_id
+                   )
+                OR 1 <
+                   (
+                       SELECT COUNT(*)
+                       FROM msdb.dbo.sysjobschedules AS JS
+                       WHERE JS.schedule_id = S.schedule_id
+                   )
+            )
+      )
+BEGIN
+    THROW 51030, 'La seguridad de T3_JOB_NEXT_RUN esta incompleta. Ejecute los scripts B, C y D y revise el resultado 5 de 02_VALIDATE_JOBS.SQL.', 1;
+END;
+
+/*
     Segunda barrera: repite las comprobaciones criticas de 02. Esto protege la
     activacion si alguien cambio un job despues de haber ejecutado el validador.
     Si falla, 02 indica en columnas separadas cual configuracion debe corregirse.
@@ -160,6 +296,7 @@ IF EXISTS
        OR js.on_success_action <> 1
        OR js.on_fail_action <> 2
        OR s.schedule_id IS NULL
+       OR s.owner_sid <> SUSER_SID(@ExpectedOwner)
        OR m.Schedule_Id <> s.schedule_id
        OR s.[enabled] <> 1
        OR s.freq_type <> 4
@@ -208,7 +345,7 @@ END;
 /*
     Estas dos definiciones migradas no deben conservar una llamada con formato
     Oracle package.procedure. NULL tampoco es aceptable: significa que el modulo
-    falta o que AT85233588 no tiene permiso VIEW DEFINITION para revisarlo.
+    falta o que T3_SQLAGENT_OWNER no tiene permiso VIEW DEFINITION para revisarlo.
 */
 IF OBJECT_DEFINITION(OBJECT_ID(N'[T3].[PROC_T3_EOD]', N'P')) IS NULL
    OR OBJECT_DEFINITION(OBJECT_ID(N'[T3].[PROC_T3_BOD]', N'P')) IS NULL

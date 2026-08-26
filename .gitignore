@@ -5,3 +5,5 @@
 *.sln.docstates
 /ORA/T3/EAI/DATOS/
 /ORA/T3/EAI_OWNER/DATOS/*
+MSSQL/T3/EAI_OWNER/Jobs.7z
+MSSQL/T3/TableSize.txt

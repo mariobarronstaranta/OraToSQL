@@ -2,8 +2,8 @@
     Valida el despliegue realizado por 01_CREATE_OR_UPDATE_JOBS.SQL.
 
     Este archivo es de solo lectura: no crea, modifica, habilita ni ejecuta jobs.
-    Debe ejecutarse como AT85233588 para comprobar los permisos reales con los
-    que SQL Server Agent ejecutara los pasos T-SQL.
+    Debe ejecutarse como T3_SQLAGENT_OWNER para comprobar los permisos reales
+    con los que SQL Server Agent ejecutara los pasos T-SQL.
 
     COMO LEER EL RESULTADO
     ---------------------
@@ -15,7 +15,7 @@
 SET NOCOUNT ON;
 
 DECLARE @TargetDatabase SYSNAME = N'T3QA';
-DECLARE @ExpectedOwner SYSNAME = N'AT85233588';
+DECLARE @ExpectedOwner SYSNAME = N'T3_SQLAGENT_OWNER';
 
 /*
     DB_NAME() devuelve la base a la que esta conectada la ventana de SSMS.
@@ -28,7 +28,7 @@ END;
 
 IF SUSER_ID(@ExpectedOwner) IS NULL
 BEGIN
-    THROW 51011, 'No existe el login SQL AT85233588 en esta instancia.', 1;
+    THROW 51011, 'No existe el login SQL T3_SQLAGENT_OWNER en esta instancia.', 1;
 END;
 
 /*
@@ -38,7 +38,7 @@ END;
 */
 IF SUSER_SID() <> SUSER_SID(@ExpectedOwner)
 BEGIN
-    THROW 51012, 'Ejecute esta validacion con el login SQL AT85233588.', 1;
+    THROW 51012, 'Ejecute esta validacion con el login SQL T3_SQLAGENT_OWNER.', 1;
 END;
 
 IF OBJECT_ID(N'[EAI_OWNER].[Job_Oracle_SQLAgent_Map]', N'U') IS NULL
@@ -215,6 +215,7 @@ CROSS APPLY
         END AS StepStatus,
         CASE
             WHEN s.schedule_id IS NULL THEN 'SCHEDULE_MISSING'
+            WHEN s.owner_sid <> SUSER_SID(@ExpectedOwner) THEN 'WRONG_SCHEDULE_OWNER'
             WHEN c.Oracle_Job_No IS NULL THEN 'NOT_CHECKED'
             WHEN s.[enabled] <> 1 THEN 'SCHEDULE_DISABLED'
             WHEN s.freq_type <> 4 OR s.freq_interval <> 1 THEN 'WRONG_DAILY_FREQUENCY'
@@ -351,6 +352,197 @@ FROM @ModuleReferenceValidation
 ORDER BY Module_Name;
 
 /*
+    Seguridad del puente T3QA -> msdb. JOB_NEXT_RUN no debe invocar las APIs
+    de SQL Agent directamente; toda modificacion pasa por el wrapper limitado.
+*/
+DECLARE @WrapperObjectId INT =
+(
+    SELECT P.object_id
+    FROM msdb.sys.procedures AS P
+    INNER JOIN msdb.sys.schemas AS S
+        ON S.schema_id = P.schema_id
+    WHERE S.[name] = N'dbo'
+      AND P.[name] = N'T3_JOB_NEXT_RUN'
+);
+
+DECLARE @SecurityValidation TABLE
+(
+    Check_Name SYSNAME NOT NULL,
+    Security_Status VARCHAR(32) NOT NULL,
+    Required_Action NVARCHAR(300) NOT NULL
+);
+
+INSERT INTO @SecurityValidation (Check_Name, Security_Status, Required_Action)
+SELECT
+    N'MSDB_WRAPPER',
+    CASE
+        WHEN @WrapperObjectId IS NULL THEN 'WRAPPER_MISSING'
+        WHEN NOT EXISTS
+             (
+                 SELECT 1
+                 FROM msdb.sys.sql_modules AS M
+                 INNER JOIN msdb.sys.database_principals AS DP
+                     ON DP.principal_id = M.execute_as_principal_id
+                 WHERE M.object_id = @WrapperObjectId
+                   AND DP.[name] = @ExpectedOwner
+                   AND DP.[sid] = SUSER_SID(@ExpectedOwner)
+             ) THEN 'WRONG_EXECUTE_AS'
+        ELSE 'OK'
+    END,
+    N'Ejecutar B_SECURITY_CREATE_MSDB_T3_JOB_NEXT_RUN.SQL.'
+UNION ALL
+SELECT
+    N'MSDB_EXECUTOR_ROLE',
+    CASE
+        WHEN NOT EXISTS
+             (
+                 SELECT 1
+                 FROM msdb.sys.database_principals
+                 WHERE [name] = N'T3JobExecutors'
+                   AND [type] = 'R'
+             ) THEN 'ROLE_MISSING'
+        WHEN NOT EXISTS
+             (
+                 SELECT 1
+                 FROM msdb.sys.database_permissions AS P
+                 INNER JOIN msdb.sys.database_principals AS R
+                     ON R.principal_id = P.grantee_principal_id
+                 WHERE R.[name] = N'T3JobExecutors'
+                   AND P.class = 1
+                   AND P.major_id = @WrapperObjectId
+                   AND P.permission_name = N'EXECUTE'
+                   AND P.state IN ('G', 'W')
+             ) THEN 'EXECUTE_GRANT_MISSING'
+        WHEN NOT EXISTS
+             (
+                 SELECT 1
+                 FROM msdb.sys.database_role_members AS DRM
+                 INNER JOIN msdb.sys.database_principals AS R
+                     ON R.principal_id = DRM.role_principal_id
+                 INNER JOIN msdb.sys.database_principals AS M
+                     ON M.principal_id = DRM.member_principal_id
+                 WHERE R.[name] = N'T3JobExecutors'
+                   AND M.[name] = @ExpectedOwner
+             ) THEN 'OWNER_ROLE_MEMBER_MISSING'
+        WHEN NOT EXISTS
+             (
+                 SELECT 1
+                 FROM msdb.sys.database_role_members AS DRM
+                 INNER JOIN msdb.sys.database_principals AS R
+                     ON R.principal_id = DRM.role_principal_id
+                 INNER JOIN msdb.sys.database_principals AS M
+                     ON M.principal_id = DRM.member_principal_id
+                 WHERE R.[name] = N'T3JobExecutors'
+                   AND M.[name] <> @ExpectedOwner
+             ) THEN 'TEAM_ROLE_MEMBER_MISSING'
+        WHEN NOT EXISTS
+             (
+                 SELECT 1
+                 FROM T3QA.sys.database_permissions AS P
+                 INNER JOIN T3QA.sys.database_principals AS R
+                     ON R.principal_id = P.grantee_principal_id
+                 INNER JOIN T3QA.sys.procedures AS PR
+                     ON PR.object_id = P.major_id
+                 INNER JOIN T3QA.sys.schemas AS S
+                     ON S.schema_id = PR.schema_id
+                 WHERE R.[name] = N'T3BODExecutors'
+                   AND S.[name] = N'T3'
+                   AND PR.[name] = N'PROC_T3_BOD'
+                   AND P.permission_name = N'EXECUTE'
+                   AND P.state IN ('G', 'W')
+             ) THEN 'T3QA_EXECUTE_GRANT_MISSING'
+        WHEN EXISTS
+             (
+                 SELECT 1
+                 FROM msdb.sys.database_role_members AS MDRM
+                 INNER JOIN msdb.sys.database_principals AS MR
+                     ON MR.principal_id = MDRM.role_principal_id
+                 INNER JOIN msdb.sys.database_principals AS MM
+                     ON MM.principal_id = MDRM.member_principal_id
+                 WHERE MR.[name] = N'T3JobExecutors'
+                   AND MM.[name] <> @ExpectedOwner
+                   AND NOT EXISTS
+                       (
+                           SELECT 1
+                           FROM T3QA.sys.database_role_members AS TDRM
+                           INNER JOIN T3QA.sys.database_principals AS TR
+                               ON TR.principal_id = TDRM.role_principal_id
+                           INNER JOIN T3QA.sys.database_principals AS TM
+                               ON TM.principal_id = TDRM.member_principal_id
+                           WHERE TR.[name] = N'T3BODExecutors'
+                             AND TM.[sid] = MM.[sid]
+                       )
+             ) THEN 'T3QA_TEAM_MEMBER_MISSING'
+        ELSE 'OK'
+    END,
+    N'Ejecutar D_SECURITY_GRANT_T3_JOB_EXECUTORS.SQL y revisar @TeamLogins.'
+UNION ALL
+SELECT
+    N'JOB_NEXT_RUN_INTEGRATION',
+    CASE
+        WHEN OBJECT_ID(N'[EAI_OWNER].[JOB_NEXT_RUN]', N'P') IS NULL THEN 'PROCEDURE_MISSING'
+        WHEN OBJECT_DEFINITION(OBJECT_ID(N'[EAI_OWNER].[JOB_NEXT_RUN]', N'P')) IS NULL THEN 'DEFINITION_NOT_VISIBLE'
+        WHEN OBJECT_DEFINITION(OBJECT_ID(N'[EAI_OWNER].[JOB_NEXT_RUN]', N'P')) NOT LIKE N'%msdb.dbo.T3_JOB_NEXT_RUN%'
+            THEN 'WRAPPER_CALL_MISSING'
+        WHEN OBJECT_DEFINITION(OBJECT_ID(N'[EAI_OWNER].[JOB_NEXT_RUN]', N'P')) LIKE N'%msdb.dbo.sp_update_job%'
+          OR OBJECT_DEFINITION(OBJECT_ID(N'[EAI_OWNER].[JOB_NEXT_RUN]', N'P')) LIKE N'%msdb.dbo.sp_update_schedule%'
+            THEN 'DIRECT_MSDB_CALL_FOUND'
+        ELSE 'OK'
+    END,
+    N'Desplegar la version actualizada de EAI_OWNER.JOB_NEXT_RUN.';
+
+DECLARE @ControlledJobs TABLE
+(
+    JobName SYSNAME NOT NULL,
+    ScheduleName SYSNAME NOT NULL
+);
+
+INSERT INTO @ControlledJobs (JobName, ScheduleName)
+VALUES
+    (N'ORA_216_EAI_OWNER_RECV_REPLENISHMENT',        N'SCH_ORA_216'),
+    (N'ORA_229_EAI_OWNER_RECV_INVOICE_INTERCOMPANY', N'SCH_ORA_229'),
+    (N'ORA_236_EAI_OWNER_RECV_PAYMENT',              N'SCH_ORA_236'),
+    (N'ORA_550_EAI_OWNER_RECV_INVOICE',              N'SCH_ORA_550'),
+    (N'ORA_648_EAI_OWNER_RECV_CUSTOMER',             N'SCH_ORA_648');
+
+INSERT INTO @SecurityValidation (Check_Name, Security_Status, Required_Action)
+SELECT
+    N'CONTROLLED_JOB_OWNERS',
+    CASE
+        WHEN COUNT(J.job_id) <> 5 OR COUNT(S.schedule_id) <> 5 THEN 'CONTROLLED_OBJECT_MISSING'
+        WHEN SUM(CASE WHEN J.owner_sid = SUSER_SID(@ExpectedOwner) THEN 0 ELSE 1 END) <> 0
+          OR SUM(CASE WHEN S.owner_sid = SUSER_SID(@ExpectedOwner) THEN 0 ELSE 1 END) <> 0
+            THEN 'WRONG_CONTROLLED_OWNER'
+        WHEN SUM(CASE WHEN JS.JobCount = 1 AND A.job_id IS NOT NULL THEN 0 ELSE 1 END) <> 0
+            THEN 'INVALID_JOB_SCHEDULE_PAIR'
+        ELSE 'OK'
+    END,
+    N'Ejecutar C_SECURITY_REASSIGN_T3_JOB_OWNERS.SQL como sysadmin.'
+FROM @ControlledJobs AS C
+LEFT JOIN msdb.dbo.sysjobs AS J
+    ON J.[name] = C.JobName
+LEFT JOIN msdb.dbo.sysschedules AS S
+    ON S.[name] = C.ScheduleName
+OUTER APPLY
+(
+    SELECT COUNT(*) AS JobCount
+    FROM msdb.dbo.sysjobschedules AS X
+    WHERE X.schedule_id = S.schedule_id
+) AS JS
+OUTER APPLY
+(
+    SELECT X.job_id
+    FROM msdb.dbo.sysjobschedules AS X
+    WHERE X.job_id = J.job_id
+      AND X.schedule_id = S.schedule_id
+) AS A;
+
+/* Resultado 5: wrapper, rol, integracion y propietarios controlados. */
+SELECT Check_Name, Security_Status, Required_Action
+FROM @SecurityValidation
+ORDER BY Check_Name;
+
+/*
     Resultado final consumible por una persona o por una herramienta automatica.
     El THROW es intencional: un resultado visual con errores no debe interpretarse
     como una validacion exitosa solo porque el archivo termino de ejecutarse.
@@ -358,6 +550,7 @@ ORDER BY Module_Name;
 IF EXISTS (SELECT 1 FROM @JobValidation WHERE Deployment_Status <> 'OK')
    OR EXISTS (SELECT 1 FROM @RuntimeValidation WHERE Dependency_Status <> 'OK')
    OR EXISTS (SELECT 1 FROM @ModuleReferenceValidation WHERE Reference_Status <> 'OK')
+   OR EXISTS (SELECT 1 FROM @SecurityValidation WHERE Security_Status <> 'OK')
 BEGIN
     SELECT N'FAIL' AS Validation_Result,
            N'Revise las filas cuyo estado sea diferente de OK. No ejecute 03_ENABLE_VALIDATED_JOBS.SQL.' AS Next_Action;

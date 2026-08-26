@@ -85,6 +85,11 @@ BEGIN
             LTRIM(RTRIM(MC.RFC)),
             EAI_OWNER.GETCONV('CifrasControl Payment Type',MC.Metodo_Pago),
             EAI_OWNER.GETCONV('TMD_Cifras Payment Type',CS.Forma_Pago),
+
+            -- Las columnas de fecha de CC_DATA_PAYMENT son VARCHAR(30).
+            -- El estilo 23 convierte las fechas a texto con formato
+            -- YYYY-MM-DD y evita formatos dependientes de la sesion, como
+            -- "Aug 10 2026". Este valor corresponde a REPORT_DATE.
             CONVERT(VARCHAR(10),GETDATE(),23),
 
             CASE
@@ -93,12 +98,17 @@ BEGIN
                 ELSE 'Invoice'
             END,
 
+            -- INVOICE_DATE: fecha original de la factura en formato
+            -- YYYY-MM-DD. Si Fecha_Factura es NULL, el resultado sera NULL.
             CONVERT(VARCHAR(10),Cobza.Fecha_Factura,23),
             LTRIM(RTRIM(Cobza.Factura)),
             LTRIM(RTRIM(Cobza.Nota_Venta)),
             LTRIM(RTRIM(Cobza.RFC)),
             LTRIM(RTRIM(Cobza.UUID_Venta)),
 
+            -- INVOICE_DUE_DATE: se suman los dias de credito a la fecha de
+            -- factura. ISNULL utiliza cero dias cuando Dias_Cdto no tiene
+            -- valor, por lo que la fecha de vencimiento sera la de factura.
             CONVERT
             (
                 VARCHAR(10),
@@ -111,12 +121,17 @@ BEGIN
 
             EAI_OWNER.GETCONV('TMD_Cifras',Cobza.Via_Pago),
 
+            -- PAYMENT_DATE: la fecha de asignacion tambien se entrega como
+            -- texto YYYY-MM-DD porque asi esta definida la tabla destino.
             CONVERT(VARCHAR(10),Cobza.Fecha_Asignacion,23),
 
             Cobza.Pago_ID,
             Cobza.Asignacion_ID,
             Cobza.Numero_Pago,
 
+            -- Para clasificar el cobro se compara solamente la parte DATE.
+            -- La hora no debe provocar que dos movimientos del mismo dia se
+            -- consideren fechas diferentes.
             CASE
                 WHEN CAST(Cobza.Fecha_Asignacion AS DATE)=CAST(Cobza.Fecha_Factura AS DATE)
                 THEN CAST(Cobza.Importe AS VARCHAR(50))
@@ -130,6 +145,8 @@ BEGIN
             END,
 
             Cobza.Nota_Credito,
+
+            -- CREDITMEMO: fecha de la nota de credito en formato YYYY-MM-DD.
             CONVERT(VARCHAR(10),RF.Fecha_Factura,23),
 
             CASE
@@ -142,6 +159,9 @@ BEGIN
             Inv.Metodo_Pago,
             P.PayReference,
 
+            -- PAYMENT_RELEASE: se conserva una cadena vacia cuando el pago
+            -- aun no tiene fecha de liberacion; en caso contrario, se genera
+            -- el mismo formato YYYY-MM-DD utilizado por las demas fechas.
             CASE
                 WHEN Pay.Fecha_Liberacion IS NULL
                     THEN ''
@@ -183,8 +203,16 @@ BEGIN
             ON P.PayReference = Pay.Nota_Venta
 
         WHERE
-            ISNULL(CONVERT(VARCHAR(8),Cobza.FECHA_ENVIO,112),'null')
-                LIKE '202%'
+            -- El filtro anterior convertia FECHA_ENVIO a texto y buscaba el
+            -- prefijo "202". El rango siguiente expresa la misma regla de
+            -- negocio (fechas de 2020 a 2029) usando valores DATE. Ademas,
+            -- los registros con FECHA_ENVIO NULL quedan fuera del rango.
+            Cobza.FECHA_ENVIO >= CONVERT(DATE, '20200101', 112)
+            AND Cobza.FECHA_ENVIO < CONVERT(DATE, '20300101', 112)
+
+            -- La configuracion "Fecha Pago" debe contener YYYYMMDD. El estilo
+            -- 112 la convierte de forma explicita a DATE. Fecha_Proceso se
+            -- reduce a DATE para comparar el dia sin tomar en cuenta la hora.
             AND CAST(Cobza.Fecha_Proceso AS DATE) >=
                 CONVERT
                 (

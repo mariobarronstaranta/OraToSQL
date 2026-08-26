@@ -59,10 +59,11 @@ BEGIN
             Doc.ShippingPoint,
             SUBSTRING(Cte.Nombre,15,4),
 
-            CONVERT(VARCHAR(10),
-                TRY_CONVERT(DATE, Doc.DocumentDate, 112),
-                23
-            ),
+            -- UNLOAD_DATE es VARCHAR(30) en la tabla destino. La fecha ya fue
+            -- validada en Parsed y el estilo 23 genera texto YYYY-MM-DD.
+            -- Esto evita formatos dependientes de la sesion, por ejemplo
+            -- "Aug 10 2026".
+            CONVERT(VARCHAR(10), Parsed.DocumentDate, 23),
 
             Det.MaterialDescripcion,
             Det.Material,
@@ -94,22 +95,38 @@ BEGIN
                 ISNULL(Mat.Cig_x_PAQ,0)
                 AS VARCHAR(50)
             )))
-        FROM
+        FROM EAI_OWNER.tmp_Document_Header Doc
+
+        -- DocumentDate se convierte una sola vez para reutilizar el mismo
+        -- valor DATE en la salida, la ventana mensual y el filtro inferior.
+        -- TRY_CONVERT devuelve NULL ante una fecha invalida; ese registro no
+        -- cumplira los filtros y no detendra todo el procedimiento.
+        CROSS APPLY
+        (
+            VALUES (TRY_CONVERT(DATE, Doc.DocumentDate))
+        ) Parsed (DocumentDate)
+
+        INNER JOIN
         (
             SELECT
-                FORMAT(
+                -- El estilo 112 con CHAR(6) genera el periodo YYYYMM del mes
+                -- anterior a Start_Date. Start_Date usa DD/MM/YYYY (103).
+                CONVERT
+                (
+                    CHAR(6),
                     DATEADD
                     (
                         MONTH,
                         -1,
                         CONVERT(DATE,Start_Date,103)
                     ),
-                    'yyyyMM'
+                    112
                 ) AS Begins
             FROM EAI.FC__Time_Window
         ) TW
-        INNER JOIN EAI_OWNER.tmp_Document_Header Doc
-            ON SUBSTRING(Doc.DocumentDate,1,6) >= TW.Begins
+            -- Parsed.DocumentDate se convierte a YYYYMM para compararlo con
+            -- TW.Begins. No se extraen posiciones desde una fecha formateada.
+            ON CONVERT(CHAR(6), Parsed.DocumentDate, 112) >= TW.Begins
         INNER JOIN EAI_OWNER.tmp_Document_Detail Det
             ON Doc.ReferenceID = Det.ReferenceID
         INNER JOIN T3.Material Mat
@@ -118,8 +135,10 @@ BEGIN
             ON Det.Material = Conv.Material
         INNER JOIN T3.Mov_Cliente Cte
             ON Doc.Cust_to_SAP = Cte.Cliente_SAP
+        -- La fecha minima se expresa explicitamente con estilo 112
+        -- (YYYYMMDD), por lo que la comparacion ocurre entre valores DATE.
         WHERE
-            Doc.DocumentDate >= '20200917'
+            Parsed.DocumentDate >= CONVERT(DATE, '20200917', 112)
             AND Doc.MetodoPago = 'Van Replenishment'
             AND Doc.DeliveryType = 'Stock Discard'
             AND Doc.Cust_to_SAP LIKE '009%'
