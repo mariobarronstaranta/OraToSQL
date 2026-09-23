@@ -1,540 +1,626 @@
-CREATE OR ALTER PROCEDURE [EAI].[SF_BITACORA_CFDI_RESUMEN]
+/*
+    Procedure : EAI.SF_BITACORA_CFDI_RESUMEN_OPTIMIZADO
+    Objetivo  : Reconstruir el resumen de CFDI que se guarda en
+                EAI.CFDI_INFORME.
+
+    Guia para desarrolladores JR:
+    - Si ambas fechas son NULL, se usa un mes antes de FC__TIME_WINDOW y hoy.
+    - Si se informan fechas, deben usar YYYYMMDD y ambas son obligatorias.
+    - La carga es completa: CFDI_INFORME se elimina y vuelve a construir.
+    - Los movimientos C003 son ventas (+); las demas clases aplicables son
+      devoluciones (-), salvo las excepciones indicadas en preventa.
+    - El procedimiento original y el job no son modificados por este archivo.
+
+    Alias principales:
+    - Info = fila del resumen EAI.CFDI_INFORME.
+    - HDoc = relacion entre una venta y su CFDI individual o agrupado.
+    - PAC  = datos fiscales y estado de timbrado.
+    - RF/RFD = cabecera y detalle del registro fiscal.
+
+    Campos importantes del resultado:
+    - Monto_T3In = importe calculado con la informacion operativa de T3.
+    - Valor_Subt / Valor_IVA / Valor = importes fiscales usados para conciliar.
+    - Factor = 1 para venta y -1 para devolucion; se aplica a los importes.
+    - Cigarrillos = unidades convertidas segun la presentacion del material.
+    - Diferencia = ajuste menor usado para cuadrar centavos.
+    - Origen = sistema considerado como fuente oficial del importe.
+*/
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
+
+CREATE OR ALTER PROCEDURE [EAI].[SF_BITACORA_CFDI_RESUMEN_OPTIMIZADO]
     @pFecha_Inicio VARCHAR(30) = NULL,
     @pFecha_Final  VARCHAR(30) = NULL
 AS
 BEGIN
+    -- Evita mensajes repetidos de "N filas afectadas" enviados al job.
     SET NOCOUNT ON;
+
+    -- Si posteriormente se envuelve el proceso en una transaccion, un error
+    -- grave provocara su cancelacion automatica. Hoy las sentencias son autocommit.
     SET XACT_ABORT ON;
 
+    /*
+        Variables de auditoria:
+        @v_ID identifica la seccion que fallo; @nPID identifica la ejecucion.
+        @nProceso1..4 conservan los contadores esperados por RF_PROCESOS_LOG.
+        Las variables @d... almacenan fechas ya convertidas y validadas.
+    */
     DECLARE
-        @v_ID          VARCHAR(50) = NULL,
-        @sErrorCode    VARCHAR(30),
-        @sMsg          VARCHAR(300),
-        @nPID          BIGINT,
-        @nProceso      INT = 802,
-        @nProceso1     INT = 0,
-        @nProceso2     INT = 0,
-        @nProceso3     INT = 0,
-        @nProceso4     INT = 0,
-        @nCount        INT = 0,
-        @sFecha_Inicio VARCHAR(30),
-        @sFecha_Final  VARCHAR(30);
+        @v_ID           VARCHAR(50) = 'Inicio',
+        @sErrorCode     VARCHAR(30),
+        @sMsg           VARCHAR(300),
+        @nPID           BIGINT,
+        @nProceso       INT = 802,
+        @nProceso1      INT = 0,
+        @nProceso2      INT = 0,
+        @nProceso3      INT = 0,
+        @nProceso4      INT = 0,
+        @nCount         INT = 0,
+        @dFecha_Inicio  DATE,
+        @dFecha_Final   DATE,
+        @dVentana       DATE,
+        @dtFechaLimite  DATETIME2(0);
 
     BEGIN TRY
-        SET @nPID = NEXT VALUE FOR EAI_OWNER.ProcessID;
-        EXEC EAI_OWNER.Log_Start @nProceso;
+        -------------------------------------------------------------------
+        -- 1. Abrir las bitacoras tecnicas del proceso 802
+        -------------------------------------------------------------------
+        -- La secuencia garantiza un identificador distinto aun si hay dos
+        -- ejecuciones simultaneas.
+        SET @nPID = NEXT VALUE FOR [EAI_OWNER].[ProcessID];
 
-        INSERT INTO T3.RF_PROCESOS_LOG
-        (
-            PID,
-            Proceso,
-            Fecha_Proc_BATMD,
-            Inicio
-        )
+        -- Log_Start informa al monitoreo general que inicio el componente 802.
+        EXEC [EAI_OWNER].[Log_Start] @nProceso;
+
+        -- Esta fila se completa al final con fecha de termino y contadores.
+        INSERT INTO [T3].[RF_PROCESOS_LOG]
+            (PID, Proceso, Fecha_Proc_BATMD, Inicio)
         VALUES
-        (
-            @nPID,
-            @nProceso,
-            NULL,
-            GETDATE()
-        );
+            (@nPID, @nProceso, NULL, GETDATE());
 
-        PRINT '-----------------------------';
-        PRINT 'Proc_T3_CFDI_Resumen';
-        PRINT CONVERT(VARCHAR(8), GETDATE(), 112) + ' ' + CONVERT(VARCHAR(8), GETDATE(), 108);
+        -------------------------------------------------------------------
+        -- 2. Convertir las fechas una sola vez
+        -------------------------------------------------------------------
+        /*
+            El original convierte HDoc.Fecha_Factura a VARCHAR en cada fila.
+            Aqui se convierten los parametros a DATE y se usa un intervalo
+            [inicio, dia posterior al fin), que incluye todo el ultimo dia y
+            permite aprovechar un indice por Fecha_Factura.
+        */
+        -- Estilo 103 interpreta el formato DD/MM/YYYY de la configuracion.
+        SELECT @dVentana = TRY_CONVERT(DATE, TW.Start_Date, 103)
+        FROM [EAI].[FC__TIME_WINDOW] AS TW;
 
-        IF @pFecha_Inicio IS NULL
+        IF @pFecha_Inicio IS NULL AND @pFecha_Final IS NULL
         BEGIN
-            SELECT
-                @sFecha_Inicio = CONVERT(VARCHAR(8), DATEADD(MONTH, -1, TRY_CONVERT(DATE, Start_Date, 103)), 112),
-                @sFecha_Final = CONVERT(VARCHAR(8), GETDATE(), 112)
-            FROM EAI.FC__Time_WINDOW;
+            SET @dFecha_Inicio = DATEADD(MONTH, -1, @dVentana);
+            SET @dFecha_Final = CONVERT(DATE, GETDATE());
         END
         ELSE
         BEGIN
-            SET @sFecha_Inicio = @pFecha_Inicio;
-            SET @sFecha_Final = @pFecha_Final;
+            -- Estilo 112 interpreta los parametros en formato YYYYMMDD.
+            SET @dFecha_Inicio = TRY_CONVERT(DATE, @pFecha_Inicio, 112);
+            SET @dFecha_Final = TRY_CONVERT(DATE, @pFecha_Final, 112);
         END;
+
+        IF @dVentana IS NULL
+            THROW 54101, 'FC__TIME_WINDOW.Start_Date no contiene una fecha DD/MM/YYYY valida.', 1;
+
+        IF @dFecha_Inicio IS NULL OR @dFecha_Final IS NULL
+            THROW 54102, 'Indique ambas fechas con formato YYYYMMDD o envie ambas como NULL.', 1;
+
+        IF @dFecha_Inicio > @dFecha_Final
+            THROW 54103, 'La fecha inicial no puede ser posterior a la fecha final.', 1;
+
+        -- Se usa "menor que el dia siguiente" para incluir cualquier hora del
+        -- ultimo dia sin aplicar CAST/CONVERT sobre la columna filtrada.
+        SET @dtFechaLimite = DATEADD(DAY, 1, CONVERT(DATETIME2(0), @dFecha_Final));
+
+        PRINT '-----------------------------';
+        PRINT 'Proc_T3_CFDI_Resumen_Optimizado';
+        PRINT CONVERT(VARCHAR(8), GETDATE(), 112) + ' ' + CONVERT(VARCHAR(8), GETDATE(), 108);
 
         SET @v_ID = 'Inicializar CFDI_Informe';
 
-        UPDATE EAI.CONTROL_REPORTE
-           SET INICIO = GETDATE(),
-               FIN = NULL
-         WHERE REPORTE = 'BITACORA CFDI';
+        -- FIN=NULL permite que monitoreo distinga un reporte aun en ejecucion.
+        UPDATE [EAI].[CONTROL_REPORTE]
+           SET Inicio = GETDATE(), Fin = NULL
+         WHERE Reporte = 'BITACORA CFDI';
 
-        DELETE FROM EAI.CFDI_Informe;
+        -- Esta tabla contiene una fotografia completa del periodo solicitado.
+        DELETE FROM [EAI].[CFDI_INFORME];
 
+        /*
+            Se lee y filtra el historial una sola vez. Las tres cargas siguientes
+            reutilizan esta tabla temporal en lugar de recorrer nuevamente todo
+            CFDI_Historia_Docto_PAC y convertir su fecha en cada consulta.
+        */
+        SELECT
+            H.Nota_Venta,
+            H.Ctro,
+            H.Fecha_Factura,
+            H.Nota_Venta_CFDI
+        INTO #HDocPeriodo
+        FROM [T3].[CFDI_Historia_Docto_PAC] AS H
+        WHERE H.Fecha_Factura >= @dFecha_Inicio
+          AND H.Fecha_Factura < @dtFechaLimite;
+
+        -- Indice para buscar la venta original durante las cargas individuales.
+        CREATE INDEX IX_HDocPeriodo_Nota
+            ON #HDocPeriodo (Nota_Venta, Nota_Venta_CFDI);
+
+        -- Indice para agrupar las ventas que comparten un mismo CFDI.
+        CREATE INDEX IX_HDocPeriodo_CFDI
+            ON #HDocPeriodo (Nota_Venta_CFDI)
+            INCLUDE (Nota_Venta, Ctro, Fecha_Factura);
+
+        -------------------------------------------------------------------
+        -- 3. CFDI individuales provenientes de Factura_General
+        -------------------------------------------------------------------
         SET @v_ID = 'ScrPrompt';
 
-        INSERT INTO EAI.CFDI_Informe
+        /*
+            "Individual" significa que Nota_Venta = Nota_Venta_CFDI. En este
+            bloque el documento se origina en Factura_General.
+
+            Fuentes de los datos:
+            - Paso aporta el RFC utilizado al facturar.
+            - FG aporta importe T3, tipo y territorio.
+            - PAC aporta UUID, estado e importes timbrados.
+            - Cliente aporta nombre y lista de precio vigentes al facturar.
+        */
+
+        INSERT INTO [EAI].[CFDI_INFORME]
         (
-            Sociedad,
-            Folio_Interno,
-            Fecha,
-            Ctro,
-            RFC,
-            ID_Envio,
-            ID_Confirmacion,
-            Nombre_Cliente,
-            LP,
-            Doctos,
-            Terr,
-            Tipo_Docto,
-            Factor,
-            Folio_Fiscal,
-            Status,
-            Monto_T3In,
-            Valor_Subt,
-            Valor_IVA,
-            Valor
+            Sociedad, Folio_Interno, Fecha, Ctro, RFC, ID_Envio,
+            ID_Confirmacion, Nombre_Cliente, LP, Doctos, Terr,
+            Tipo_Docto, Factor, Folio_Fiscal, Status, Monto_T3In,
+            Valor_Subt, Valor_IVA, Valor
         )
         SELECT
-            'MX06',
-            HDoc.Nota_Venta_CFDI,
-            HDoc.Fecha_Factura,
-            HDoc.Ctro,
-            Paso.RFC_Factura,
-            PAC.ID_Envio,
-            PAC.ID_Confirmacion,
-            Cte.Nombre,
-            Cte.Lista_Precio,
-            1,
-            SUBSTRING(FG.Ubicacion, 15, 4),
-            FG.Tipo_Docto,
-            CASE WHEN FG.Tipo_Docto = 'C003' THEN 1 ELSE -1 END,
-            PAC.Folio_Fiscal,
-            PAC.Status,
-            (ISNULL(FG.Valor_Subt, 0) + ISNULL(FG.Valor_IVA, 0))
-                * CASE WHEN FG.Tipo_Docto = 'C003' THEN 1 ELSE -1 END,
-            CASE
-                WHEN PAC.Status = 'CONFIRMADO' THEN ISNULL(PAC.Valor_Subt, 0)
-                WHEN PAC.Status IN ('PENDING', 'PUBLICADO') THEN ISNULL(FG.Valor_Subt, 0)
-                ELSE 0
-            END * CASE WHEN FG.Tipo_Docto = 'C003' THEN 1 ELSE -1 END,
-            CASE
-                WHEN PAC.Status = 'CONFIRMADO' THEN ISNULL(PAC.Valor_IVA, 0)
-                WHEN PAC.Status IN ('PENDING', 'PUBLICADO') THEN ISNULL(FG.Valor_IVA, 0)
-                ELSE 0
-            END * CASE WHEN FG.Tipo_Docto = 'C003' THEN 1 ELSE -1 END,
+            'MX06', H.Nota_Venta_CFDI, H.Fecha_Factura, H.Ctro,
+            Paso.RFC_Factura, PAC.ID_Envio, PAC.ID_Confirmacion,
+            Cte.Nombre, Cte.Lista_Precio, 1,
+            SUBSTRING(FG.Ubicacion, 15, 4), FG.Tipo_Docto,
+            S.Factor, PAC.Folio_Fiscal, PAC.Status,
+            (ISNULL(FG.Valor_Subt, 0) + ISNULL(FG.Valor_IVA, 0)) * S.Factor,
+            V.Valor_Subt * S.Factor,
+            V.Valor_IVA * S.Factor,
+            (V.Valor_Subt + V.Valor_IVA) * S.Factor
+        FROM #HDocPeriodo AS H
+        INNER JOIN [T3].[CFDI_Documento_Paso] AS Paso
+            ON Paso.Factura = H.Nota_Venta
+        INNER JOIN [T3].[Factura_General] AS FG
+            ON FG.Factura = H.Nota_Venta
+        INNER JOIN [T3].[CFDI_Documentos] AS PAC
+            ON PAC.Nota_Venta = H.Nota_Venta
+        INNER JOIN [T3].[Cliente] AS Cte
+            ON Cte.Cliente_SAP = FG.Cliente_SAP
+           AND FG.Fecha_Factura BETWEEN Cte.Fecha_Ini_Vig AND Cte.Fecha_Fin_Vig
+        -- Calcula el signo una sola vez y lo reutiliza en cuatro expresiones.
+        CROSS APPLY
+        (
+            VALUES (CASE WHEN FG.Tipo_Docto = 'C003' THEN 1 ELSE -1 END)
+        ) AS S(Factor)
+        /*
+            Regla PAC:
+            - CONFIRMADO: usar importes confirmados por el PAC.
+            - PENDING/PUBLICADO: usar importes operativos de T3.
+            - Otro estado: reportar cero en los importes fiscales.
+        */
+        CROSS APPLY
+        (
+            VALUES
             (
                 CASE
-                    WHEN PAC.Status = 'CONFIRMADO' THEN ISNULL(PAC.Valor_Subt, 0) + ISNULL(PAC.Valor_IVA, 0)
-                    WHEN PAC.Status IN ('PENDING', 'PUBLICADO') THEN ISNULL(FG.Valor_Subt, 0) + ISNULL(FG.Valor_IVA, 0)
+                    WHEN PAC.Status = 'CONFIRMADO' THEN ISNULL(PAC.Valor_Subt, 0)
+                    WHEN PAC.Status IN ('PENDING', 'PUBLICADO') THEN ISNULL(FG.Valor_Subt, 0)
+                    ELSE 0
+                END,
+                CASE
+                    WHEN PAC.Status = 'CONFIRMADO' THEN ISNULL(PAC.Valor_IVA, 0)
+                    WHEN PAC.Status IN ('PENDING', 'PUBLICADO') THEN ISNULL(FG.Valor_IVA, 0)
                     ELSE 0
                 END
-            ) * CASE WHEN FG.Tipo_Docto = 'C003' THEN 1 ELSE -1 END
-        FROM T3.CFDI_Historia_Docto_PAC AS HDoc
-        INNER JOIN T3.CFDI_Documento_Paso AS Paso
-            ON HDoc.Nota_Venta = Paso.Factura
-        INNER JOIN T3.Factura_General AS FG
-            ON HDoc.Nota_Venta = FG.Factura
-        INNER JOIN T3.CFDI_Documentos AS PAC
-            ON HDoc.Nota_Venta = PAC.Nota_Venta
-        INNER JOIN T3.Cliente AS Cte
-            ON FG.Cliente_SAP = Cte.Cliente_SAP
-           AND FG.Fecha_Factura BETWEEN Cte.Fecha_Ini_Vig AND Cte.Fecha_Fin_Vig
-        WHERE CONVERT(VARCHAR(8), HDoc.Fecha_Factura, 112) BETWEEN @sFecha_Inicio AND @sFecha_Final
-          AND HDoc.Nota_Venta = HDoc.Nota_Venta_CFDI;
+            )
+        ) AS V(Valor_Subt, Valor_IVA)
+        WHERE H.Nota_Venta = H.Nota_Venta_CFDI;
 
         SET @nProceso1 = @@ROWCOUNT;
-        SET @nCount = @nCount + @nProceso1;
-        PRINT CONVERT(VARCHAR(8), GETDATE(), 112) + ' ' + CONVERT(VARCHAR(8), GETDATE(), 108);
 
+        -------------------------------------------------------------------
+        -- 4. CFDI individuales provenientes de Preventa_General
+        -------------------------------------------------------------------
         SET @v_ID = 'ScrPreventa';
 
-        INSERT INTO EAI.CFDI_Informe
+        /*
+            La estructura es similar a Factura_General, con estas diferencias:
+            - Las clases C020/C021/C022 pertenecen a la sociedad MX01.
+            - C005, C0FX y C020 son movimientos positivos; el resto negativos.
+            - Entrega.Ubicacion tiene prioridad sobre Preventa.Ubicacion.
+            - Una cancelacion o fecha de proceso en 2999 deja Monto_T3In en 0.
+        */
+
+        INSERT INTO [EAI].[CFDI_INFORME]
         (
-            Sociedad,
-            Folio_Interno,
-            Fecha,
-            Ctro,
-            RFC,
-            ID_Envio,
-            ID_Confirmacion,
-            Nombre_Cliente,
-            LP,
-            Doctos,
-            Terr,
-            Tipo_Docto,
-            Factor,
-            Folio_Fiscal,
-            Status,
-            Monto_T3In,
-            Valor_Subt,
-            Valor_IVA,
-            Valor
+            Sociedad, Folio_Interno, Fecha, Ctro, RFC, ID_Envio,
+            ID_Confirmacion, Nombre_Cliente, LP, Doctos, Terr,
+            Tipo_Docto, Factor, Folio_Fiscal, Status, Monto_T3In,
+            Valor_Subt, Valor_IVA, Valor
         )
         SELECT
             CASE WHEN PG.Clase_Factura IN ('C020', 'C021', 'C022') THEN 'MX01' ELSE 'MX06' END,
-            HDoc.Nota_Venta_CFDI,
-            HDoc.Fecha_Factura,
-            HDoc.Ctro,
-            Cte.RFC,
-            PAC.ID_Envio,
-            PAC.ID_Confirmacion,
-            Cte.Nombre,
-            Cte.Lista_Precio,
-            1,
-            ISNULL(E.Ubicacion, PG.Ubicacion),
-            PG.Clase_Factura,
-            CASE WHEN PG.Clase_Factura IN ('C005', 'C0FX', 'C020') THEN 1 ELSE -1 END,
-            PAC.Folio_Fiscal,
-            PAC.Status,
+            H.Nota_Venta_CFDI, H.Fecha_Factura, H.Ctro, Cte.RFC,
+            PAC.ID_Envio, PAC.ID_Confirmacion, Cte.Nombre, Cte.Lista_Precio,
+            1, ISNULL(E.Ubicacion, PG.Ubicacion), PG.Clase_Factura,
+            S.Factor, PAC.Folio_Fiscal, PAC.Status,
             CASE
                 WHEN PG.Fecha_Cancelacion IS NOT NULL THEN 0
-                WHEN CONVERT(VARCHAR(4), PG.Fecha_Proc_BATMD, 112) = '2999' THEN 0
+                WHEN YEAR(PG.Fecha_Proc_BATMD) = 2999 THEN 0
                 ELSE ISNULL(PG.Valor_Subt, 0) + ISNULL(PG.Valor_IVA, 0)
-            END * CASE WHEN PG.Clase_Factura IN ('C005', 'C0FX', 'C020') THEN 1 ELSE -1 END,
-            CASE
-                WHEN PAC.Status = 'CONFIRMADO' THEN ISNULL(PAC.Valor_Subt, 0)
-                WHEN PAC.Status IN ('PENDING', 'PUBLICADO') THEN ISNULL(PG.Valor_Subt, 0)
-                ELSE 0
-            END * CASE WHEN PG.Clase_Factura IN ('C005', 'C0FX', 'C020') THEN 1 ELSE -1 END,
-            CASE
-                WHEN PAC.Status = 'CONFIRMADO' THEN ISNULL(PAC.Valor_IVA, 0)
-                WHEN PAC.Status IN ('PENDING', 'PUBLICADO') THEN ISNULL(PG.Valor_IVA, 0)
-                ELSE 0
-            END * CASE WHEN PG.Clase_Factura IN ('C005', 'C0FX', 'C020') THEN 1 ELSE -1 END,
+            END * S.Factor,
+            V.Valor_Subt * S.Factor,
+            V.Valor_IVA * S.Factor,
+            (V.Valor_Subt + V.Valor_IVA) * S.Factor
+        FROM #HDocPeriodo AS H
+        INNER JOIN [T3].[Preventa_General] AS PG
+            ON PG.Factura = H.Nota_Venta
+        INNER JOIN [T3].[CFDI_Documentos] AS PAC
+            ON PAC.Nota_Venta = H.Nota_Venta
+        INNER JOIN [T3].[Cliente] AS Cte
+            ON Cte.Cliente_SAP = PG.Cliente_SAP
+           AND PG.Fecha_Factura BETWEEN Cte.Fecha_Ini_Vig AND Cte.Fecha_Fin_Vig
+        -- LEFT JOIN conserva la preventa aunque no exista una entrega asociada.
+        LEFT JOIN [T3].[Entrega] AS E
+            ON E.Factura = H.Nota_Venta
+        CROSS APPLY
+        (
+            VALUES (CASE WHEN PG.Clase_Factura IN ('C005', 'C0FX', 'C020') THEN 1 ELSE -1 END)
+        ) AS S(Factor)
+        CROSS APPLY
+        (
+            VALUES
             (
                 CASE
-                    WHEN PAC.Status = 'CONFIRMADO' THEN ISNULL(PAC.Valor_Subt, 0) + ISNULL(PAC.Valor_IVA, 0)
-                    WHEN PAC.Status IN ('PENDING', 'PUBLICADO') THEN ISNULL(PG.Valor_Subt, 0) + ISNULL(PG.Valor_IVA, 0)
+                    WHEN PAC.Status = 'CONFIRMADO' THEN ISNULL(PAC.Valor_Subt, 0)
+                    WHEN PAC.Status IN ('PENDING', 'PUBLICADO') THEN ISNULL(PG.Valor_Subt, 0)
+                    ELSE 0
+                END,
+                CASE
+                    WHEN PAC.Status = 'CONFIRMADO' THEN ISNULL(PAC.Valor_IVA, 0)
+                    WHEN PAC.Status IN ('PENDING', 'PUBLICADO') THEN ISNULL(PG.Valor_IVA, 0)
                     ELSE 0
                 END
-            ) * CASE WHEN PG.Clase_Factura IN ('C005', 'C0FX', 'C020') THEN 1 ELSE -1 END
-        FROM T3.CFDI_Historia_Docto_PAC AS HDoc
-        INNER JOIN T3.Preventa_General AS PG
-            ON HDoc.Nota_Venta = PG.Factura
-        INNER JOIN T3.CFDI_Documentos AS PAC
-            ON HDoc.Nota_Venta = PAC.Nota_Venta
-        INNER JOIN T3.Cliente AS Cte
-            ON PG.Cliente_SAP = Cte.Cliente_SAP
-           AND PG.Fecha_Factura BETWEEN Cte.Fecha_Ini_Vig AND Cte.Fecha_Fin_Vig
-        LEFT JOIN T3.Entrega AS E
-            ON HDoc.Nota_Venta = E.Factura
-        WHERE CONVERT(VARCHAR(8), HDoc.Fecha_Factura, 112) BETWEEN @sFecha_Inicio AND @sFecha_Final
-          AND HDoc.Nota_Venta = HDoc.Nota_Venta_CFDI;
+            )
+        ) AS V(Valor_Subt, Valor_IVA)
+        WHERE H.Nota_Venta = H.Nota_Venta_CFDI;
 
         SET @nProceso2 = @@ROWCOUNT;
-        SET @nCount = @nCount + @nProceso2;
-        PRINT CONVERT(VARCHAR(8), GETDATE(), 112) + ' ' + CONVERT(VARCHAR(8), GETDATE(), 108);
 
+        -------------------------------------------------------------------
+        -- 5. CFDI agrupados
+        -------------------------------------------------------------------
         SET @v_ID = 'ScrAgrupado';
 
-        WITH Doc AS
+        /*
+            Un CFDI agrupado representa varias ventas mediante un solo folio.
+            MontoOrigen suma los documentos T3 incluidos en el grupo.
+            MontoCFDI suma el detalle fiscal del comprobante agrupado.
+            Despues ambos resultados se unen por Nota_Venta_CFDI.
+        */
+
+        ;WITH HDocUnico AS
         (
+            -- DISTINCT evita sumar dos veces la misma relacion historica.
+            SELECT DISTINCT Nota_Venta, Ctro, Fecha_Factura, Nota_Venta_CFDI
+            FROM #HDocPeriodo
+        ), MontoOrigen AS
+        (
+            -- Importe operativo de todas las ventas que forman el agrupado.
             SELECT
-                HDoc.Ctro,
-                HDoc.Fecha_Factura,
-                HDoc.Nota_Venta_CFDI,
+                H.Ctro, H.Fecha_Factura, H.Nota_Venta_CFDI,
                 SUM(ISNULL(FD.Valor_Subt, 0) + ISNULL(FD.Valor_IVA, 0)
                     + ISNULL(FD.Envio_Subt, 0) + ISNULL(FD.Envio_IVA, 0)) AS Total_T3In
-            FROM
-            (
-                SELECT DISTINCT
-                    Nota_Venta,
-                    Ctro,
-                    Fecha_Factura,
-                    Nota_Venta_CFDI
-                FROM T3.CFDI_Historia_Docto_PAC
-                WHERE CONVERT(VARCHAR(8), Fecha_Factura, 112) BETWEEN @sFecha_Inicio AND @sFecha_Final
-            ) AS HDoc
-            INNER JOIN T3.Factura_General AS FG
-                ON HDoc.Nota_Venta = FG.Factura
-            INNER JOIN T3.Factura_Detalle AS FD
-                ON HDoc.Nota_Venta = FD.Factura
-            WHERE HDoc.Nota_Venta <> HDoc.Nota_Venta_CFDI
-            GROUP BY HDoc.Ctro, HDoc.Fecha_Factura, HDoc.Nota_Venta_CFDI
-        ),
-        FG AS
+            FROM HDocUnico AS H
+            INNER JOIN [T3].[Factura_General] AS FG
+                ON FG.Factura = H.Nota_Venta
+            INNER JOIN [T3].[Factura_Detalle] AS FD
+                ON FD.Factura = H.Nota_Venta
+            WHERE H.Nota_Venta <> H.Nota_Venta_CFDI
+            GROUP BY H.Ctro, H.Fecha_Factura, H.Nota_Venta_CFDI
+        ), MontoCFDI AS
         (
+            -- Importe fiscal, territorio y cantidad de documentos del grupo.
             SELECT
-                Agr.Ctro,
-                SUBSTRING(Agr.Cliente_SAP, 2, 5) AS Terr,
-                Agr.Tipo_Docto,
-                Agr.Nota_Venta_CFDI,
-                CAST(Agr.Fecha_Documento AS DATE) AS Fecha,
-                MAX(Agr.Doctos) AS Doctos,
-                SUM(ISNULL(Det.Valor_Subt, 0) + ISNULL(Det.Envio_Subt, 0) + ISNULL(Det.Credito_Subt, 0)) AS Valor_Subt,
-                SUM(ISNULL(Det.Valor_IVA, 0) + ISNULL(Det.Envio_IVA, 0) + ISNULL(Det.Credito_IVA, 0)) AS Valor_IVA
-            FROM T3.CFDI_Agrupado AS Agr
-            INNER JOIN T3.CFDI_Agrupado_Detalle AS Det
-                ON Agr.Nota_Venta_CFDI = Det.Nota_Venta_CFDI
-            GROUP BY
-                Agr.Ctro,
-                SUBSTRING(Agr.Cliente_SAP, 2, 5),
-                Agr.Tipo_Docto,
-                Agr.Nota_Venta_CFDI,
-                CAST(Agr.Fecha_Documento AS DATE)
+                A.Ctro,
+                SUBSTRING(A.Cliente_SAP, 2, 5) AS Terr,
+                A.Tipo_Docto,
+                A.Nota_Venta_CFDI,
+                CONVERT(DATE, A.Fecha_Documento) AS Fecha,
+                MAX(A.Doctos) AS Doctos,
+                SUM(ISNULL(D.Valor_Subt, 0) + ISNULL(D.Envio_Subt, 0) + ISNULL(D.Credito_Subt, 0)) AS Valor_Subt,
+                SUM(ISNULL(D.Valor_IVA, 0) + ISNULL(D.Envio_IVA, 0) + ISNULL(D.Credito_IVA, 0)) AS Valor_IVA
+            FROM [T3].[CFDI_Agrupado] AS A
+            INNER JOIN [T3].[CFDI_Agrupado_Detalle] AS D
+                ON D.Nota_Venta_CFDI = A.Nota_Venta_CFDI
+            GROUP BY A.Ctro, SUBSTRING(A.Cliente_SAP, 2, 5), A.Tipo_Docto,
+                     A.Nota_Venta_CFDI, CONVERT(DATE, A.Fecha_Documento)
         )
-        INSERT INTO EAI.CFDI_Informe
+        INSERT INTO [EAI].[CFDI_INFORME]
         (
-            Sociedad,
-            Folio_Interno,
-            Fecha,
-            Ctro,
-            RFC,
-            ID_Envio,
-            ID_Confirmacion,
-            Nombre_Cliente,
-            Doctos,
-            Terr,
-            Tipo_Docto,
-            Factor,
-            Folio_Fiscal,
-            Status,
-            Monto_T3In,
-            Valor_Subt,
-            Valor_IVA,
-            Valor
+            Sociedad, Folio_Interno, Fecha, Ctro, RFC, ID_Envio,
+            ID_Confirmacion, Nombre_Cliente, Doctos, Terr, Tipo_Docto,
+            Factor, Folio_Fiscal, Status, Monto_T3In, Valor_Subt,
+            Valor_IVA, Valor
         )
         SELECT
-            'MX06',
-            Doc.Nota_Venta_CFDI,
-            Doc.Fecha_Factura,
-            Doc.Ctro,
-            'XAXX010101000',
-            PAC.ID_Envio,
-            PAC.ID_Confirmacion,
-            'CLIENTE AGRUPADOR VENTAS DIA',
-            FG.Doctos,
-            FG.Terr,
-            FG.Tipo_Docto,
-            CASE WHEN FG.Tipo_Docto = 'C003' THEN 1 ELSE -1 END,
-            PAC.Folio_Fiscal,
-            PAC.Status,
-            Doc.Total_T3In * CASE WHEN FG.Tipo_Docto = 'C003' THEN 1 ELSE -1 END,
-            CASE
-                WHEN PAC.Status = 'CONFIRMADO' THEN ISNULL(PAC.Valor_Subt, 0)
-                WHEN PAC.Status = 'PENDING' THEN ISNULL(FG.Valor_Subt, 0)
-                ELSE 0
-            END * CASE WHEN FG.Tipo_Docto = 'C003' THEN 1 ELSE -1 END,
-            CASE
-                WHEN PAC.Status = 'CONFIRMADO' THEN ISNULL(PAC.Valor_IVA, 0)
-                WHEN PAC.Status = 'PENDING' THEN ISNULL(FG.Valor_IVA, 0)
-                ELSE 0
-            END * CASE WHEN FG.Tipo_Docto = 'C003' THEN 1 ELSE -1 END,
+            'MX06', O.Nota_Venta_CFDI, O.Fecha_Factura, O.Ctro,
+            -- Los agrupados usan el RFC generico definido por la regla SAT.
+            'XAXX010101000', PAC.ID_Envio, PAC.ID_Confirmacion,
+            'CLIENTE AGRUPADOR VENTAS DIA', C.Doctos, C.Terr,
+            C.Tipo_Docto, S.Factor, PAC.Folio_Fiscal, PAC.Status,
+            O.Total_T3In * S.Factor,
+            V.Valor_Subt * S.Factor,
+            V.Valor_IVA * S.Factor,
+            (V.Valor_Subt + V.Valor_IVA) * S.Factor
+        FROM MontoOrigen AS O
+        INNER JOIN MontoCFDI AS C
+            ON C.Nota_Venta_CFDI = O.Nota_Venta_CFDI
+        INNER JOIN [T3].[CFDI_Documentos] AS PAC
+            ON PAC.Nota_Venta = O.Nota_Venta_CFDI
+        -- Los agrupados C003 son ventas; cualquier otro tipo es devolucion.
+        CROSS APPLY
+        (
+            VALUES (CASE WHEN C.Tipo_Docto = 'C003' THEN 1 ELSE -1 END)
+        ) AS S(Factor)
+        /*
+            En agrupados, PENDING usa el detalle agrupado. PUBLICADO no aparece
+            en esta rama por decision heredada de Oracle y por eso cae en cero.
+        */
+        CROSS APPLY
+        (
+            VALUES
             (
                 CASE
-                    WHEN PAC.Status = 'CONFIRMADO' THEN ISNULL(PAC.Valor_Subt, 0) + ISNULL(PAC.Valor_IVA, 0)
-                    WHEN PAC.Status = 'PENDING' THEN ISNULL(FG.Valor_Subt, 0) + ISNULL(FG.Valor_IVA, 0)
+                    WHEN PAC.Status = 'CONFIRMADO' THEN ISNULL(PAC.Valor_Subt, 0)
+                    WHEN PAC.Status = 'PENDING' THEN ISNULL(C.Valor_Subt, 0)
+                    ELSE 0
+                END,
+                CASE
+                    WHEN PAC.Status = 'CONFIRMADO' THEN ISNULL(PAC.Valor_IVA, 0)
+                    WHEN PAC.Status = 'PENDING' THEN ISNULL(C.Valor_IVA, 0)
                     ELSE 0
                 END
-            ) * CASE WHEN FG.Tipo_Docto = 'C003' THEN 1 ELSE -1 END
-        FROM Doc
-        INNER JOIN FG
-            ON Doc.Nota_Venta_CFDI = FG.Nota_Venta_CFDI
-        INNER JOIN T3.CFDI_Documentos AS PAC
-            ON Doc.Nota_Venta_CFDI = PAC.Nota_Venta;
+            )
+        ) AS V(Valor_Subt, Valor_IVA);
 
         SET @nProceso3 = @@ROWCOUNT;
-        SET @nCount = @nCount + @nProceso3;
-        PRINT CONVERT(VARCHAR(8), GETDATE(), 112) + ' ' + CONVERT(VARCHAR(8), GETDATE(), 108);
-        PRINT 'Registros : ' + CAST(@nCount AS VARCHAR(20));
+        SET @nCount = @nProceso1 + @nProceso2 + @nProceso3;
+
+        PRINT 'Registros : ' + CONVERT(VARCHAR(20), @nCount);
         PRINT '-----------------------------';
 
+        -------------------------------------------------------------------
+        -- 6. Volumen e importes fiscales de documentos individuales
+        -------------------------------------------------------------------
         SET @v_ID = 'ScrCIG_Individual';
 
-        UPDATE Info
-           SET Cigarrillos = Cig.Cigarrillos,
-               Envio_Subt = Info.Factor * Cig.Envio_Subt,
-               Envio_IVA = Info.Factor * Cig.Envio_IVA,
-               Credito_Subt = Info.Factor * Cig.Credito_Subt,
-               Credito_IVA = Info.Factor * Cig.Credito_IVA,
-               Monto_T3In = Info.Monto_T3In
-                          + (Info.Factor * (Cig.Envio_Subt + Cig.Envio_IVA + Cig.Credito_Subt + Cig.Credito_IVA) * Cig.Sumar_Envio)
-        FROM EAI.CFDI_Informe AS Info
-        INNER JOIN
+        /*
+            RFClass obtiene una sola fila por factura. Esto evita multiplicar
+            cada renglon de detalle cuando Registro_Fiscal contiene duplicados.
+        */
+        ;WITH RFClass AS
         (
+            -- Sumar_Envio=0 para C005/C006; en esas clases Monto_T3In ya contiene
+            -- el importe correspondiente y volverlo a sumar lo duplicaria.
             SELECT
-                CFD.Folio_Interno,
-                SUM(CFD.Factor * RFD.Cantidad_Vta
-                    * CASE
-                          WHEN Prod.Unidad_Med_Vta = 'CAJ' THEN ISNULL(Prod.Cig_x_CLL, 1)
-                          ELSE ISNULL(Prod.Cig_x_PAQ, 1)
-                      END) AS Cigarrillos,
-                MAX(CASE WHEN RF.Tipo_Docto IN ('C005', 'C006') THEN 0 ELSE 1 END) AS Sumar_Envio,
+                RF.Factura,
+                MAX(CASE WHEN RF.Tipo_Docto IN ('C005', 'C006') THEN 0 ELSE 1 END) AS Sumar_Envio
+            FROM [T3].[Registro_Fiscal] AS RF
+            GROUP BY RF.Factura
+        ), Fiscal AS
+        (
+            /*
+                Convierte Cantidad_Vta a cigarrillos:
+                CAJ usa Cig_x_CLL y las demas presentaciones Cig_x_PAQ.
+                Si la conversion no existe, se usa 1 para no perder cantidad.
+            */
+            SELECT
+                RFD.Factura,
+                SUM(RFD.Cantidad_Vta *
+                    CASE WHEN M.Unidad_Med_Vta = 'CAJ'
+                         THEN ISNULL(M.Cig_x_CLL, 1)
+                         ELSE ISNULL(M.Cig_x_PAQ, 1) END) AS Cigarrillos,
+                MAX(RF.Sumar_Envio) AS Sumar_Envio,
                 SUM(ISNULL(RFD.Envio_Subt, 0)) AS Envio_Subt,
                 SUM(ISNULL(RFD.Envio_IVA, 0)) AS Envio_IVA,
                 SUM(ISNULL(RFD.Credito_Subt, 0)) AS Credito_Subt,
                 SUM(ISNULL(RFD.Credito_IVA, 0)) AS Credito_IVA
-            FROM EAI.CFDI_Informe AS CFD
-            INNER JOIN T3.Registro_Fiscal AS RF
-                ON CFD.Folio_Interno = RF.Factura
-            INNER JOIN T3.Registro_Fiscal_Detalle AS RFD
-                ON CFD.Folio_Interno = RFD.Factura
-            INNER JOIN T3.Material AS Prod
-                ON RFD.Material = Prod.Material
-            GROUP BY CFD.Folio_Interno
-        ) AS Cig
-            ON Info.Folio_Interno = Cig.Folio_Interno;
+            FROM [T3].[Registro_Fiscal_Detalle] AS RFD
+            INNER JOIN RFClass AS RF ON RF.Factura = RFD.Factura
+            INNER JOIN [T3].[Material] AS M ON M.Material = RFD.Material
+            GROUP BY RFD.Factura
+        )
+        -- El signo de Info.Factor se aplica al volumen y a cada importe.
+        UPDATE Info
+           SET Cigarrillos = Info.Factor * F.Cigarrillos,
+               Envio_Subt = Info.Factor * F.Envio_Subt,
+               Envio_IVA = Info.Factor * F.Envio_IVA,
+               Credito_Subt = Info.Factor * F.Credito_Subt,
+               Credito_IVA = Info.Factor * F.Credito_IVA,
+               Monto_T3In = Info.Monto_T3In
+                   + Info.Factor * (F.Envio_Subt + F.Envio_IVA
+                     + F.Credito_Subt + F.Credito_IVA) * F.Sumar_Envio
+        FROM [EAI].[CFDI_INFORME] AS Info
+        INNER JOIN Fiscal AS F ON F.Factura = Info.Folio_Interno;
 
-        SET @nCount = @@ROWCOUNT;
-        PRINT CONVERT(VARCHAR(8), GETDATE(), 112) + ' ' + CONVERT(VARCHAR(8), GETDATE(), 108);
-        PRINT 'Actualizados : ' + CAST(@nCount AS VARCHAR(20));
-        PRINT '-----------------------------';
-
+        -------------------------------------------------------------------
+        -- 7. Volumen e importes fiscales de documentos agrupados
+        -------------------------------------------------------------------
         SET @v_ID = 'ScrCIG_Agrupado';
 
-        UPDATE Info
-           SET Cigarrillos = Cig.Cigarrillos,
-               Envio_Subt = Info.Factor * Cig.Envio_Subt,
-               Envio_IVA = Info.Factor * Cig.Envio_IVA,
-               Credito_Subt = Info.Factor * Cig.Credito_Subt,
-               Credito_IVA = Info.Factor * Cig.Credito_IVA
-        FROM EAI.CFDI_Informe AS Info
-        INNER JOIN
+        /*
+            Es el equivalente del bloque anterior para el detalle agrupado.
+            En este caso no se modifica Monto_T3In: ya fue calculado sumando las
+            facturas de origen en MontoOrigen.
+        */
+
+        ;WITH AgrupadoValido AS
+        (
+            SELECT DISTINCT Nota_Venta_CFDI
+            FROM [T3].[CFDI_Agrupado]
+        ), Fiscal AS
         (
             SELECT
-                CFD.Folio_Interno,
-                SUM(CFD.Factor * RFD.Cantidad_Vta
-                    * CASE
-                          WHEN Prod.Unidad_Med_Vta = 'CAJ' THEN ISNULL(Prod.Cig_x_CLL, 1)
-                          ELSE ISNULL(Prod.Cig_x_PAQ, 1)
-                      END) AS Cigarrillos,
-                SUM(ISNULL(RFD.Envio_Subt, 0)) AS Envio_Subt,
-                SUM(ISNULL(RFD.Envio_IVA, 0)) AS Envio_IVA,
-                SUM(ISNULL(RFD.Credito_Subt, 0)) AS Credito_Subt,
-                SUM(ISNULL(RFD.Credito_IVA, 0)) AS Credito_IVA
-            FROM EAI.CFDI_Informe AS CFD
-            INNER JOIN T3.CFDI_Agrupado AS RF
-                ON CFD.Folio_Interno = RF.Nota_Venta_CFDI
-            INNER JOIN T3.CFDI_Agrupado_Detalle AS RFD
-                ON CFD.Folio_Interno = RFD.Nota_Venta_CFDI
-            INNER JOIN T3.Material AS Prod
-                ON RFD.Material = Prod.Material
-            GROUP BY CFD.Folio_Interno
-        ) AS Cig
-            ON Info.Folio_Interno = Cig.Folio_Interno;
-
-        SET @nCount = @@ROWCOUNT;
-        PRINT CONVERT(VARCHAR(8), GETDATE(), 112) + ' ' + CONVERT(VARCHAR(8), GETDATE(), 108);
-        PRINT 'Actualizados : ' + CAST(@nCount AS VARCHAR(20));
-        PRINT '-----------------------------';
-
-        SET @v_ID = 'ScrComplementoAGR';
-
-        WITH LpAgr AS
-        (
-            SELECT
-                SourceLp.Nota_Venta_CFDI,
-                MAX(Grupo_Precio) AS Grupo_Precio
-            FROM
-            (
-                SELECT HDP.Nota_Venta_CFDI, Doc.Grupo_Precio
-                FROM T3.CFDI_Historia_Docto_PAC AS HDP
-                INNER JOIN T3.Fact_T3 AS Doc
-                    ON HDP.Nota_Venta = Doc.Factura
-                UNION ALL
-                SELECT HDP.Nota_Venta_CFDI, Doc.Grupo_Precio
-                FROM T3.CFDI_Historia_Docto_PAC AS HDP
-                INNER JOIN T3.Nota_T3 AS Doc
-                    ON HDP.Nota_Venta = Doc.Factura
-            ) AS SourceLp
-            GROUP BY SourceLp.Nota_Venta_CFDI
+                D.Nota_Venta_CFDI,
+                SUM(D.Cantidad_Vta *
+                    CASE WHEN M.Unidad_Med_Vta = 'CAJ'
+                         THEN ISNULL(M.Cig_x_CLL, 1)
+                         ELSE ISNULL(M.Cig_x_PAQ, 1) END) AS Cigarrillos,
+                SUM(ISNULL(D.Envio_Subt, 0)) AS Envio_Subt,
+                SUM(ISNULL(D.Envio_IVA, 0)) AS Envio_IVA,
+                SUM(ISNULL(D.Credito_Subt, 0)) AS Credito_Subt,
+                SUM(ISNULL(D.Credito_IVA, 0)) AS Credito_IVA
+            FROM [T3].[CFDI_Agrupado_Detalle] AS D
+            INNER JOIN AgrupadoValido AS A ON A.Nota_Venta_CFDI = D.Nota_Venta_CFDI
+            INNER JOIN [T3].[Material] AS M ON M.Material = D.Material
+            GROUP BY D.Nota_Venta_CFDI
         )
         UPDATE Info
-           SET LP = LpAgr.Grupo_Precio
-        FROM EAI.CFDI_Informe AS Info
-        INNER JOIN T3.CFDI_Agrupado AS Agr
-            ON Info.Folio_Interno = Agr.Nota_Venta_CFDI
-        INNER JOIN LpAgr
-            ON Info.Folio_Interno = LpAgr.Nota_Venta_CFDI
-        WHERE Info.LP IS NULL;
+           SET Cigarrillos = Info.Factor * F.Cigarrillos,
+               Envio_Subt = Info.Factor * F.Envio_Subt,
+               Envio_IVA = Info.Factor * F.Envio_IVA,
+               Credito_Subt = Info.Factor * F.Credito_Subt,
+               Credito_IVA = Info.Factor * F.Credito_IVA
+        FROM [EAI].[CFDI_INFORME] AS Info
+        INNER JOIN Fiscal AS F ON F.Nota_Venta_CFDI = Info.Folio_Interno;
 
-        SET @v_ID = 'ScrAgrupadoDiferencia';
+        -------------------------------------------------------------------
+        -- 8. Lista de precio para CFDI agrupados
+        -------------------------------------------------------------------
+        SET @v_ID = 'ScrComplementoAGR';
 
+        ;WITH ListaPrecio AS
+        (
+            /*
+                Un grupo puede contener facturas y notas. UNION ALL conserva
+                ambas fuentes y MAX devuelve un unico valor determinista para LP.
+            */
+            SELECT X.Nota_Venta_CFDI, MAX(X.Grupo_Precio) AS Grupo_Precio
+            FROM
+            (
+                SELECT H.Nota_Venta_CFDI, F.Grupo_Precio
+                FROM [T3].[CFDI_Historia_Docto_PAC] AS H
+                INNER JOIN [T3].[Fact_T3] AS F ON F.Factura = H.Nota_Venta
+                UNION ALL
+                SELECT H.Nota_Venta_CFDI, N.Grupo_Precio
+                FROM [T3].[CFDI_Historia_Docto_PAC] AS H
+                INNER JOIN [T3].[Nota_T3] AS N ON N.Factura = H.Nota_Venta
+            ) AS X
+            GROUP BY X.Nota_Venta_CFDI
+        )
+        -- Solo completa LP cuando la carga principal no encontro uno.
         UPDATE Info
-           SET Valor_IVA = Info.Valor_IVA + Dif.Ajuste,
-               Valor = Info.Valor + Dif.Ajuste
-        FROM EAI.CFDI_Informe AS Info
-        INNER JOIN T3.CFDI_Agrupado_DIF AS Dif
-            ON Info.Folio_Interno = Dif.Nota_Venta_CFDI
-        WHERE Info.Folio_Interno LIKE 'G-%'
-          AND Dif.Ajuste <> 0;
+           SET LP = L.Grupo_Precio
+        FROM [EAI].[CFDI_INFORME] AS Info
+        INNER JOIN ListaPrecio AS L ON L.Nota_Venta_CFDI = Info.Folio_Interno
+        WHERE Info.LP IS NULL
+          AND EXISTS
+          (
+              SELECT 1 FROM [T3].[CFDI_Agrupado] AS A
+              WHERE A.Nota_Venta_CFDI = Info.Folio_Interno
+          );
+
+        -------------------------------------------------------------------
+        -- 9. Ajustes fiscales y diferencias menores de centavos
+        -------------------------------------------------------------------
+        SET @v_ID = 'ScrDiferencias';
+
+        -- Oracle ejecuta dos cursores, pero ambos aplican exactamente el mismo
+        -- ajuste; una sola actualizacion cubre folios agrupados e individuales.
+        UPDATE Info
+           SET Valor_IVA = Info.Valor_IVA + D.Ajuste,
+               Valor = Info.Valor + D.Ajuste
+        FROM [EAI].[CFDI_INFORME] AS Info
+        INNER JOIN [T3].[CFDI_Agrupado_DIF] AS D
+            ON D.Nota_Venta_CFDI = Info.Folio_Interno
+        WHERE D.Ajuste <> 0;
 
         SET @nProceso4 = @@ROWCOUNT;
-
-        SET @v_ID = 'ScrIndividualDiferencia';
-
-        UPDATE Info
-           SET Valor_IVA = Info.Valor_IVA + Dif.Ajuste,
-               Valor = Info.Valor + Dif.Ajuste
-        FROM EAI.CFDI_Informe AS Info
-        INNER JOIN T3.CFDI_Agrupado_DIF AS Dif
-            ON Info.Folio_Interno = Dif.Nota_Venta_CFDI
-        WHERE Info.Folio_Interno NOT LIKE 'G-%'
-          AND Dif.Ajuste <> 0;
-
-        SET @nProceso4 = @nProceso4 + @@ROWCOUNT;
-
         SET @v_ID = 'ScrCentavos_CFD';
 
+        /*
+            Solo se corrigen diferencias menores a seis centavos. El ajuste se
+            resta del IVA y se conserva en Diferencia para que sea auditable.
+            Los folios G-* se excluyen porque ya usan el ajuste de agrupados.
+        */
         UPDATE Info
-           SET Valor_IVA = Info.Valor_IVA - Dif.Diferencia,
-               Valor = Info.Valor - Dif.Diferencia,
-               Diferencia = Dif.Diferencia
-        FROM EAI.CFDI_Informe AS Info
-        INNER JOIN
-        (
-            SELECT
-                CFD.Folio_Interno,
-                CFD.Valor - CFD.Monto_T3In AS Diferencia
-            FROM EAI.CFDI_Informe AS CFD
-            CROSS JOIN EAI.FC__Time_Window AS TW
-            WHERE CFD.Valor <> CFD.Monto_T3In
-              AND CFD.Folio_Interno NOT LIKE 'G-%'
-              AND ABS(CFD.Valor - CFD.Monto_T3In) < 0.06
-              AND CFD.Fecha >= TRY_CONVERT(DATE, TW.Start_Date, 103)
-        ) AS Dif
-            ON Info.Folio_Interno = Dif.Folio_Interno;
+           SET Valor_IVA = Info.Valor_IVA - (Info.Valor - Info.Monto_T3In),
+               Diferencia = Info.Valor - Info.Monto_T3In,
+               Valor = Info.Monto_T3In
+        FROM [EAI].[CFDI_INFORME] AS Info
+        WHERE Info.Valor <> Info.Monto_T3In
+          AND Info.Folio_Interno NOT LIKE 'G-%'
+          AND ABS(Info.Valor - Info.Monto_T3In) < 0.06
+          AND Info.Fecha >= @dVentana;
 
+        -------------------------------------------------------------------
+        -- 10. Addenda y normalizacion de documentos publicados
+        -------------------------------------------------------------------
         SET @v_ID = 'Updating Addenda';
 
-        UPDATE EAI.CFDI_Informe
-           SET Addenda = 'SI'
-         WHERE RFC IN (SELECT RFC FROM T3.CFDI_Addenda);
+        -- La tabla acaba de reconstruirse, por eso Addenda puede resolverse
+        -- completamente en un solo recorrido.
+        UPDATE Info
+           SET Addenda = CASE WHEN EXISTS
+               (SELECT 1 FROM [T3].[CFDI_Addenda] AS A WHERE A.RFC = Info.RFC)
+               THEN 'SI' ELSE 'NO' END
+        FROM [EAI].[CFDI_INFORME] AS Info;
 
-        UPDATE EAI.CFDI_Informe
-           SET Addenda = 'NO'
-         WHERE Addenda IS NULL;
-
-        UPDATE EAI.CFDI_Informe
+        -- Para PUBLICADO, T3 es el importe oficial del resumen.
+        UPDATE [EAI].[CFDI_INFORME]
            SET Valor = Monto_T3In
          WHERE Status = 'PUBLICADO'
            AND Valor <> Monto_T3In;
 
+        -------------------------------------------------------------------
+        -- 11. Ventas centralizadas y cierre de auditoria
+        -------------------------------------------------------------------
         SET @v_ID = 'ScrFactCentral';
 
-        UPDATE Bita
-           SET SF_Amount = Bita.SAP_Amount,
+        -- El LEFT JOIN a CFDI_Informe del original no participa en el resultado
+        -- y podia multiplicar coincidencias; se elimina sin cambiar la regla.
+        UPDATE B
+           SET SF_Amount = B.SAP_Amount,
                Origen = 'SAP'
-        FROM EAI.CFDI_Bitacora AS Bita
-        INNER JOIN EAI_OWNER.WA_VENTA_CENTRALIZADA AS Ctrl
-            ON Bita.Cliente_SAP = Ctrl.Cliente_SAP
-           AND Bita.Invc_dt BETWEEN Ctrl.Fecha_Ini_Vig AND Ctrl.Fecha_Fin_Vig
-        LEFT JOIN EAI.CFDI_Informe AS Info
-            ON Bita.Doc_Num = Info.Folio_Interno;
+        FROM [EAI].[CFDI_BITACORA] AS B
+        INNER JOIN [EAI_OWNER].[WA_VENTA_CENTRALIZADA] AS C
+            ON C.Cliente_SAP = B.Cliente_SAP
+           AND B.Invc_dt BETWEEN C.Fecha_Ini_Vig AND C.Fecha_Fin_Vig;
 
-        UPDATE Info
+        -- Propaga la misma fuente al resumen cuando existe el folio relacionado.
+        UPDATE I
            SET Origen = 'SAP'
-        FROM EAI.CFDI_Informe AS Info
-        INNER JOIN EAI.CFDI_Bitacora AS Bita
-            ON Info.Folio_Interno = Bita.Doc_Num
-        INNER JOIN EAI_OWNER.WA_VENTA_CENTRALIZADA AS Ctrl
-            ON Bita.Cliente_SAP = Ctrl.Cliente_SAP
-           AND Bita.Invc_dt BETWEEN Ctrl.Fecha_Ini_Vig AND Ctrl.Fecha_Fin_Vig;
+        FROM [EAI].[CFDI_INFORME] AS I
+        INNER JOIN [EAI].[CFDI_BITACORA] AS B
+            ON B.Doc_Num = I.Folio_Interno
+        INNER JOIN [EAI_OWNER].[WA_VENTA_CENTRALIZADA] AS C
+            ON C.Cliente_SAP = B.Cliente_SAP
+           AND B.Invc_dt BETWEEN C.Fecha_Ini_Vig AND C.Fecha_Fin_Vig;
 
-        UPDATE EAI.CONTROL_REPORTE
-           SET FIN = GETDATE()
-         WHERE REPORTE = 'BITACORA CFDI';
+        -- Cierra las marcas de monitoreo y guarda los contadores de esta corrida.
+        UPDATE [EAI].[CONTROL_REPORTE]
+           SET Fin = GETDATE()
+         WHERE Reporte = 'BITACORA CFDI';
 
-        UPDATE EAI_OWNER.MX_COMPONENTS
+        UPDATE [EAI_OWNER].[MX_COMPONENTS]
            SET Status = 1
          WHERE Component = @nProceso;
 
-        UPDATE T3.RF_PROCESOS_LOG
+        UPDATE [T3].[RF_PROCESOS_LOG]
            SET Fin = GETDATE(),
                Proceso_1 = @nProceso1,
                Proceso_2 = @nProceso2,
@@ -545,47 +631,33 @@ BEGIN
         PRINT 'Proceso completado exitosamente.';
     END TRY
     BEGIN CATCH
-        SET @sErrorCode = 'ERR-' + CAST(ERROR_NUMBER() AS VARCHAR(30));
-        SET @sMsg = SUBSTRING(CAST(ERROR_NUMBER() AS VARCHAR(10)) + '-' + ERROR_MESSAGE(), 1, 250);
+        /*
+            ERROR_NUMBER y ERROR_MESSAGE capturan el error real de SQL Server.
+            @v_ID ayuda a identificar que bloque estaba ejecutandose. LEFT limita
+            el texto al tamano de Siebel_Error_Message.
+        */
+        SET @sErrorCode = 'ERR-' + CONVERT(VARCHAR(30), ERROR_NUMBER());
+        SET @sMsg = LEFT(CONVERT(VARCHAR(10), ERROR_NUMBER()) + '-' + ERROR_MESSAGE(), 250);
         SET @v_ID = ISNULL(@v_ID, 'Unknown');
 
-        INSERT INTO EAI_OWNER.MX_EAI_MESSAGE_LOG
+        INSERT INTO [EAI_OWNER].[MX_EAI_MESSAGE_LOG]
         (
-            DIRECTION,
-            REFERENCE,
-            CREATED,
-            MESSAGE,
-            JOB_PID,
-            STATUS,
-            QUEUE_NAME,
-            SIEBEL_ERROR_MESSAGE,
-            SOURCE,
-            SIEBEL_ERROR_CODE,
-            RETRY_COUNT,
-            SEQUENCE,
-            PARENT_ROW_ID
+            Direction, Reference, Created, Message, Job_PID, Status,
+            Queue_Name, Siebel_Error_Message, Source, Siebel_Error_Code,
+            Retry_Count, [Sequence], Parent_Row_ID
         )
         VALUES
         (
-            'Job Logging',
-            @v_ID,
-            GETDATE(),
-            NULL,
-            @nPID,
-            'Error',
-            'SF_BITACORA_CFDI_RESUMEN',
-            @sMsg,
-            'T-SQL',
-            @sErrorCode,
-            NULL,
-            NULL,
-            NULL
+            'Job Logging', @v_ID, GETDATE(), NULL, @nPID, 'Error',
+            'SF_BITACORA_CFDI_RESUMEN', @sMsg, 'T-SQL', @sErrorCode,
+            NULL, NULL, NULL
         );
 
         PRINT '*********** Mensaje ************************';
-        PRINT '****** Error en BITACORA_CFDI_RESUMEN ***** ';
+        PRINT '*** Error en BITACORA_CFDI_RESUMEN_OPTIMIZADO ***';
         PRINT @sMsg;
 
+        -- SQL Agent debe recibir el error para marcar correctamente el job.
         THROW;
     END CATCH;
 END;

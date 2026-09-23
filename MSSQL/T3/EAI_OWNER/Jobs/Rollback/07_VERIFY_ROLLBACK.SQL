@@ -26,6 +26,10 @@ IF EXISTS (SELECT 1 FROM msdb.sys.procedures
            WHERE name=N'T3_JOB_NEXT_RUN' AND schema_id=SCHEMA_ID(N'dbo'))
     INSERT @Problems VALUES (N'Wrapper', N'Aun existe msdb.dbo.T3_JOB_NEXT_RUN.');
 
+IF EXISTS (SELECT 1 FROM msdb.sys.procedures
+           WHERE name=N'T3_ADD_JOB_EXECUTORS' AND schema_id=SCHEMA_ID(N'dbo'))
+    INSERT @Problems VALUES (N'Helper de altas', N'Aun existe msdb.dbo.T3_ADD_JOB_EXECUTORS.');
+
 IF EXISTS (SELECT 1 FROM msdb.sys.database_principals WHERE name=N'T3JobExecutors')
     INSERT @Problems VALUES (N'Rol msdb', N'Aun existe msdb.T3JobExecutors.');
 

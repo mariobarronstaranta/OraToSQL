@@ -1,0 +1,12 @@
+SET NLS_LANG=AMERICAN_AMERICA.WE8ISO8859P1
+Rem Loading to input Table.
+sqlldr userid=EAI/ACS4EAISCH@LEGDB_PRD control=E:\IntegrationToolBox\Venta\CONTROL.ctl log=process.log
+Rem Add to Aggregation Table.
+sqlplus EAI/ACS4EAISCH@LEGDB_PRD @E:\IntegrationToolBox\Venta\moveDailyInfo.sql
+Rem Backup processed File.
+echo f |xcopy factura.ready.doc factura.processed.%date:~-4%%date:~3,2%%date:~0,2%.doc
+move /y factura.processed.%date:~-4%%date:~3,2%%date:~0,2%.doc processed
+Rem Ending Sales-Information load up proccess
+Rem Start CControl calcualtions.
+Rem Please Start CControl calcualtions manually.
+Rem Finished CControl calcualtions.

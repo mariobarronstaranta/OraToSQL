@@ -1,265 +1,248 @@
-CREATE OR ALTER PROCEDURE EAI.CCEA_DATA_SALE
+/*
+    Procedure : EAI.CCEA_DATA_SALE_OPTIMIZADO
+    Objetivo  : Reconstruir EAI.CC_DATA_SALE para el modulo Cifras Control,
+                conciliando importes de T3, PAC y documentos SAP sin origen T3.
+
+    Guia para desarrolladores JR:
+    - La carga es completa: CC_DATA_SALE se vacia con TRUNCATE y se reconstruye.
+    - Primera carga: documentos existentes en CFDI_BITACORA (fuente T3/PAC).
+    - Segunda carga: documentos SAP que todavia no existen como factura o
+      preventa en T3.
+    - Las fechas del destino son VARCHAR con formato ISO YYYY-MM-DD.
+    - Este archivo crea una version paralela; no reemplaza el original.
+
+    Alias frecuentes:
+    - B   = CFDI_BITACORA, origen operativo T3.
+    - I   = CFDI_INFORME, datos fiscales confirmados por el PAC.
+    - SAP = T3R_Sales_Docs_Old, documentos provenientes de SAP.
+*/
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
+
+CREATE OR ALTER PROCEDURE [EAI].[CCEA_DATA_SALE]
 AS
 BEGIN
     SET NOCOUNT ON;
+    SET XACT_ABORT ON;
 
     DECLARE
-        @v_ID         VARCHAR(50),
-        @sMsg         VARCHAR(500),
-        @sErrorCode   VARCHAR(20),
-        @nPID         BIGINT,
-        @nProceso     INT = 702,
-        @nProceso3    INT = 0,
-        @nProceso4    INT = 0;
+        @v_ID          VARCHAR(50) = 'Inicio',
+        @sMsg          VARCHAR(500),
+        @sErrorCode    VARCHAR(20),
+        @nPID          BIGINT,
+        @nProceso      INT = 702,
+        @nProceso3     INT = 0,
+        @nProceso4     INT = 0,
+        @dVentana      DATE,
+        @dFechaMinima  DATE = CONVERT(DATE, '20200921', 112),
+        @dFechaInicio  DATE,
+        @dHoy          DATE = CONVERT(DATE, GETDATE());
 
     BEGIN TRY
+        -------------------------------------------------------------------
+        -- 1. Validar la ventana antes de vaciar la tabla destino
+        -------------------------------------------------------------------
+        -- Start_Date esta configurada como texto DD/MM/YYYY (estilo 103).
+        SELECT @dVentana = TRY_CONVERT(DATE, TW.Start_Date, 103)
+        FROM [EAI].[FC__TIME_WINDOW] AS TW;
 
-        SET @nPID = NEXT VALUE FOR EAI_OWNER.ProcessID;
+        IF @dVentana IS NULL
+            THROW 54601, 'FC__TIME_WINDOW.Start_Date no contiene una fecha DD/MM/YYYY valida.', 1;
 
-        EXEC EAI_OWNER.Log_Start @nProceso;
+        -- Nunca se cargan datos anteriores al inicio historico 21/09/2020.
+        SET @dFechaInicio = CASE WHEN @dVentana > @dFechaMinima
+                                 THEN @dVentana ELSE @dFechaMinima END;
 
-        INSERT INTO T3.RF_PROCESOS_LOG
-        (
-            PID,
-            Proceso,
-            Fecha_Proc_BATMD,
-            Inicio
-        )
+        -------------------------------------------------------------------
+        -- 2. Abrir auditoria del componente 702
+        -------------------------------------------------------------------
+        SET @nPID = NEXT VALUE FOR [EAI_OWNER].[ProcessID];
+        EXEC [EAI_OWNER].[Log_Start] @nProceso;
+
+        INSERT INTO [T3].[RF_PROCESOS_LOG]
+            (PID, Proceso, Fecha_Proc_BATMD, Inicio)
         VALUES
+            (@nPID, @nProceso, NULL, GETDATE());
+
+        SET @v_ID = 'Inicializar CC_DATA_SALE';
+
+        -- El proceso publica una fotografia completa, no una carga incremental.
+        TRUNCATE TABLE [EAI].[CC_DATA_SALE];
+
+        -------------------------------------------------------------------
+        -- 3. Carga principal desde CFDI_BITACORA
+        -------------------------------------------------------------------
+        SET @v_ID = 'Carga T3 y PAC';
+
+        /*
+            Informe reduce CFDI_INFORME a una fila por folio. Esto evita que una
+            anomalia duplicada multiplique ventas en el archivo de Cifras Control.
+            En datos normales MAX devuelve exactamente el valor de la unica fila.
+        */
+        ;WITH Informe AS
         (
-            @nPID,
-            @nProceso,
-            NULL,
-            GETDATE()
-        );
-
-        TRUNCATE TABLE EAI.CC_DATA_SALE;
-
-        ------------------------------------------------------------------
-        -- Carga principal
-        ------------------------------------------------------------------
-
-        INSERT INTO EAI.CC_DATA_SALE
+            SELECT
+                I.Folio_Interno,
+                MAX(I.Folio_Fiscal) AS Folio_Fiscal,
+                MAX(I.Valor_Subt) AS Valor_Subt,
+                MAX(I.Valor_IVA) AS Valor_IVA
+            FROM [EAI].[CFDI_INFORME] AS I
+            GROUP BY I.Folio_Interno
+        )
+        INSERT INTO [EAI].[CC_DATA_SALE]
         (
-            PLANT,
-            INVOICE_DATE,
-            DOCUMENT_TYPE,
-            SAP_CUSTOMER,
-            SFDC_REFERENCE,
-            SAP_ORDER_NUMBER,
-            PAC_ORDER_NUMBER,
-            SAP_SALES_AMOUNT,
-            T3_SALES_AMOUNT,
-            PAC_SALES_AMOUNT,
-            PAC_FISCAL_UUID,
-            TERRITORY
+            Plant, Invoice_Date, Document_Type, SAP_Customer,
+            SFDC_Reference, SAP_Order_Number, PAC_Order_Number,
+            SAP_Sales_Amount, T3_Sales_Amount, PAC_Sales_Amount,
+            PAC_Fiscal_UUID, Territory
         )
         SELECT
             B.Ctro,
-
-            -- INVOICE_DATE es VARCHAR(30) en la tabla destino. El estilo 23
-            -- convierte el DATETIME2 de origen a texto con formato
-            -- YYYY-MM-DD, sin depender del idioma o formato de la sesion.
             CONVERT(VARCHAR(10), B.Invc_dt, 23),
-
-            CASE
-                WHEN PG.Entrega IS NULL THEN 'Prompt'
-                ELSE 'Presales'
-            END,
+            CASE WHEN EXISTS
+                 (
+                     SELECT 1
+                     FROM [T3].[Preventa_General] AS PG
+                     WHERE PG.Factura = B.Doc_Num
+                       -- Oracle clasifica como preventa solo si existe Entrega.
+                       AND PG.Entrega IS NOT NULL
+                 )
+                 THEN 'Presales' ELSE 'Prompt' END,
             B.Cliente_SAP,
             LTRIM(RTRIM(B.Doc_Num)),
             LTRIM(RTRIM(B.Doc_Num)),
             LTRIM(RTRIM(B.Nota_Venta_CFDI)),
-            CAST(
-                (
-                    B.Valor_Subt +
-                    B.Valor_IVA +
-                    B.Envio_Subt +
-                    B.Envio_IVA +
-                    B.Credito_Subt +
-                    B.Credito_IVA
-                ) AS VARCHAR(30)
-            ),
-            CAST(
-                (
-                    B.Valor_Subt +
-                    B.Valor_IVA +
-                    B.Envio_Subt +
-                    B.Envio_IVA +
-                    B.Credito_Subt +
-                    B.Credito_IVA
-                ) AS VARCHAR(30)
-            ),
+            CONVERT(VARCHAR(30), A.Importe_T3),
+            CONVERT(VARCHAR(30), A.Importe_T3),
             CASE
-                WHEN B.Doc_Num = B.Nota_Venta_CFDI
-                     AND I.Folio_Fiscal IS NOT NULL
-                THEN CAST(I.Valor_Subt + I.Valor_IVA AS VARCHAR(30))
-
-                WHEN LEFT(B.Nota_Venta_CFDI,2) = 'G-'
-                THEN CAST(
-                        B.Valor_Subt +
-                        B.Valor_IVA +
-                        B.Envio_Subt +
-                        B.Envio_IVA +
-                        B.Credito_Subt +
-                        B.Credito_IVA
-                     AS VARCHAR(30))
+                -- Individual timbrado: usar subtotal e IVA reportados por PAC.
+                WHEN B.Doc_Num = B.Nota_Venta_CFDI AND I.Folio_Fiscal IS NOT NULL
+                    THEN CONVERT(VARCHAR(30), I.Valor_Subt + I.Valor_IVA)
+                -- Agrupado G-: Oracle utiliza el importe operativo de T3.
+                WHEN LEFT(B.Nota_Venta_CFDI, 2) = 'G-'
+                    THEN CONVERT(VARCHAR(30), A.Importe_T3)
                 ELSE '0'
             END,
-            I.Folio_Fiscal,
+            LTRIM(RTRIM(I.Folio_Fiscal)),
             '0000'
-        FROM EAI.CFDI_Bitacora B
-        LEFT JOIN T3.Preventa_General PG
-            ON B.Doc_Num = PG.Factura
-        LEFT JOIN EAI.CFDI_Informe I
-            ON B.Nota_Venta_CFDI = I.Folio_Interno
-        CROSS JOIN EAI.FC__TIME_WINDOW TW
-
-        -- Invc_dt es DATETIME2. Se convierte a DATE en los filtros para
-        -- comparar solamente el dia e ignorar la hora del movimiento.
-        -- Start_Date es texto con formato DD/MM/YYYY (estilo 103).
-        WHERE CAST(B.Invc_dt AS DATE)
-              >= CONVERT(DATE,TW.Start_Date,103)
-          AND CAST(B.Invc_dt AS DATE)
-              < CAST(GETDATE() AS DATE)
-
-          -- La fecha fija se convierte explicitamente con el estilo 112
-          -- (YYYYMMDD), evitando una conversion implicita de texto a fecha.
-          AND B.Invc_dt >= CONVERT(DATE, '20200921', 112)
+        FROM [EAI].[CFDI_BITACORA] AS B
+        LEFT JOIN Informe AS I ON I.Folio_Interno = B.Nota_Venta_CFDI
+        CROSS APPLY
+        (
+            /*
+                Oracle permite credito NULL tratandolo como cero. Los valores
+                base y de envio conservan su comportamiento original.
+            */
+            VALUES
+            (
+                B.Valor_Subt + B.Valor_IVA + B.Envio_Subt + B.Envio_IVA
+                + ISNULL(B.Credito_Subt, 0) + ISNULL(B.Credito_IVA, 0)
+            )
+        ) AS A(Importe_T3)
+        WHERE B.Invc_dt >= @dFechaInicio
+          AND B.Invc_dt < @dHoy
+          -- Ambas exclusiones existen en el procedimiento Oracle.
+          AND B.Doc_Num NOT LIKE 'CONEC%'
           AND B.Doc_Num NOT LIKE 'DESC-%';
 
         SET @nProceso4 = @@ROWCOUNT;
 
-        ------------------------------------------------------------------
-        -- Segunda carga
-        ------------------------------------------------------------------
+        -------------------------------------------------------------------
+        -- 4. Carga de documentos SAP que no tienen documento T3
+        -------------------------------------------------------------------
+        SET @v_ID = 'Carga exclusiva SAP';
 
-        INSERT INTO EAI.CC_DATA_SALE
+        /*
+            Factura_General y Preventa_General solo se usaban para decidir si el
+            documento ya existe en T3. NOT EXISTS expresa esa intencion, evita
+            duplicados y permite busquedas directas por Entrega.
+        */
+        INSERT INTO [EAI].[CC_DATA_SALE]
         (
-            PLANT,
-            INVOICE_DATE,
-            DOCUMENT_TYPE,
-            SAP_CUSTOMER,
-            SFDC_REFERENCE,
-            SAP_ORDER_NUMBER,
-            PAC_ORDER_NUMBER,
-            SAP_SALES_AMOUNT,
-            T3_SALES_AMOUNT,
-            PAC_SALES_AMOUNT,
-            PAC_FISCAL_UUID,
-            TERRITORY
+            Plant, Invoice_Date, Document_Type, SAP_Customer,
+            SFDC_Reference, SAP_Order_Number, PAC_Order_Number,
+            SAP_Sales_Amount, T3_Sales_Amount, PAC_Sales_Amount,
+            PAC_Fiscal_UUID, Territory
         )
         SELECT
-            Info.Distributor,
-            Info.Doc_Date_Str,
+            SAP.Distributor,
+            CONVERT(VARCHAR(10), D.Doc_Date, 23),
             'Prompt',
-            RIGHT('0000000000' + Info.Customer,10),
-            Info.Doc_Num_Ref2,
-            Info.Doc_Num_Ref2,
+            RIGHT('0000000000' + SAP.Customer, 10),
+            SAP.Doc_Num_Ref2,
+            SAP.Doc_Num_Ref2,
             '',
-            Info.Amount,
+            SAP.Doc_NetAmt + SAP.Doc_TaxAmt,
             '0',
             '0',
             '',
             '0000'
-        FROM
-        (
-            SELECT
-                SAP.Distributor,
-                SAP.Doc_Num_Ref2,
-                SAP.Customer,
-                (SAP.Doc_NetAmt + SAP.Doc_TaxAmt) Amount,
-
-                -- CC_DATA_SALE.INVOICE_DATE recibe texto YYYY-MM-DD. La fecha
-                -- ya fue validada en Parsed y el estilo 23 genera ese formato.
-                CONVERT(VARCHAR(10), Parsed.Doc_Date, 23) Doc_Date_Str,
-
-                CASE
-                    WHEN FG.Entrega IS NOT NULL THEN 'Prompt'
-                    WHEN PG.Entrega IS NOT NULL THEN 'Presale'
-                    ELSE NULL
-                END Tipo_Documento
-            FROM EAI.T3R_Sales_Docs_Old SAP
-            LEFT JOIN T3.Factura_General FG
-                ON SAP.Doc_Num_R3 = FG.Entrega
-            LEFT JOIN T3.Preventa_General PG
-                ON SAP.Doc_Num_R3 = PG.Entrega
-            CROSS JOIN EAI.FC__TIME_WINDOW TW
-
-            -- SAP.Doc_Date es VARCHAR(8) y debe contener YYYYMMDD (estilo
-            -- 112). TRY_CONVERT devuelve NULL si el dato no es una fecha
-            -- valida, evitando que un solo registro detenga el procedimiento.
-            CROSS APPLY
-            (
-                VALUES (TRY_CONVERT(DATE, SAP.Doc_Date, 112))
-            ) Parsed (Doc_Date)
-
-            -- Las comparaciones se realizan entre valores DATE y no entre
-            -- cadenas. Los valores invalidos son NULL y no pasan el filtro.
-            WHERE Parsed.Doc_Date >= CONVERT(DATE,TW.Start_Date,103)
-              AND Parsed.Doc_Date >= CONVERT(DATE, '20200921', 112)
-              AND SAP.Doc_Status = 'C'
-              AND SAP.Customer NOT IN
-              (
-                  SELECT Target
-                  FROM EAI_OWNER.MX_HashTable
-                  WHERE Type = 'CifrasControl'
-                  AND Source = 'Discarding Customer'
-              )
-        ) Info
-        WHERE Info.Tipo_Documento IS NULL;
+        FROM [EAI].[T3R_Sales_Docs_Old] AS SAP
+        -- Doc_Date es VARCHAR YYYYMMDD. Una fecha invalida produce NULL y se excluye.
+        CROSS APPLY (VALUES (TRY_CONVERT(DATE, SAP.Doc_Date, 112))) AS D(Doc_Date)
+        WHERE D.Doc_Date >= @dFechaInicio
+          AND SAP.Doc_Status = 'C'
+          AND NOT EXISTS
+          (
+              SELECT 1 FROM [T3].[Factura_General] AS FG
+              WHERE FG.Entrega = SAP.Doc_Num_R3
+          )
+          AND NOT EXISTS
+          (
+              SELECT 1 FROM [T3].[Preventa_General] AS PG
+              WHERE PG.Entrega = SAP.Doc_Num_R3
+          )
+          /*
+              Se conserva NOT IN porque reproduce exactamente la regla Oracle.
+              El catalogo MX_HashTable no debe contener Target NULL para este tipo.
+          */
+          AND SAP.Customer NOT IN
+          (
+              SELECT H.Target
+              FROM [EAI_OWNER].[MX_HashTable] AS H
+              WHERE H.Type = 'CifrasControl'
+                AND H.Source = 'Discarding Customer'
+          );
 
         SET @nProceso3 = @@ROWCOUNT;
 
-        UPDATE EAI_OWNER.MX_COMPONENTS
+        -------------------------------------------------------------------
+        -- 5. Cerrar auditoria
+        -------------------------------------------------------------------
+        UPDATE [EAI_OWNER].[MX_COMPONENTS]
            SET Status = 1
-        WHERE Component = @nProceso;
+         WHERE Component = @nProceso;
 
-        UPDATE T3.RF_PROCESOS_LOG
+        UPDATE [T3].[RF_PROCESOS_LOG]
            SET Fin = GETDATE(),
                Proceso_1 = 0,
                Proceso_2 = 0,
                Proceso_3 = @nProceso3,
                Proceso_4 = @nProceso4
-        WHERE PID = @nPID;
-
+         WHERE PID = @nPID;
     END TRY
     BEGIN CATCH
+        /*
+            @v_ID indica la etapa que fallo. THROW propaga el error para que el
+            caller pueda detectar que la fotografia quedo incompleta.
+        */
+        SET @sErrorCode = CONCAT('SQL-', ERROR_NUMBER());
+        SET @sMsg = LEFT(ERROR_MESSAGE(), 250);
 
-        SET @sErrorCode =
-            CONCAT('SQL-',ERROR_NUMBER());
-
-        SET @sMsg =
-            LEFT(ERROR_MESSAGE(),250);
-
-        INSERT INTO EAI_OWNER.MX_EAI_MESSAGE_LOG
+        INSERT INTO [EAI_OWNER].[MX_EAI_MESSAGE_LOG]
         (
-            DIRECTION,
-            ID,
-            CREATED,
-            MESSAGE,
-            JOB_PID,
-            STATUS,
-            QUEUE_NAME,
-            SIEBEL_ERROR_MESSAGE,
-            SOURCE,
-            SIEBEL_ERROR_CODE
+            Direction, ID, Created, Message, Job_PID, Status,
+            Queue_Name, Siebel_Error_Message, Source, Siebel_Error_Code
         )
         VALUES
         (
-            'Job Logging',
-            @v_ID,
-            GETDATE(),
-            NULL,
-            @nPID,
-            'Error',
-            'CCEA_DATA_SALE_1',
-            @sMsg,
-            'TSQL',
-            @sErrorCode
+            'Job Logging', @v_ID, GETDATE(), NULL, @nPID, 'Error',
+            'CCEA_DATA_SALE_1', @sMsg, 'TSQL', @sErrorCode
         );
 
         THROW;
-    END CATCH
+    END CATCH;
 END;
 GO

@@ -9,7 +9,8 @@ Esta carpeta contiene la migración de 37 procesos programados de Oracle
 - Por qué los jobs no deben pertenecer a una cuenta personal.
 - Qué hace el login técnico `T3_SQLAGENT_OWNER`.
 - Qué permisos reciben los desarrolladores y cuáles no deben recibir.
-- Para qué sirven los scripts `A` a `E` y `00` a `04`.
+- Para qué sirven los scripts `A` a `E`, `00` a `04` y la secuencia completa
+  de rollback.
 - En qué orden deben ejecutarse.
 - Cómo validar el despliegue y resolver los errores más comunes.
 - Cómo habilitar, deshabilitar o eliminar los jobs de forma segura.
@@ -22,7 +23,8 @@ administrando SQL Server Agent.
 - Si es la primera vez que trabajas con jobs, lee las secciones 2 a 5.
 - Si vas a desplegar, sigue las secciones 7 a 12 sin cambiar el orden.
 - Si recibiste un error, ve a la sección 19.
-- Si necesitas detener o eliminar jobs, revisa las secciones 13 y 14.
+- Si necesitas detener o eliminar jobs, revisa las secciones 13 y 14 y la guía
+  `Rollback/readme_rollbacl_jobs.md`.
 - Antes de liberar, completa la lista de la sección 21.
 
 ## 2. Resumen del ambiente
@@ -138,7 +140,7 @@ El script `C_SECURITY_REASSIGN_T3_JOB_OWNERS.SQL` corrige ambos propietarios.
 
 ## 4. Arquitectura funcional y de seguridad
 
-El flujo relevante para BOD es:
+El flujo relevante para BOD tiene una rama de suspensión y otra de reactivación:
 
 ```text
 Usuario del equipo
@@ -146,8 +148,9 @@ Usuario del equipo
     v
 T3.PROC_T3_BOD
     |
-    v
-EAI_OWNER.SF_JOB_MANAGE
+    +--> EAI_OWNER.SF_JOB_MANAGE 'Suspend'
+    |
+    +--> EAI_OWNER.SF_JOB_MANAGE_EOD 'Resume'
     |
     v
 EAI_OWNER.JOB_NEXT_RUN
@@ -160,8 +163,13 @@ msdb.dbo.T3_JOB_NEXT_RUN
     +--> msdb.dbo.sp_update_schedule
 ```
 
+`SF_JOB_MANAGE` procesa cinco jobs. La versión actual de `SF_JOB_MANAGE_EOD`
+reactiva tres de ellos: Intercompany, Delivery y Customer. Por ello no debe
+suponerse que BOD reactiva automáticamente los cinco jobs que suspendió.
+
 El usuario humano no recibe permiso directo sobre `sp_update_job` ni sobre
-`sp_update_schedule`. Sólo puede ejecutar el wrapper controlado.
+`sp_update_schedule`. Obtiene acceso a `PROC_T3_BOD` mediante
+`T3QA.T3BODExecutors` y al wrapper mediante `msdb.T3JobExecutors`.
 
 El wrapper:
 
@@ -207,8 +215,29 @@ Todos deben existir previamente como logins de servidor. El script crea sus
 usuarios en `msdb` y `T3QA` cuando sea necesario y los agrega a los roles
 controlados.
 
-Si se agrega otra persona, se añade una fila en `@TeamLogins` y se vuelve a
-ejecutar `D`. El script es idempotente: no duplica membresías existentes.
+La lista `@TeamLogins` del script `D` se utiliza para el aprovisionamiento
+inicial. Para altas posteriores no es necesario editar D: se instala una vez
+`D1_SECURITY_CREATE_MSDB_T3_ADD_JOB_EXECUTORS.SQL` y después el DBA llama a
+`msdb.dbo.T3_ADD_JOB_EXECUTORS` con los nuevos nombres separados por comas.
+
+Para varios operadores se recomienda registrar una sola vez un grupo de Active
+Directory, por ejemplo `DOMINIO\Operador_SQL_Jobs`, en lugar de administrar cada
+cuenta individualmente. Debe utilizarse el nombre exacto que aparece en
+`master.sys.server_principals`; un nombre local como `Operador_SQL_Jobs` sólo es
+válido si ése es realmente el nombre del login creado en SQL Server.
+
+Proceso de alta de un operador o grupo:
+
+1. El DBA crea o confirma el login de servidor.
+2. Confirma que el script D1 ya instaló `msdb.dbo.T3_ADD_JOB_EXECUTORS`.
+3. Ejecuta el procedimiento con los nombres separados por comas.
+4. Comprueba que cada principal aparezca en `msdb.T3JobExecutors` y
+   `T3QA.T3BODExecutors`.
+5. Se prueba `PROC_T3_BOD` con una ejecución controlada.
+
+La baja requiere retirarlo de ambos roles. No se debe borrar el login hasta
+confirmar que ninguna otra aplicación lo utiliza. Los operadores humanos no se
+agregan a `T3SqlAgentJobExecutor` ni a roles fijos de SQL Server Agent.
 
 ### 5.4 Permisos que no se deben conceder
 
@@ -228,7 +257,7 @@ No se debe:
 
 | Archivo | Función | Modifica estado |
 |---|---|---:|
-| `00_ROLLBACK_CREATE_OR_UPDATE_JOBS.SQL` | Elimina jobs, schedules y filas de control de la migración. | Sí, destructivo |
+| `00_ROLLBACK_CREATE_OR_UPDATE_JOBS.SQL` | Rollback legado y limitado: elimina jobs, schedules y filas de control, pero no revierte la seguridad. | Sí, destructivo |
 | `01_CREATE_OR_UPDATE_JOBS.SQL` | Crea/actualiza 37 jobs, schedules y tablas de control; deja jobs deshabilitados. | Sí |
 | `02_VALIDATE_JOBS.SQL` | Valida objetos, configuración, propietarios, permisos y dependencias. | No |
 | `03_ENABLE_VALIDATED_JOBS.SQL` | Habilita los 32 jobs que estaban activos en Oracle. | Sí |
@@ -242,6 +271,7 @@ No se debe:
 | `B_SECURITY_CREATE_MSDB_T3_JOB_NEXT_RUN.SQL` | `msdb` | Crea el wrapper de privilegio controlado. |
 | `C_SECURITY_REASSIGN_T3_JOB_OWNERS.SQL` | `msdb` | Reasigna los 37 jobs y schedules al login técnico. |
 | `D_SECURITY_GRANT_T3_JOB_EXECUTORS.SQL` | `msdb`, `T3QA` | Crea roles y agrega a los usuarios humanos autorizados. |
+| `D1_SECURITY_CREATE_MSDB_T3_ADD_JOB_EXECUTORS.SQL` | `msdb` | Crea el procedimiento reutilizable para altas posteriores mediante una lista CSV. |
 | `E_SECURITY_GRANT_T3_SQLAGENT_OWNER_EXECUTE.SQL` | `T3QA` | Concede al login técnico permisos mínimos sobre los entry points. |
 
 ### 6.3 Archivos de soporte
@@ -250,6 +280,7 @@ No se debe:
 |---|---|
 | `USER_JOBS_SOURCE.csv` | Inventario original exportado desde Oracle. |
 | `MSSQL/T3/EAI_OWNER/Procedures/JOB_NEXT_RUN.SQL` | Procedimiento funcional que llama al wrapper de `msdb`. |
+| `Rollback/readme_rollbacl_jobs.md` | Guía y orden obligatorio para revertir jobs, wrapper, roles, usuarios y login técnico. |
 
 ## 7. Prerrequisitos
 
@@ -260,7 +291,8 @@ Antes de ejecutar cualquier despliegue, confirmar:
 3. SQL Server Agent está instalado e iniciado.
 4. La ejecución no se hace en LocalDB; LocalDB no proporciona SQL Server Agent.
 5. El DBA dispone de una cuenta `sysadmin` para los scripts de seguridad.
-6. Los cuatro logins humanos existen en `master.sys.server_principals`.
+6. Todos los logins o grupos autorizados en `@TeamLogins` existen en
+   `master.sys.server_principals`.
 7. Los procedimientos requeridos por los 37 jobs están desplegados en `T3QA`.
 8. Existe el esquema `EAI_OWNER` en `T3QA`.
 
@@ -289,7 +321,9 @@ WHERE [name] IN
 ORDER BY [name];
 ```
 
-El resultado debe contener cuatro filas y `is_disabled` debe ser `0`.
+El resultado debe contener una fila por cada principal configurado y
+`is_disabled` debe ser `0`. Si se utiliza un grupo AD, agregar su nombre
+completo a la consulta.
 
 ## 8. Orden completo de despliegue
 
@@ -301,8 +335,9 @@ A
 -> B
 -> C
 -> D
--> E
+-> D1
 -> desplegar EAI_OWNER.JOB_NEXT_RUN
+-> E
 -> 02
 -> pruebas funcionales
 -> 03
@@ -315,16 +350,17 @@ A
 | 3 | `B_SECURITY_CREATE_MSDB_T3_JOB_NEXT_RUN.SQL` | DBA `sysadmin` | El script selecciona `msdb`. |
 | 4 | `C_SECURITY_REASSIGN_T3_JOB_OWNERS.SQL` | DBA `sysadmin` | El script selecciona `msdb`. |
 | 5 | `D_SECURITY_GRANT_T3_JOB_EXECUTORS.SQL` | DBA `sysadmin` | El script selecciona `msdb` y usa `T3QA`. |
-| 6 | `E_SECURITY_GRANT_T3_SQLAGENT_OWNER_EXECUTE.SQL` | DBA `sysadmin` o `db_owner` | El script selecciona `T3QA`. |
-| 7 | `MSSQL/T3/EAI_OWNER/Procedures/JOB_NEXT_RUN.SQL` | DBA/deployer | Seleccionar `T3QA`. |
-| 8 | `02_VALIDATE_JOBS.SQL` | `T3_SQLAGENT_OWNER` | Seleccionar `T3QA`. |
-| 9 | Pruebas funcionales | Equipo autorizado | Seleccionar `T3QA`. |
-| 10 | `03_ENABLE_VALIDATED_JOBS.SQL` | `T3_SQLAGENT_OWNER` | Seleccionar `T3QA`. |
+| 6 | `D1_SECURITY_CREATE_MSDB_T3_ADD_JOB_EXECUTORS.SQL` | DBA `sysadmin` | Instala en `msdb` el helper para altas futuras. |
+| 7 | `MSSQL/T3/EAI_OWNER/Procedures/JOB_NEXT_RUN.SQL` | DBA/deployer | Seleccionar `T3QA`; debe existir antes de ejecutar `E`. |
+| 8 | `E_SECURITY_GRANT_T3_SQLAGENT_OWNER_EXECUTE.SQL` | DBA `sysadmin` o `db_owner` | El script selecciona `T3QA`. |
+| 9 | `02_VALIDATE_JOBS.SQL` | `T3_SQLAGENT_OWNER` | Seleccionar `T3QA`. |
+| 10 | Pruebas funcionales | Equipo autorizado | Seleccionar `T3QA`. |
+| 11 | `03_ENABLE_VALIDATED_JOBS.SQL` | `T3_SQLAGENT_OWNER` | Seleccionar `T3QA`. |
 
 Para un ambiente donde `A` y `01` ya se ejecutaron, aplicar:
 
 ```text
-B -> C -> D -> E -> JOB_NEXT_RUN.SQL -> 02 -> pruebas
+B -> C -> D -> D1 -> JOB_NEXT_RUN.SQL -> E -> 02 -> pruebas
 ```
 
 No ejecutar `03` hasta obtener `PASS` en `02`.
@@ -468,43 +504,41 @@ T3BODExecutors
 El login `T3` debe existir como login de servidor. No basta con que exista un
 esquema o un usuario llamado `T3` dentro de `T3QA`.
 
-### Paso E: autorizar al propietario técnico
+#### Alta posterior mediante `T3_ADD_JOB_EXECUTORS`
 
-Archivo:
-
-```text
-E_SECURITY_GRANT_T3_SQLAGENT_OWNER_EXECUTE.SQL
-```
-
-Crea el rol:
+Primero se instala el procedimiento una sola vez:
 
 ```text
-T3QA.T3SqlAgentJobExecutor
+D1_SECURITY_CREATE_MSDB_T3_ADD_JOB_EXECUTORS.SQL
 ```
 
-Agrega únicamente a `T3_SQLAGENT_OWNER` y concede:
+Si el nuevo ejecutor es un login SQL llamado exactamente
+`Operador_SQL_Jobs`, el DBA ejecuta:
 
-- `EXECUTE` sobre los 37 procedimientos principales del catálogo.
-- `SELECT` y `UPDATE` sobre `Job_Oracle_SQLAgent_Map`.
-- `SELECT` sobre `Job_Oracle_Migration_Catalog`.
-- `VIEW DEFINITION` sobre `JOB_NEXT_RUN`, `PROC_T3_BOD` y `PROC_T3_EOD`.
-
-No agregar usuarios humanos a este rol.
-
-El script exige que los 37 procedimientos existan. Si falta alguno, devuelve
-`51504`, muestra `Missing_Procedure` y no concede permisos parciales.
-
-Los cinco entry points de `SF_JOB_MANAGE` están en:
-
-```text
-MSSQL/T3/EAI_OWNER/Package/RECV_REPLENISHMENT.SQL
-MSSQL/T3/EAI_OWNER/Package/RECV_INVOICE_INTERCOMPANY.SQL
-MSSQL/T3/EAI_OWNER/Package/RECV_PAYMENT.SQL
-MSSQL/T3/EAI_OWNER/Package/RECV_INVOICE.SQL
-MSSQL/T3/EAI_OWNER/Package/RECV_CUSTOMER.SQL
+```sql
+EXEC msdb.dbo.T3_ADD_JOB_EXECUTORS
+    @LoginNames = N'Operador_SQL_Jobs';
 ```
 
-### Desplegar `EAI_OWNER.JOB_NEXT_RUN`
+Para agregar varios logins o un grupo de Active Directory:
+
+```sql
+EXEC msdb.dbo.T3_ADD_JOB_EXECUTORS
+    @LoginNames =
+        N'IX85234150, AT85233588, DOMINIO\Operador_SQL_Jobs';
+```
+
+El procedimiento ignora espacios alrededor de la coma y elimina duplicados.
+Primero valida la lista completa y después realiza las altas en una transacción;
+si un login no existe, está deshabilitado o tiene un SID incompatible, no aplica
+altas parciales. La coma es el separador y no puede formar parte de un nombre.
+
+El resultado correcto contiene dos filas por principal: una para
+`msdb.T3JobExecutors` y otra para `T3QA.T3BODExecutors`. No es suficiente
+agregarlo únicamente al rol de `T3QA`, porque la cadena termina llamando al
+wrapper ubicado en `msdb`.
+
+### Desplegar `EAI_OWNER.JOB_NEXT_RUN` antes del paso E
 
 Archivo:
 
@@ -528,6 +562,46 @@ No debe contener llamadas directas desde `JOB_NEXT_RUN` a:
 ```text
 msdb.dbo.sp_update_job
 msdb.dbo.sp_update_schedule
+```
+
+### Paso E: autorizar al propietario técnico
+
+Archivo:
+
+```text
+E_SECURITY_GRANT_T3_SQLAGENT_OWNER_EXECUTE.SQL
+```
+
+Crea el rol `T3QA.T3SqlAgentJobExecutor`, agrega únicamente a
+`T3_SQLAGENT_OWNER` y concede:
+
+- `EXECUTE` sobre los 37 procedimientos principales del catálogo.
+- `SELECT` y `UPDATE` sobre `Job_Oracle_SQLAgent_Map`.
+- `SELECT` sobre `Job_Oracle_Migration_Catalog`.
+- `VIEW DEFINITION` sobre `JOB_NEXT_RUN`, `PROC_T3_BOD` y `PROC_T3_EOD`.
+
+No agregar usuarios humanos a este rol.
+
+Antes de ejecutar `E` deben existir:
+
+- Los 37 procedimientos principales incluidos en el catálogo.
+- `EAI_OWNER.JOB_NEXT_RUN`, ya actualizado para llamar al wrapper de `msdb`.
+- `T3.PROC_T3_BOD`.
+- `T3.PROC_T3_EOD`.
+
+Si falta un procedimiento del catálogo, el script devuelve `51504`, muestra
+`Missing_Procedure` y no concede permisos parciales. Si falta uno de los tres
+objetos usados por los `GRANT VIEW DEFINITION`, la transacción también falla y
+debe corregirse el despliegue antes de repetir `E`.
+
+Los cinco entry points de `SF_JOB_MANAGE` están en:
+
+```text
+MSSQL/T3/EAI_OWNER/Package/RECV_REPLENISHMENT.SQL
+MSSQL/T3/EAI_OWNER/Package/RECV_INVOICE_INTERCOMPANY.SQL
+MSSQL/T3/EAI_OWNER/Package/RECV_PAYMENT.SQL
+MSSQL/T3/EAI_OWNER/Package/RECV_INVOICE.SQL
+MSSQL/T3/EAI_OWNER/Package/RECV_CUSTOMER.SQL
 ```
 
 ## 10. Validación con `02_VALIDATE_JOBS.SQL`
@@ -575,12 +649,14 @@ Antes de habilitar jobs:
 
 1. Ejecutar `T3.PROC_T3_BOD` con uno de los usuarios autorizados.
 2. Confirmar que no aparezca un error de propietario de schedule.
-3. Comprobar que los cinco jobs cambien de estado durante Suspend/Resume.
-4. Confirmar que `Last_Update_User` registre al usuario llamador.
-5. Ejecutar cada `Step_Command` con parámetros controlados.
-6. Comparar resultados con Oracle.
-7. Revisar duración, bloqueos y concurrencia.
-8. Revisar SQL Server Agent Job History.
+3. Comprobar que `SF_JOB_MANAGE 'Suspend'` deshabilite los cinco jobs esperados.
+4. Comprobar por separado que `SF_JOB_MANAGE_EOD 'Resume'` reactive únicamente
+   Intercompany, Delivery y Customer según la implementación actual.
+5. Confirmar que `Last_Update_User` registre al usuario llamador.
+6. Ejecutar cada `Step_Command` con parámetros controlados.
+7. Comparar resultados con Oracle.
+8. Revisar duración, bloqueos y concurrencia.
+9. Revisar SQL Server Agent Job History.
 
 Consulta de estado de los cinco jobs controlados:
 
@@ -662,24 +738,40 @@ Al terminar, regresar `@ConfirmDisable` a `0`.
 
 ## 14. Rollback completo
 
-`00_ROLLBACK_CREATE_OR_UPDATE_JOBS.SQL` elimina:
+El rollback completo ya no consiste únicamente en ejecutar
+`00_ROLLBACK_CREATE_OR_UPDATE_JOBS.SQL`. Ese archivo se conserva como rollback
+legado y sólo elimina jobs, schedules y datos de control; no retira el wrapper,
+los roles ni el login técnico.
 
-- Los 37 jobs administrados.
-- Sus steps, historial y asociaciones.
-- Schedules exclusivos sin asociaciones.
-- Filas de las tablas de control.
-- Opcionalmente, tablas de control vacías.
+La secuencia vigente se encuentra en el directorio `Rollback` y debe ejecutarse
+en este orden:
 
-Es destructivo y debe ejecutarse únicamente con autorización del DBA.
+| Orden | Archivo | Propósito |
+|---:|---|---|
+| 0 | `Rollback/00_PREFLIGHT_ROLLBACK.SQL` | Comprueba el ambiente y detiene el proceso si hay jobs activos. |
+| 1 | `Rollback/01_DISABLE_MIGRATED_JOBS.SQL` | Deshabilita los 37 jobs para impedir nuevas ejecuciones. |
+| 2 | `Rollback/02_REMOVE_JOBS_SCHEDULES_AND_CONTROL.SQL` | Elimina jobs, schedules y datos de control. |
+| 3 | `Rollback/03_RESTORE_JOB_NEXT_RUN_PRE_SECURITY.SQL` | Restaura `EAI_OWNER.JOB_NEXT_RUN` a su versión previa. |
+| 4 | `Rollback/04_REMOVE_SECURITY_ROLES_AND_WRAPPER.SQL` | Elimina wrapper, helper de altas y roles controlados. |
+| 5 | `Rollback/05_DROP_T3_SQLAGENT_OWNER.SQL` | Elimina usuarios y login técnico, si no es compartido. |
+| 6 | `Rollback/06_OPTIONAL_REMOVE_HUMAN_DATABASE_USERS.SQL` | Opcionalmente elimina usuarios humanos sin dependencias. |
+| 7 | `Rollback/07_VERIFY_ROLLBACK.SQL` | Verifica que no queden componentes obligatorios. |
 
-Para conservar las tablas vacías:
+La explicación detallada está en
+[`Rollback/readme_rollbacl_jobs.md`](Rollback/readme_rollbacl_jobs.md).
 
-```sql
-DECLARE @DropEmptySupportTables BIT = 0;
-```
+Los pasos destructivos mantienen sus variables de confirmación en `0`. El DBA
+debe revisar cada archivo y cambiar a `1` únicamente la confirmación del paso
+que va a ejecutar. No se debe avanzar si el paso anterior produjo un error.
+
+El paso 5 se omite cuando `T3_SQLAGENT_OWNER` existía antes del proyecto o es
+utilizado por otra aplicación. El paso 6 también es opcional: retirar a una
+persona de los roles no significa que deba borrarse su login de servidor.
 
 El instalador no conserva una copia de una definición preexistente con el mismo
-nombre. El rollback puede eliminarla, pero no reconstruirla.
+nombre. El rollback puede eliminarla, pero no reconstruirla. Antes de comenzar,
+el DBA debe respaldar `msdb`/`T3QA` o generar scripts de los objetos que necesite
+conservar.
 
 ## 15. Nomenclatura
 
@@ -840,8 +932,14 @@ ORDER BY M.[name];
 | Error/estado | Causa probable | Solución |
 |---|---|---|
 | `Only owner of a job schedule...` | Schedule pertenece a una cuenta personal. | Ejecutar `C` como `sysadmin`. |
-| `51405` en `D` | Uno o más logins de `@TeamLogins` no existen. | Revisar el result set `Missing_Server_Login`; crear/corregir el login. |
+| `51405` en `D` | Uno o más logins o grupos de `@TeamLogins` no existen con ese nombre exacto. | Revisar `Missing_Server_Login`; para AD usar `DOMINIO\Grupo`, crear/corregir el login y repetir `D`. |
 | `51408` o `51409` en `D` | Existe un usuario homónimo con otro `SID`. | DBA debe corregir el mapeo; no eliminarlo sin investigar. |
+| `51420` al usar el helper | El caller no es `sysadmin`. | Solicitar al DBA autorizado que ejecute `T3_ADD_JOB_EXECUTORS`. |
+| `51421` o `51427` | La lista CSV está vacía o sólo contiene espacios/comas. | Enviar al menos un nombre de login. |
+| `51423` o `51424` | No existe uno de los roles controlados. | Ejecutar primero el script D y después repetir el helper. |
+| `51430` | Un login no existe, está deshabilitado o su tipo no está permitido. | Revisar el result set de validación, corregir todos los nombres y repetir. |
+| `51431` o `51432` | Existe un usuario homónimo asociado a otro SID. | El DBA debe corregir el mapeo antes de continuar. |
+| `51433` o `51434` | Los roles existen pero perdieron el `GRANT EXECUTE` base. | Ejecutar nuevamente D y después repetir el alta. |
 | `51504` en `E` | Faltan procedimientos del catálogo en `T3QA`. | Desplegar las filas mostradas como `Missing_Procedure` y repetir `E`. |
 | `WRONG_JOB_OWNER` | Job no pertenece al login técnico. | Ejecutar `C`. |
 | `WRONG_SCHEDULE_OWNER` | Schedule no pertenece al login técnico. | Ejecutar `C`. |
@@ -855,6 +953,9 @@ ORDER BY M.[name];
 | `INVALID_PACKAGE_REFERENCE` | Queda sintaxis Oracle en BOD/EOD. | Corregir la llamada a `PROC_T3_LANZA_REP`. |
 | `WRONG_SCHEDULE_CONFIG` | Frecuencia/hora no coincide con catálogo. | Ejecutar `01`, luego `C` y `02`. |
 | Error de base actual | Script ejecutado desde otra base. | Seleccionar la base indicada en la tabla de despliegue. |
+| `51611` en rollback | Existe un job del alcance en ejecución. | Esperar a que termine o solicitar al DBA que lo detenga; repetir el preflight. |
+| `51641`, `51651` o `51661` | La confirmación destructiva continúa en `0`. | Revisar el alcance y cambiar a `1` solamente durante la ventana autorizada. |
+| `51671` | La verificación final encontró componentes restantes. | Revisar el listado anterior al error y repetir desde el paso incompleto. |
 
 ## 20. Consideraciones adicionales
 
@@ -883,22 +984,25 @@ de liberar ese flujo.
 - [ ] SQL Server Agent está iniciado.
 - [ ] `T3_SQLAGENT_OWNER` existe y no es `sysadmin`.
 - [ ] El login técnico pertenece a `msdb.SQLAgentUserRole`.
-- [ ] Los cuatro logins humanos existen y están habilitados.
+- [ ] Todos los logins o grupos configurados en `@TeamLogins` existen y están habilitados.
 - [ ] `01` creó 37 jobs deshabilitados.
 - [ ] `B` creó `msdb.dbo.T3_JOB_NEXT_RUN` con el contexto correcto.
 - [ ] `C` dejó 37 jobs y schedules a nombre del login técnico.
-- [ ] `D` agregó al equipo en `msdb` y `T3QA`.
-- [ ] `E` concedió permisos al propietario técnico sin error `51504`.
 - [ ] `EAI_OWNER.JOB_NEXT_RUN` llama al wrapper y no a las APIs directamente.
+- [ ] `D` agregó al equipo en `msdb.T3JobExecutors` y `T3QA.T3BODExecutors`.
+- [ ] `D1` instaló `msdb.dbo.T3_ADD_JOB_EXECUTORS` para altas posteriores.
+- [ ] `E` se ejecutó después de desplegar `JOB_NEXT_RUN` y terminó sin error `51504`.
 - [ ] `02` devolvió `PASS` y `Ready_Jobs=37`.
 - [ ] Las dependencias de segundo nivel existen.
 - [ ] BOD/EOD no contienen referencias Oracle inválidas.
-- [ ] Un usuario humano ejecutó satisfactoriamente `PROC_T3_BOD`.
+- [ ] Un usuario o integrante del grupo autorizado ejecutó satisfactoriamente `PROC_T3_BOD`.
+- [ ] Se verificó que Suspend afecte cinco jobs y que Resume EOD reactive los tres esperados.
 - [ ] Se revisaron historia, duración, concurrencia y bloqueos.
 - [ ] Los jobs `216`, `229`, `236`, `550` y `648` permanecen deshabilitados antes de pruebas de Resume.
 - [ ] La activación fue autorizada.
 - [ ] `@ConfirmEnable` volvió a `0` después de usar `03`.
 - [ ] `@ConfirmDisable` volvió a `0` después de usar `04`.
+- [ ] La ruta y el orden del rollback completo quedaron anexados al ticket de cambio.
 
 ## 22. Regla de oro
 

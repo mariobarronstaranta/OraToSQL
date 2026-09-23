@@ -1,0 +1,62 @@
+-- Solo para pruebas aisladas; no ejecutar en T3QA.
+CREATE SCHEMA EAI;
+GO
+CREATE SCHEMA EAI_OWNER;
+GO
+
+CREATE TABLE [EAI].[LDR_SHAREPOINT](
+	[DUMMY1] [varchar](100) NULL,
+	[ITEMINTERNALID] [varchar](100) NULL,
+	[FECHA] [varchar](100) NULL,
+	[TIENDA] [varchar](100) NULL,
+	[FOLIORECEPCION] [varchar](100) NULL,
+	[VOLUMENTICKET] [varchar](100) NULL,
+	[FOLIOINTERNO] [varchar](100) NULL,
+	[VOLUMENNOTA] [varchar](100) NULL,
+	[COINCIDEVOLUMEN] [varchar](100) NULL
+) ON [PRIMARY]
+GO
+
+CREATE TABLE [EAI].[IFC_FOLIOS_FE](
+	[ROW_ID] [float] NOT NULL,
+	[RFC_RECEPTOR] [varchar](20) NULL,
+	[SERIE] [varchar](20) NULL,
+	[FOLIO] [varchar](20) NULL,
+	[PEDIDO] [varchar](30) NULL,
+	[ENTRADA] [varchar](30) NULL,
+	[FECHA] [datetime2](0) NULL,
+	[TIPO] [varchar](20) NULL,
+	[CREADOPOR] [varchar](20) NULL,
+	[CREACION] [datetime2](0) NULL,
+	[MODIFICADOPOR] [varchar](20) NULL,
+	[MODIFICACION] [datetime2](0) NULL,
+	[VAR_1] [varchar](100) NULL,
+	[VAR_2] [varchar](100) NULL,
+	[INT_1] [float] NULL,
+	[INT_2] [float] NULL,
+	[FLOAT_1] [numeric](10, 6) NULL,
+	[FLOAT_2] [numeric](10, 6) NULL,
+	[ESTATUS] [varchar](20) NULL,
+ CONSTRAINT [IFC_FOLIOS_FE_PK] PRIMARY KEY CLUSTERED 
+(
+	[ROW_ID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+CREATE TABLE [EAI_OWNER].[EAI_TRUNC_TABLE](
+	[TABLE_NAME] [varchar](100) NULL
+) ON [PRIMARY]
+GO
+
+CREATE TABLE [EAI_OWNER].[EAI_TRUNC_LOG](
+	[TABLE_NAME] [varchar](100) NULL,
+	[EXECUTED] [datetime2](0) NULL,
+	[USER_SCHEMA] [varchar](30) NULL,
+	[USER_ID] [varchar](40) NULL,
+	[IP_ADDRESS] [varchar](40) NULL,
+	[TERMINAL] [varchar](40) NULL
+) ON [PRIMARY]
+GO
+
+INSERT EAI_OWNER.EAI_TRUNC_TABLE VALUES ('EAI.LDR_SHAREPOINT');

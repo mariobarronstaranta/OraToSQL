@@ -1,0 +1,128 @@
+-- SQL Server. Modificar solamente estas dos fechas (YYYY-MM-DD).
+-- Inicio incluido; fin excluido. Se mantienen los periodos del archivo Oracle.
+DECLARE @FechaInicioTexto varchar(10) = '2026-02-01';
+DECLARE @FechaFinTexto    varchar(10) = '2026-03-01';
+DECLARE @FechaInicio date=TRY_CONVERT(date,@FechaInicioTexto,23);
+DECLARE @FechaFin date=TRY_CONVERT(date,@FechaFinTexto,23);
+IF @FechaInicio IS NULL OR @FechaFin IS NULL OR @FechaInicio>=@FechaFin
+    THROW 51100,'Periodo invalido. Use YYYY-MM-DD e inicio menor al fin.',1;
+SET NOCOUNT ON;
+;WITH DOC AS (
+SELECT 
+        RFD.FACTURA                                 AS FACTURA,
+        RF.ENTREGA                                  AS ENTREGA, 
+        RF.FECHA_FACTURA                            AS FECHA_FACTURA,
+        RF.TIPO_DOCTO                               AS TIPO_DOCTO,
+        REPLACE(C.NOMBRE,',',' ')                                    AS NOMBRE, 
+        C.RFC                                       AS RFC,
+        C.CLIENTE_SAP                               AS CLIENTE_SAP, 
+        PAC.NOTA_VENTA_CFDI                         AS NOTA_VENTA_CFDI, 
+        CD.FECHA_ENVIO                              AS FECHA_ENVIO, 
+        CD.FECHA_TIMBRE                             AS FECHA_TIMBRE, 
+        CD.FOLIO_FISCAL                             AS FOLIO_FISCAL,
+        PASO.VOIDDOC                                AS VOID,
+        SUM(ISNULL(RFD.VALOR_SUBT,0))                  AS SUBTOTAL, 
+        SUM(ISNULL(RFD.VALOR_IVA,0))                   AS VALOR_IVA,                
+        SUM(ISNULL(RFD.ENVIO_SUBT,0))                  AS ENVIO_SUBTOTAL, 
+        SUM(ISNULL(RFD.ENVIO_IVA,0))                   AS ENVIO_IVA, 
+        SUM(ISNULL(RFD.CREDITO_SUBT,0))                AS CREDITO_SUBTOTAL, 
+        SUM(ISNULL(RFD.CREDITO_IVA,0))                 AS CREDITO_IVA, 
+        SUM(ISNULL(RFD.VALOR_SUBT,0)+ ISNULL(RFD.VALOR_IVA,0) +ISNULL(RFD.ENVIO_SUBT,0) + ISNULL(RFD.ENVIO_IVA,0) + ISNULL(RFD.CREDITO_SUBT,0) + ISNULL(RFD.CREDITO_IVA,0))   AS TOTAL 
+        FROM T3.REGISTRO_FISCAL RF
+        INNER JOIN T3.REGISTRO_FISCAL_DETALLE RFD ON RF.FACTURA=RFD.FACTURA
+        INNER JOIN T3.CLIENTE C ON RF.CLIENTE_SAP=C.CLIENTE_SAP
+        LEFT JOIN T3.CFDI_HISTORIA_DOCTO_PAC PAC ON RF.FACTURA=PAC.NOTA_VENTA
+        LEFT JOIN T3.CFDI_DOCUMENTOS CD ON PAC.NOTA_VENTA_CFDI=CD.NOTA_VENTA
+        LEFT JOIN T3.CFDI_DOCUMENTO_PASO PASO ON RF.FACTURA=PASO.FACTURA
+        WHERE RF.FECHA_FACTURA >= @FechaInicio
+        AND RF.FECHA_FACTURA  < @FechaFin
+
+        AND RF.TIPO_DOCTO IN ('C003','C005')
+        AND RF.STATUS COLLATE Latin1_General_100_BIN2 <> 'Cancelled'
+
+        AND RF.FECHA_FACTURA                        BETWEEN C.FECHA_INI_VIG AND C.FECHA_FIN_VIG
+
+    GROUP BY RFD.FACTURA, RF.ENTREGA, RF.FECHA_FACTURA,RF.TIPO_DOCTO,   C.NOMBRE, C.RFC,C.CLIENTE_SAP, PAC.NOTA_VENTA_CFDI, CD.FECHA_ENVIO,CD.FECHA_TIMBRE, CD.FOLIO_FISCAL, PASO.VOIDDOC
+        UNION ALL
+        SELECT 
+        RFD.FACTURA                                 AS FACTURA, 
+        RF.ENTREGA                                  AS ENTREGA,
+        RF.FECHA_FACTURA                             AS FECHA_FACTURA,
+        RF.TIPO_DOCTO                               AS TIPO_DOCTO,
+        REPLACE(C.NOMBRE,',',' ')                                    AS NOMBRE, 
+        C.RFC                                       AS RFC,
+        C.CLIENTE_SAP                               AS CLIENTE_SAP,        
+        PAC.NOTA_VENTA_CFDI                         AS NOTA_VENTA_CFDI,
+        CD.FECHA_ENVIO                              AS FECHA_ENVIO,
+        CD.FECHA_TIMBRE                             AS FECHA_TIMBRE,
+        CD.FOLIO_FISCAL                            AS FOLIO_FISCAL,
+        PASO.VOIDDOC                               AS VOID,
+        SUM(ISNULL(RFD.VALOR_SUBT,0))      *-1         AS SUBTOTAL, 
+        SUM(ISNULL(RFD.VALOR_IVA,0))       *-1         AS VALOR_IVA,
+        SUM(ISNULL(RFD.ENVIO_SUBT,0))      *-1         AS ENVIO_SUBTOTAL, 
+        SUM(ISNULL(RFD.ENVIO_IVA,0))       *-1         AS ENVIO_IVA, 
+        SUM(ISNULL(RFD.CREDITO_SUBT,0))    *-1         AS CREDITO_SUBTOTAL, 
+        SUM(ISNULL(RFD.CREDITO_IVA,0))     *-1         AS CREDITO_IVA, 
+        SUM((ISNULL(RFD.VALOR_SUBT,0)+ ISNULL(RFD.VALOR_IVA,0) +ISNULL(RFD.ENVIO_SUBT,0) + ISNULL(RFD.ENVIO_IVA,0) + ISNULL(RFD.CREDITO_SUBT,0) + ISNULL(RFD.CREDITO_IVA,0)) * -1)   AS TOTAL 
+        FROM T3.REGISTRO_FISCAL RF
+        INNER JOIN T3.REGISTRO_FISCAL_DETALLE RFD ON RF.FACTURA=RFD.FACTURA
+        INNER JOIN T3.CLIENTE C ON RF.CLIENTE_SAP=C.CLIENTE_SAP
+        LEFT JOIN T3.CFDI_HISTORIA_DOCTO_PAC PAC ON RF.FACTURA=PAC.NOTA_VENTA
+        LEFT JOIN T3.CFDI_DOCUMENTOS CD ON PAC.NOTA_VENTA_CFDI=CD.NOTA_VENTA
+        LEFT JOIN T3.CFDI_DOCUMENTO_PASO PASO ON RF.FACTURA=PASO.FACTURA
+        WHERE RF.FECHA_FACTURA >= @FechaInicio
+        AND RF.FECHA_FACTURA  < @FechaFin
+
+        AND RF.TIPO_DOCTO IN ('C004','C006', 'C025', 'C0FX')
+        AND RF.STATUS COLLATE Latin1_General_100_BIN2 <> 'Cancelled'
+
+        AND RF.FECHA_FACTURA                        BETWEEN C.FECHA_INI_VIG AND C.FECHA_FIN_VIG
+
+        GROUP BY RFD.FACTURA, RF.ENTREGA, RF.FECHA_FACTURA,RF.TIPO_DOCTO,  C.NOMBRE,C.RFC, C.CLIENTE_SAP, PAC.NOTA_VENTA_CFDI, CD.FECHA_ENVIO,CD.FECHA_TIMBRE, CD.FOLIO_FISCAL,PASO.VOIDDOC
+), Filas AS (
+SELECT ROW_NUMBER() OVER(ORDER BY DOC.FACTURA,DOC.ENTREGA) Orden,CSV.Linea
+FROM DOC
+LEFT JOIN (
+ SELECT CC.NOTA_CREDITO,SUM(CC.IMPORTE) IMPORTE_APLICADO_INCOBRABLE
+ FROM T3.CFDI_COBRANZA CC
+ WHERE CC.FACTURA='INCOBRABLE' AND CC.VIA_PAGO='AI' AND CC.NOTA_CREDITO IS NOT NULL
+ GROUP BY CC.NOTA_CREDITO
+) INC ON DOC.FACTURA=INC.NOTA_CREDITO
+CROSS APPLY (
+ SELECT STRING_AGG(CONVERT(nvarchar(max),
+ CASE WHEN CHARINDEX(N',',F.Valor)>0 OR CHARINDEX(N'"',F.Valor)>0
+ OR CHARINDEX(NCHAR(13),F.Valor)>0 OR CHARINDEX(NCHAR(10),F.Valor)>0
+ THEN N'"'+REPLACE(F.Valor,N'"',N'""')+N'"' ELSE ISNULL(F.Valor,N'') END),N',')
+ WITHIN GROUP(ORDER BY V.Pos) Linea
+ FROM (VALUES
+(1,CONVERT(nvarchar(max),DOC.FACTURA),0),
+(2,CONVERT(nvarchar(max),CONCAT('''',DOC.FACTURA)),0),
+(3,CONVERT(nvarchar(max),DOC.ENTREGA),0),
+(4,CONVERT(nvarchar(max),CONVERT(varchar(10),DOC.FECHA_FACTURA,103)),0),
+(5,CONVERT(nvarchar(max),DOC.TIPO_DOCTO),0),
+(6,CONVERT(nvarchar(max),DOC.NOMBRE),0),
+(7,CONVERT(nvarchar(max),DOC.RFC),0),
+(8,CONVERT(nvarchar(max),DOC.CLIENTE_SAP),0),
+(9,CONVERT(nvarchar(max),DOC.NOTA_VENTA_CFDI),0),
+(10,CONVERT(nvarchar(max),CASE WHEN DOC.FECHA_ENVIO IS NULL THEN NULL ELSE CONVERT(varchar(10),DOC.FECHA_ENVIO,103)+' '+CONVERT(varchar(8),DOC.FECHA_ENVIO,108) END),0),
+(11,CONVERT(nvarchar(max),CASE WHEN DOC.FECHA_TIMBRE IS NULL THEN NULL ELSE CONVERT(varchar(10),DOC.FECHA_TIMBRE,103)+' '+CONVERT(varchar(8),DOC.FECHA_TIMBRE,108) END),0),
+(12,CONVERT(nvarchar(max),DOC.FOLIO_FISCAL),0),
+(13,CONVERT(nvarchar(max),CONVERT(varchar(64),CONVERT(decimal(38,2),DOC.SUBTOTAL))),1),
+(14,CONVERT(nvarchar(max),CONVERT(varchar(64),CONVERT(decimal(38,2),DOC.VALOR_IVA))),1),
+(15,CONVERT(nvarchar(max),CONVERT(varchar(64),CONVERT(decimal(38,2),DOC.ENVIO_SUBTOTAL))),1),
+(16,CONVERT(nvarchar(max),CONVERT(varchar(64),CONVERT(decimal(38,2),DOC.ENVIO_IVA))),1),
+(17,CONVERT(nvarchar(max),CONVERT(varchar(64),CONVERT(decimal(38,2),DOC.CREDITO_SUBTOTAL))),1),
+(18,CONVERT(nvarchar(max),CONVERT(varchar(64),CONVERT(decimal(38,2),DOC.CREDITO_IVA))),1),
+(19,CONVERT(nvarchar(max),CONVERT(varchar(64),CONVERT(decimal(38,2),DOC.TOTAL))),1),
+(20,CONVERT(nvarchar(max),CONVERT(varchar(64),CONVERT(decimal(38,2),ISNULL(INC.IMPORTE_APLICADO_INCOBRABLE,0)))),1)
+ ) V(Pos,Valor,EsImporte)
+ CROSS APPLY (SELECT CASE
+ WHEN V.EsImporte=1 AND RIGHT(V.Valor,3)='.00' THEN LEFT(V.Valor,LEN(V.Valor)-3)
+ WHEN V.EsImporte=1 AND RIGHT(V.Valor,1)='0' THEN LEFT(V.Valor,LEN(V.Valor)-1)
+ ELSE V.Valor END Valor) F
+) CSV
+)
+SELECT Linea FROM (
+ SELECT CONVERT(bigint,0) Orden,CONVERT(nvarchar(max),N'FACTURA,DOC_FACTURA,ENTREGA,FECHA_FACTURA,TIPODOCTO,NOMBRE,RFC,CLIENTE_SAP,NOTA_VENTA_CFDI,FECHA_ENVIO,FECHA_TIMBRE,FOLIO_FISCAL,SUBTOTAL,VALOR_IVA,ENVIO_SUBTOTAL,ENVIO_IVA,CREDITO_SUBTOTAL,CREDITO_IVA,TOTAL,INCOBRABLE_NC') Linea
+ UNION ALL SELECT Orden,Linea FROM Filas
+) Salida ORDER BY Orden;

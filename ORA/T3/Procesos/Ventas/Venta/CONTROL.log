@@ -1,0 +1,70 @@
+
+SQL*Loader: Release 11.2.0.1.0 - Production on Qua Fev 25 20:41:37 2015
+
+Copyright (c) 1982, 2009, Oracle and/or its affiliates.  All rights reserved.
+
+Control File:   E:\IntegrationToolBox\Venta\CONTROL.ctl
+Data File:      E:\IntegrationToolBox\Venta\factura.ready.doc
+  Bad File:     E:\IntegrationToolBox\Venta\factura.ready.bad
+  Discard File: E:\IntegrationToolBox\Venta\factura.ready.dsc 
+ (Allow all discards)
+
+Number to load: ALL
+Number to skip: 0
+Errors allowed: 50
+Bind array:     64 rows, maximum of 256000 bytes
+Continuation:    none specified
+Path used:      Conventional
+
+Table "TAO_SALES_DOCS_LDR", loaded from every logical record.
+Insert option in effect for this table: TRUNCATE
+
+   Column Name                  Position   Len  Term Encl Datatype
+------------------------------ ---------- ----- ---- ---- ---------------------
+DOC_ORD_R3                          FIRST     *   ,       CHARACTER            
+DOC_NUM_R3                           NEXT     *   ,       CHARACTER            
+CUSTOMER_NUMBER                      NEXT     *   ,       CHARACTER            
+DISTRIBUTOR                          NEXT     *   ,       CHARACTER            
+CUSTOMER                             NEXT     *   ,       CHARACTER            
+DOC_DATE                             NEXT     *   ,       CHARACTER            
+DOC_TYPE                             NEXT     *   ,       CHARACTER            
+DOC_NUM_REF1                         NEXT     *   ,       CHARACTER            
+DOC_NUM_REF2                         NEXT     *   ,       CHARACTER            
+DOC_STATUS                           NEXT     *   ,       CHARACTER            
+DOC_NETAMT                           NEXT     *   ,       CHARACTER            
+DOC_TAXAMT                           NEXT     *   ,       CHARACTER            
+DOC_QTY                              NEXT     *   ,       CHARACTER            
+
+Record 1: Rejected - Error on table "TAO_SALES_DOCS_LDR", column DOC_NETAMT.
+ORA-01722: número inválido
+
+Record 2: Rejected - Error on table "TAO_SALES_DOCS_LDR", column DOC_NETAMT.
+ORA-01722: número inválido
+
+Record 3: Rejected - Error on table "TAO_SALES_DOCS_LDR", column DOC_NETAMT.
+ORA-01722: número inválido
+
+Record 4: Rejected - Error on table "TAO_SALES_DOCS_LDR", column DOC_NETAMT.
+ORA-01722: número inválido
+
+
+Table "TAO_SALES_DOCS_LDR":
+  0 Rows successfully loaded.
+  4 Rows not loaded due to data errors.
+  0 Rows not loaded because all WHEN clauses were failed.
+  0 Rows not loaded because all fields were null.
+
+
+Space allocated for bind array:                 214656 bytes(64 rows)
+Read   buffer bytes: 1048576
+
+Total logical records skipped:          0
+Total logical records read:             4
+Total logical records rejected:         4
+Total logical records discarded:        0
+
+Run began on Qua Fev 25 20:41:37 2015
+Run ended on Qua Fev 25 20:41:38 2015
+
+Elapsed time was:     00:00:00.20
+CPU time was:         00:00:00.09

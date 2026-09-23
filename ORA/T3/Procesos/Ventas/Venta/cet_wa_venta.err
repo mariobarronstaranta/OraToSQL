@@ -1,0 +1,20 @@
+Connected to 10.92.215.181.
+220 Microsoft FTP Service
+ftp> ---> user BAT V3Mexic0
+USER BAT
+331 Password required for BAT.
+---> PASS V3Mexic0
+230 User logged in.
+ftp> ---> ascii
+TYPE A
+200 Type set to A.
+ftp> ---> put factura.ready.doc \CControl\incoming\factura_POA.txt
+PORT 192,168,217,137,195,54
+200 PORT command successful.
+---> STOR \CControl\incoming\factura_POA.txt
+125 Data connection already open; Transfer starting.
+226 Transfer complete.
+ftp: 5522864 bytes sent in Seconds Kbytes/sec.
+ftp> 2,482226,06---> bye
+QUIT
+221 Goodbye.

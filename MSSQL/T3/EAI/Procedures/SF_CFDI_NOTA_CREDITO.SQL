@@ -1,8 +1,14 @@
-CREATE PROCEDURE [eai].[SF_CFDI_NOTA_CREDITO]
+CREATE OR ALTER PROCEDURE [EAI].[SF_CFDI_NOTA_CREDITO]
     @nEtapa INT = 0
 AS
 BEGIN
     SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    -- Si el llamador ya tiene una transaccion, no debemos confirmarla nosotros.
+    -- El savepoint permite deshacer solo esta rutina cuando SQL Server lo permite.
+    DECLARE @TranCountInicial INT = @@TRANCOUNT;
+    DECLARE @SavepointCreado BIT = 0;
     
     DECLARE @nPID         INT;
     DECLARE @nProceso     INT = 922;
@@ -16,6 +22,15 @@ BEGIN
     DECLARE @v_ID         VARCHAR(50);
     
     BEGIN TRY
+        -- La carga, las aplicaciones y el cierre se confirman como una unidad.
+        IF @TranCountInicial = 0
+            BEGIN TRANSACTION;
+        ELSE
+        BEGIN
+            SAVE TRANSACTION SF_CFDI_NC;
+            SET @SavepointCreado = 1;
+        END;
+
         -- Inicialización del proceso
         SELECT @nPID = NEXT VALUE FOR [EAI_Owner].[ProcessID];
         EXEC [EAI_Owner].[Log_Start] @nProceso;
@@ -25,7 +40,7 @@ BEGIN
         VALUES 
             (@nPID, @nProceso, NULL, @dtInicio);
         
-        SET @v_ID = 'CFDI_UUID_VENTA';
+        SET @v_ID = 'CFDI_UUID_NOTA_CREDITO';
         
         -- ETAPA 0: Carga inicial de notas de crédito
         IF ISNULL(@nEtapa, 0) <= 0
@@ -119,7 +134,6 @@ BEGIN
             LEFT JOIN [T3].[CFDI_Documentos] CFD 
                 ON Nota.[Nota_Venta] = CFD.[Nota_Venta];
             
-            COMMIT TRANSACTION;
         END
         
         -- ETAPA 1: Actualiza cobranzas aplicadas (OPTIMIZACIÓN: set-based en lugar de cursores)
@@ -151,7 +165,6 @@ BEGIN
             ) Cobza 
                 ON nc.[Nota_Venta] = Cobza.[Nota_Credito];
             
-            COMMIT TRANSACTION;
         END
         
         -- Actualización de control de procesos
@@ -168,14 +181,29 @@ BEGIN
             [Proceso_4] = @nProceso4
         WHERE [PID] = @nPID;
         
-        COMMIT TRANSACTION;
+        -- Solo confirmamos la transaccion que abrio este procedimiento.
+        IF @TranCountInicial = 0
+            COMMIT TRANSACTION;
         
     END TRY
     BEGIN CATCH
         -- Manejo de errores
         SELECT 
             @sErrorCode = 'SQL-' + CAST(ERROR_NUMBER() AS VARCHAR(10)),
-            @sMsg = CAST(ERROR_NUMBER() AS VARCHAR(10)) + '-' + SUBSTRING(ERROR_MESSAGE(), 1, 250);
+            @sMsg = LEFT(CONCAT(ERROR_NUMBER(), '-', ERROR_MESSAGE()), 250);
+
+        -- Primero revertir: asi no queda una reconstruccion parcial y, en una
+        -- ejecucion independiente, la bitacora de error queda fuera del rollback.
+        IF @TranCountInicial = 0 AND XACT_STATE() <> 0
+            ROLLBACK TRANSACTION;
+        ELSE IF @SavepointCreado = 1 AND XACT_STATE() = 1
+            ROLLBACK TRANSACTION SF_CFDI_NC;
+
+        -- Una transaccion externa condenada (XACT_STATE = -1) no permite
+        -- escribir ni volver a un savepoint. El llamador debe hacer ROLLBACK.
+        -- En una transaccion externa valida, este log depende de su commit.
+        IF XACT_STATE() <> -1
+        BEGIN TRY
         
         INSERT INTO [EAI_OWNER].[MX_EAI_MESSAGE_LOG]
             ([DIRECTION], [REFERENCE], [CREATED], [MESSAGE], [JOB_PID],
@@ -186,7 +214,11 @@ BEGIN
              'Error', 'SF_CFDI_NOTA_CREDITO', @sMsg, 'T-SQL',
              @sErrorCode, NULL, NULL, NULL);
         
-        COMMIT TRANSACTION;
+        END TRY
+        BEGIN CATCH
+            -- Un fallo de la bitacora no debe ocultar el error funcional original.
+            PRINT CONCAT('No se pudo registrar el error: ', ERROR_MESSAGE());
+        END CATCH;
         
         PRINT '-----------------------------------';
         PRINT '** Error en SF_CFDI_NOTA_CREDITO **';

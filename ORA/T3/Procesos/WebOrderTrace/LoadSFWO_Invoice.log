@@ -1,0 +1,63 @@
+
+SQL*Loader: Release 11.2.0.1.0 - Production on Tue Aug 25 14:09:57 2026
+
+Copyright (c) 1982, 2009, Oracle and/or its affiliates.  All rights reserved.
+
+Control File:   LoadSFWO_Invoice.ctl
+Data File:      Invoice.csv
+  Bad File:     LoadSFWO_Invoice.bad
+  Discard File: LoadSFWO_Invoice.dsc 
+ (Allow all discards)
+
+Number to load: ALL
+Number to skip: 0
+Errors allowed: 1000
+Bind array:     64 rows, maximum of 256000 bytes
+Continuation:    none specified
+Path used:      Conventional
+
+Table EAI_OWNER.WO_TMP_INVOICE, loaded from every logical record.
+Insert option in effect for this table: TRUNCATE
+TRAILING NULLCOLS option in effect
+
+   Column Name                  Position   Len  Term Encl Datatype
+------------------------------ ---------- ----- ---- ---- ---------------------
+ROW_NAME                            FIRST     *   ,       CHARACTER            
+CREATEDDATE                          NEXT     *   ,       CHARACTER            
+MOBILE_INVOICE_NUMBER__C             NEXT     *   ,       CHARACTER            
+SAP_INVOICE_NUMBER__C                NEXT     *   ,       CHARACTER            
+IVYDSD__ORDER__R_NAME                NEXT     *   ,       CHARACTER            
+ORDER_RETAILER_PO_NUMBER__C          NEXT     *   ,       CHARACTER            
+MOBILE_ORDER_NUMBER__C               NEXT     *   ,       CHARACTER            
+IVYDSD__INVOICE_DATE__C              NEXT     *   ,       CHARACTER            
+CUSTOMER_ID                          NEXT     *   ,       CHARACTER            
+IVYBAT__SAP_CUSTOMERID__C            NEXT     *   ,       CHARACTER            
+DELIVERY_STATUS__C                   NEXT     *   ,       CHARACTER            
+IVYDSD__INVOICE_STATUS__C            NEXT     *   ,       CHARACTER            
+GROSS_AMOUNT__C                      NEXT     *   ,       CHARACTER            
+CREATEDBY                            NEXT     *   ,       CHARACTER            
+CREATEDBY_NAME                       NEXT     *   ,       CHARACTER            
+CREATEDBYID                          NEXT     *   ,       CHARACTER            
+
+value used for ROWS parameter changed from 64 to 62
+
+Table EAI_OWNER.WO_TMP_INVOICE:
+  2258 Rows successfully loaded.
+  0 Rows not loaded due to data errors.
+  0 Rows not loaded because all WHEN clauses were failed.
+  0 Rows not loaded because all fields were null.
+
+
+Space allocated for bind array:                 255936 bytes(62 rows)
+Read   buffer bytes: 1048576
+
+Total logical records skipped:          0
+Total logical records read:          2258
+Total logical records rejected:         0
+Total logical records discarded:        0
+
+Run began on Tue Aug 25 14:09:57 2026
+Run ended on Tue Aug 25 14:09:58 2026
+
+Elapsed time was:     00:00:00.85
+CPU time was:         00:00:00.01

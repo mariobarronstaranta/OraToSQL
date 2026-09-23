@@ -1,0 +1,6 @@
+**/Logs/
+**/Processed/
+**/.venta_lock/
+**/VTA_*.CSV
+**/VTA_CFDI*.CSV
+tests/work/

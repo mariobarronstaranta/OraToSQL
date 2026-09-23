@@ -1,0 +1,52 @@
+
+SQL*Loader: Release 11.2.0.1.0 - Production on Fri Oct 1 17:15:58 2021
+
+Copyright (c) 1982, 2009, Oracle and/or its affiliates.  All rights reserved.
+
+Control File:   LoadWA_Venta.ctl
+Data File:      Venta.csv
+  Bad File:     LoadWA_Venta.bad
+  Discard File: LoadWA_Venta.dsc 
+ (Allow all discards)
+
+Number to load: ALL
+Number to skip: 0
+Errors allowed: 1000
+Bind array:     64 rows, maximum of 256000 bytes
+Continuation:    none specified
+Path used:      Conventional
+
+Table EAI_OWNER.X_SAP_VTA_X_CLIENTE, loaded from every logical record.
+Insert option in effect for this table: TRUNCATE
+TRAILING NULLCOLS option in effect
+
+   Column Name                  Position   Len  Term Encl Datatype
+------------------------------ ---------- ----- ---- ---- ---------------------
+CLIENTE_SAP                         FIRST     *   ,       CHARACTER            
+FACTURA                              NEXT     *   ,       CHARACTER            
+NOTA_CREDITO                         NEXT     *   ,       CHARACTER            
+CANC_FACT                            NEXT     *   ,       CHARACTER            
+CANC_NOTA                            NEXT     *   ,       CHARACTER            
+GRAND_TOTAL                          NEXT     *   ,       CHARACTER            
+
+
+Table EAI_OWNER.X_SAP_VTA_X_CLIENTE:
+  134932 Rows successfully loaded.
+  0 Rows not loaded due to data errors.
+  0 Rows not loaded because all WHEN clauses were failed.
+  0 Rows not loaded because all fields were null.
+
+
+Space allocated for bind array:                  99072 bytes(64 rows)
+Read   buffer bytes: 1048576
+
+Total logical records skipped:          0
+Total logical records read:        134932
+Total logical records rejected:         0
+Total logical records discarded:        0
+
+Run began on Fri Oct 01 17:15:58 2021
+Run ended on Fri Oct 01 17:16:03 2021
+
+Elapsed time was:     00:00:05.03
+CPU time was:         00:00:00.63

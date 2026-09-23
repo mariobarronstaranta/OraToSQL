@@ -1,0 +1,46 @@
+-- SQL Server. Modificar solamente estas dos fechas (YYYY-MM-DD).
+-- Inicio incluido; fin excluido. Se mantienen los periodos del archivo Oracle.
+DECLARE @FechaInicioTexto varchar(10) = '2024-10-01';
+DECLARE @FechaFinTexto    varchar(10) = '2024-11-01';
+DECLARE @FechaInicio date=TRY_CONVERT(date,@FechaInicioTexto,23);
+DECLARE @FechaFin date=TRY_CONVERT(date,@FechaFinTexto,23);
+IF @FechaInicio IS NULL OR @FechaFin IS NULL OR @FechaInicio>=@FechaFin
+    THROW 51100,'Periodo invalido. Use YYYY-MM-DD e inicio menor al fin.',1;
+SET NOCOUNT ON;
+;WITH DOC AS (
+SELECT RFD.FACTURA, RF.FECHA_DOCUMENTO, RF.TIPO_DOCTO, RF.ENTREGA,
+ SUM(ISNULL(RFD.VALOR_SUBT,0)+ISNULL(RFD.VALOR_IVA,0)+ISNULL(RFD.ENVIO_SUBT,0)
+     +ISNULL(RFD.ENVIO_IVA,0)+ISNULL(RFD.CREDITO_SUBT,0)+ISNULL(RFD.CREDITO_IVA,0)) TOTAL
+ FROM T3.REGISTRO_FISCAL_DETALLE RFD
+ INNER JOIN T3.REGISTRO_FISCAL RF ON RFD.FACTURA=RF.FACTURA
+ WHERE RF.FECHA_DOCUMENTO>=@FechaInicio AND RF.FECHA_DOCUMENTO<@FechaFin
+ AND RF.TIPO_DOCTO IN ('C003','C005','C004','C006','C025')
+ AND RF.STATUS COLLATE Latin1_General_100_BIN2<>'Cancelled'
+ GROUP BY RFD.FACTURA,RF.FECHA_DOCUMENTO,RF.TIPO_DOCTO,RF.ENTREGA
+), Filas AS (
+SELECT ROW_NUMBER() OVER(ORDER BY DOC.FACTURA,DOC.ENTREGA) Orden,CSV.Linea
+FROM DOC
+
+CROSS APPLY (
+ SELECT STRING_AGG(CONVERT(nvarchar(max),
+ CASE WHEN CHARINDEX(N',',F.Valor)>0 OR CHARINDEX(N'"',F.Valor)>0
+ OR CHARINDEX(NCHAR(13),F.Valor)>0 OR CHARINDEX(NCHAR(10),F.Valor)>0
+ THEN N'"'+REPLACE(F.Valor,N'"',N'""')+N'"' ELSE ISNULL(F.Valor,N'') END),N',')
+ WITHIN GROUP(ORDER BY V.Pos) Linea
+ FROM (VALUES
+(1,CONVERT(nvarchar(max),DOC.FACTURA),0),
+(2,CONVERT(nvarchar(max),CONVERT(varchar(10),DOC.FECHA_DOCUMENTO,103)),0),
+(3,CONVERT(nvarchar(max),DOC.TIPO_DOCTO),0),
+(4,CONVERT(nvarchar(max),DOC.ENTREGA),0),
+(5,CONVERT(nvarchar(max),CONVERT(varchar(64),CONVERT(decimal(38,2),DOC.TOTAL))),1)
+ ) V(Pos,Valor,EsImporte)
+ CROSS APPLY (SELECT CASE
+ WHEN V.EsImporte=1 AND RIGHT(V.Valor,3)='.00' THEN LEFT(V.Valor,LEN(V.Valor)-3)
+ WHEN V.EsImporte=1 AND RIGHT(V.Valor,1)='0' THEN LEFT(V.Valor,LEN(V.Valor)-1)
+ ELSE V.Valor END Valor) F
+) CSV
+)
+SELECT Linea FROM (
+ SELECT CONVERT(bigint,0) Orden,CONVERT(nvarchar(max),N'FACTURA,FECHA_DOCUMENTO,TIPO_DOCTO,ENTREGA,TOTAL') Linea
+ UNION ALL SELECT Orden,Linea FROM Filas
+) Salida ORDER BY Orden;

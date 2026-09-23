@@ -1,0 +1,78 @@
+
+SQL*Loader: Release 11.2.0.1.0 - Production on Mon Aug 24 22:16:16 2026
+
+Copyright (c) 1982, 2009, Oracle and/or its affiliates.  All rights reserved.
+
+Control File:   E:\IntegrationToolBox\RecepcionEvidenciasTodos\control.ctl
+Data File:      E:\IntegrationToolBox\RecepcionEvidenciasTodos\EvidenciaEntrega.csv
+  Bad File:     E:\IntegrationToolBox\RecepcionEvidenciasTodos\EvidenciaEntrega.ready.bad
+  Discard File: E:\IntegrationToolBox\RecepcionEvidenciasTodos\EvidenciaEntrega.ready.dsc 
+ (Allow all discards)
+
+Number to load: ALL
+Number to skip: 0
+Errors allowed: 10000000
+Bind array:     64 rows, maximum of 256000 bytes
+Continuation:    none specified
+Path used:      Conventional
+
+Table EAI.LDR_EVIDENCIA_DELIVERY, loaded from every logical record.
+Insert option in effect for this table: APPEND
+
+   Column Name                  Position   Len  Term Encl Datatype
+------------------------------ ---------- ----- ---- ---- ---------------------
+JEFE_TERRITORIAL                    FIRST     *   ,       CHARACTER            
+CLIENTE                              NEXT     *   ,       CHARACTER            
+SUCURSAL                             NEXT     *   ,       CHARACTER            
+ID_REGISTRO                          NEXT     *   ,       CHARACTER            
+FECHA_DE_ENTREGA                     NEXT     *   ,       CHARACTER            
+CREATED                              NEXT     *   ,       CHARACTER            
+ATTACHMENTS                          NEXT     *   ,       CHARACTER            
+COMENTARIOS                          NEXT     *   ,       CHARACTER            
+FOLIO_TICKET                         NEXT     *   ,       CHARACTER            
+NOSAP                                NEXT     *   ,       CHARACTER            
+CREATED_BY                           NEXT     *   ,       CHARACTER            
+MODIFIED                             NEXT     *   ,       CHARACTER            
+MODIFIED_BY                          NEXT     *   ,       CHARACTER            
+NOFACTURA                            NEXT     *   ,       CHARACTER            
+PEDIDOSAP                            NEXT     *   ,       CHARACTER            
+STATUS                               NEXT     *   ,       CHARACTER            
+ID_TIENDA                            NEXT     *   ,       CHARACTER            
+TIENDA                               NEXT     *   ,       CHARACTER            
+TIENDA_SF                            NEXT     *   ,       CHARACTER            
+FOLIORECEPCION_SF                    NEXT     *   ,       CHARACTER            
+VOLUMENTICKET                        NEXT     *   ,       CHARACTER            
+VOLUMENNOTA                          NEXT     *   ,       CHARACTER            
+VOLUMEN_SF                           NEXT     *   ,       CHARACTER            
+COINCIDEFOLIORECEPCION               NEXT     *   ,       CHARACTER            
+COINCIDETIENDA                       NEXT     *   ,       CHARACTER            
+CHECKVOLNOTAVSVOLTICKET              NEXT     *   ,       CHARACTER            
+CHECKVOLNOTAVSVOLSF                  NEXT     *   ,       CHARACTER            
+REVISAR                              NEXT     *   ,       CHARACTER            
+COMENTARIOS_COMPARATIVA              NEXT     *   ,       CHARACTER            
+REFACTURACION                        NEXT     *   ,       CHARACTER            
+FOLIOREFACTURACION                   NEXT     *   ,       CHARACTER            
+VERSIONAPP                           NEXT     *   ,       CHARACTER            
+
+value used for ROWS parameter changed from 64 to 31
+
+Table EAI.LDR_EVIDENCIA_DELIVERY:
+  4409 Rows successfully loaded.
+  0 Rows not loaded due to data errors.
+  0 Rows not loaded because all WHEN clauses were failed.
+  0 Rows not loaded because all fields were null.
+
+
+Space allocated for bind array:                 255936 bytes(31 rows)
+Read   buffer bytes: 1048576
+
+Total logical records skipped:          0
+Total logical records read:          4409
+Total logical records rejected:         0
+Total logical records discarded:        0
+
+Run began on Mon Aug 24 22:16:16 2026
+Run ended on Mon Aug 24 22:16:17 2026
+
+Elapsed time was:     00:00:00.70
+CPU time was:         00:00:00.06

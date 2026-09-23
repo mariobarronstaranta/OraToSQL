@@ -1,3 +1,9 @@
+
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
+
 CREATE OR ALTER PROCEDURE [EAI_OWNER].[SF_PROC_PREINVOICE_INTER]
 (
     @sRow_ID  VARCHAR(50),
@@ -11,7 +17,7 @@ BEGIN
 
     /*
         SF_PROC_PREINVOICE_INTER
-        ========================
+        ===================================
         Convierte un XML de factura intercompany en tablas temporales
         relacionales para que los procedimientos de routing posteriores puedan
         generar la factura definitiva.
@@ -20,13 +26,23 @@ BEGIN
         1. Leer encabezado y validar DocumentNumber.
         2. Borrar cualquier conversion previa de la misma referencia.
         3. Extraer partners, referencias, organizaciones, importes y textos.
-        4. Recorrer cada ItemData y guardar detalle, impuestos y leyendas.
+        4. Convertir todos los ItemData a filas y guardar detalle, impuestos
+           y leyendas mediante operaciones por conjuntos.
         5. Insertar encabezado y partners.
         6. Actualizar el log de recepcion.
         7. Enviar el documento a PREVENTA u OTROS segun tipo y compania.
 
         @nRowNum se conserva porque pertenece a la firma Oracle, aunque el
         procedimiento original no lo utiliza en sus reglas internas.
+
+        Optimizaciones principales:
+        - Eliminacion de los cinco cursores y de sus ciclos WHILE.
+        - Lectura set-based de OrganizationData, textos e ItemData.
+        - Una consulta de conversion UOM por valor distinto, no por articulo.
+        - Inserciones masivas de detalle e impuestos.
+
+        Las reglas de negocio y el routing permanecen iguales al procedimiento
+        original y a su homologo Oracle.
     */
 
     DECLARE
@@ -87,44 +103,23 @@ BEGIN
         @sShip_Country       VARCHAR(80),
         @sShip_ZipCode       VARCHAR(80),
 
-        @sNumLinea           VARCHAR(50),
         @sOrgVentas          VARCHAR(50),
         @sClaseFactura       VARCHAR(50),
         @sCompanyCode        VARCHAR(50),
         @sValor_Subt         VARCHAR(50),
         @sValor_IVA          VARCHAR(50),
-        @sCantidadVta        VARCHAR(50),
-        @sUnidadMedVta       VARCHAR(50),
         @sStatusItem         VARCHAR(50),
         @sCentro             VARCHAR(50),
-        @sMaterial           VARCHAR(50),
-        @sMatDescription     VARCHAR(50),
-        @sPrecioUnitario     VARCHAR(50),
-        @sDetValor_Subt      VARCHAR(50),
-        @sDetValor_IVA       VARCHAR(50),
-        @sDetBonif_Subt      VARCHAR(50),
-        @sCondZFSIValue      VARCHAR(50),
-        @sCondZFSISign       VARCHAR(50),
         @sPaymentMethod      VARCHAR(200),
         @sBankReference      VARCHAR(200),
         @sComments           VARCHAR(500),
         @sIncoterms          VARCHAR(200),
-        @sQualifier          VARCHAR(80),
-        @sLanguage           VARCHAR(80),
         @sTextLine           VARCHAR(4000),
-        @sItemText_ES        VARCHAR(4000),
-        @sItemText_EN        VARCHAR(300),
-        @nItems              INT,
-        @nTaxFactor          INT,
         @sTipoDocV3          VARCHAR(4),
         @sFolioFiscalDoc     VARCHAR(30),
         @sStateAux           VARCHAR(40),
         @sStateName          VARCHAR(40),
-        @sSalesDoc_Type      VARCHAR(30),
-        @sCustomerRep        VARCHAR(30),
-        @XML_Content         XML,
-        @ItemXML             XML,
-        @ItemTextos          XML;
+        @XML_Content         XML;
 
     BEGIN TRY
 
@@ -275,56 +270,42 @@ BEGIN
             -- OrganizationData
             --------------------------------------------------------------------
             /*
-                Oracle recorre OrganizationData en orden. No se usa MAX porque
-                cambiaria la regla cuando un calificador aparece varias veces.
+                [last()] elimina el cursor y conserva una regla poco evidente
+                de Oracle: si un calificador se repite, prevalece la ultima
+                aparicion dentro del documento XML.
             */
-            DECLARE OrganizationCur CURSOR LOCAL FAST_FORWARD FOR
-                SELECT
-                    O.N.value('(Qualifier/text())[1]', 'varchar(50)'),
-                    O.N.value('(Organization/text())[1]', 'varchar(50)')
-                FROM @XML_Content.nodes('/InvoiceIntercompany/Message/OrganizationData') AS O(N);
+            SELECT
+                @sOrgVentas = @XML_Content.value(
+                    '(/InvoiceIntercompany/Message/OrganizationData[Qualifier="008" or Qualifier="003"]/Organization/text())[last()]',
+                    'varchar(50)'),
+                @sCompanyCode = @XML_Content.value(
+                    '(/InvoiceIntercompany/Message/OrganizationData[Qualifier="003"]/Organization/text())[last()]',
+                    'varchar(50)'),
+                @sAssignment = @XML_Content.value(
+                    '(/InvoiceIntercompany/Message/OrganizationData[Qualifier="017"]/Organization/text())[last()]',
+                    'varchar(50)'),
+                @sTextLine = @XML_Content.value(
+                    '(/InvoiceIntercompany/Message/OrganizationData[Qualifier="015"]/Organization/text())[last()]',
+                    'varchar(4000)');
 
-            OPEN OrganizationCur;
-            FETCH NEXT FROM OrganizationCur INTO @sQualifier, @sTextLine;
-
-            WHILE @@FETCH_STATUS = 0
-            BEGIN
-                IF @sQualifier = '008'
-                    SET @sOrgVentas = @sTextLine;
-                ELSE IF @sQualifier = '003'
-                BEGIN
-                    SET @sCompanyCode = @sTextLine;
-                    SET @sOrgVentas = @sTextLine;
-                END
-                ELSE IF @sQualifier = '017'
-                    SET @sAssignment = @sTextLine;
-                ELSE IF @sQualifier = '015'
-                BEGIN
-                    SET @sClaseFactura =
-                        CASE @sTextLine
-                            WHEN 'Nota de Venta' THEN 'C005'
-                            WHEN 'Payable'       THEN 'C006'
-                            WHEN 'IV'            THEN 'IV'
-                            WHEN 'ZI01'          THEN 'ZI01'
-                            WHEN 'ZI03'          THEN 'ZI03'
-                            WHEN 'ZI06'          THEN 'ZI06'
-                            WHEN 'ZI02'          THEN 'ZI02'
-                            WHEN 'ZI04'          THEN 'ZI04'
-                            WHEN 'ZF2'           THEN 'ZF2'
-                            WHEN 'ZL'            THEN 'ZL'
-                            WHEN 'IVS'           THEN 'IVS'
-                            WHEN 'ZIG2'          THEN 'C021'
-                            WHEN 'ZG'            THEN
-                                CASE WHEN @sCteFacturaSAP <> 'IC-00-MX16' THEN 'ZG' ELSE 'C022' END
-                            ELSE @sClaseFactura
-                        END;
+            SET @sClaseFactura =
+                CASE @sTextLine
+                    WHEN 'Nota de Venta' THEN 'C005'
+                    WHEN 'Payable'       THEN 'C006'
+                    WHEN 'IV'            THEN 'IV'
+                    WHEN 'ZI01'          THEN 'ZI01'
+                    WHEN 'ZI03'          THEN 'ZI03'
+                    WHEN 'ZI06'          THEN 'ZI06'
+                    WHEN 'ZI02'          THEN 'ZI02'
+                    WHEN 'ZI04'          THEN 'ZI04'
+                    WHEN 'ZF2'           THEN 'ZF2'
+                    WHEN 'ZL'            THEN 'ZL'
+                    WHEN 'IVS'           THEN 'IVS'
+                    WHEN 'ZIG2'          THEN 'C021'
+                    WHEN 'ZG'            THEN
+                        CASE WHEN @sCteFacturaSAP <> 'IC-00-MX16' THEN 'ZG' ELSE 'C022' END
+                    ELSE @sClaseFactura
                 END;
-
-                FETCH NEXT FROM OrganizationCur INTO @sQualifier, @sTextLine;
-            END;
-
-            CLOSE OrganizationCur;
-            DEALLOCATE OrganizationCur;
 
             --------------------------------------------------------------------
             -- SummaryGeneral
@@ -367,55 +348,45 @@ BEGIN
             --------------------------------------------------------------------
             -- Header Texts
             --------------------------------------------------------------------
-            DECLARE HeaderTextCur CURSOR LOCAL FAST_FORWARD FOR
-                SELECT T.N.query('.')
-                FROM @XML_Content.nodes('/InvoiceIntercompany/Message/TextIdentification') AS T(N);
+            /*
+                Los textos de encabezado se expanden una sola vez. STRING_AGG
+                reemplaza el cursor y conserva el orden en que llegan las lineas.
+                Los LEFT mantienen exactamente los limites usados por Oracle.
+            */
+            DECLARE @HeaderTextLines TABLE
+            (
+                LineOrder INT IDENTITY(1, 1) NOT NULL PRIMARY KEY,
+                Qualifier VARCHAR(80) NULL,
+                Language  VARCHAR(80) NULL,
+                TextLine  VARCHAR(4000) NULL
+            );
 
-            OPEN HeaderTextCur;
-            FETCH NEXT FROM HeaderTextCur INTO @ItemTextos;
+            INSERT INTO @HeaderTextLines (Qualifier, Language, TextLine)
+            SELECT
+                T.N.value('(TextID/text())[1]', 'varchar(80)'),
+                T.N.value('(Language/text())[1]', 'varchar(80)'),
+                H.N.value('(TextLine/text())[1]', 'varchar(4000)')
+            FROM @XML_Content.nodes('/InvoiceIntercompany/Message/TextIdentification') AS T(N)
+            CROSS APPLY T.N.nodes('TextHeader') AS H(N);
 
-            WHILE @@FETCH_STATUS = 0
-            BEGIN
-                SELECT
-                    @sQualifier = @ItemTextos.value('(/TextIdentification/TextID/text())[1]',   'varchar(80)'),
-                    @sLanguage  = @ItemTextos.value('(/TextIdentification/Language/text())[1]', 'varchar(80)');
-
-                IF @sLanguage = 'ES'
-                BEGIN
-                    SELECT @sPaymentMethod =
-                        CASE WHEN @sQualifier = 'Z048'
-                             THEN LEFT(CONCAT(@sPaymentMethod, X.N.value('(TextLine/text())[1]', 'varchar(4000)')), 80)
-                             ELSE @sPaymentMethod END
-                    FROM @ItemTextos.nodes('/TextIdentification/TextHeader') AS X(N);
-
-                    SELECT @sBankReference =
-                        CASE WHEN @sQualifier = 'Z024'
-                             THEN LEFT(CONCAT(@sBankReference, X.N.value('(TextLine/text())[1]', 'varchar(4000)')), 80)
-                             ELSE @sBankReference END
-                    FROM @ItemTextos.nodes('/TextIdentification/TextHeader') AS X(N);
-
-                    SELECT @sComments =
-                        CASE WHEN @sQualifier = 'Z021'
-                             THEN LEFT(CONCAT(@sComments, X.N.value('(TextLine/text())[1]', 'varchar(4000)')), 495)
-                             ELSE @sComments END
-                    FROM @ItemTextos.nodes('/TextIdentification/TextHeader') AS X(N);
-
-                    SELECT @sIncoterms =
+            SELECT
+                @sPaymentMethod = LEFT(COALESCE(
+                    STRING_AGG(CASE WHEN Qualifier = 'Z048' THEN CONVERT(VARCHAR(MAX), TextLine) END, '')
+                        WITHIN GROUP (ORDER BY LineOrder), ''), 80),
+                @sBankReference = LEFT(COALESCE(
+                    STRING_AGG(CASE WHEN Qualifier = 'Z024' THEN CONVERT(VARCHAR(MAX), TextLine) END, '')
+                        WITHIN GROUP (ORDER BY LineOrder), ''), 80),
+                @sComments = LEFT(COALESCE(
+                    STRING_AGG(CASE WHEN Qualifier = 'Z021' THEN CONVERT(VARCHAR(MAX), TextLine) END, '')
+                        WITHIN GROUP (ORDER BY LineOrder), ''), 495),
+                @sIncoterms = LEFT(COALESCE(
+                    STRING_AGG(
                         CASE
-                            WHEN @sQualifier = 'INCO1'
-                                THEN CONCAT(@sIncoterms, X.N.value('(TextLine/text())[1]', 'varchar(4000)'))
-                            WHEN @sQualifier = 'INCO2'
-                                THEN CONCAT(@sIncoterms, ' ', X.N.value('(TextLine/text())[1]', 'varchar(4000)'))
-                            ELSE @sIncoterms
-                        END
-                    FROM @ItemTextos.nodes('/TextIdentification/TextHeader') AS X(N);
-                END;
-
-                FETCH NEXT FROM HeaderTextCur INTO @ItemTextos;
-            END;
-
-            CLOSE HeaderTextCur;
-            DEALLOCATE HeaderTextCur;
+                            WHEN Qualifier = 'INCO1' THEN CONVERT(VARCHAR(MAX), TextLine)
+                            WHEN Qualifier = 'INCO2' THEN CONVERT(VARCHAR(MAX), CONCAT(' ', TextLine))
+                        END, '') WITHIN GROUP (ORDER BY LineOrder), ''), 200)
+            FROM @HeaderTextLines
+            WHERE Language = 'ES';
 
             --------------------------------------------------------------------
             -- Workarounds de negocio
@@ -456,181 +427,223 @@ BEGIN
             --------------------------------------------------------------------
             -- ItemData
             --------------------------------------------------------------------
-            DECLARE ItemCur CURSOR LOCAL FAST_FORWARD FOR
-                SELECT I.N.query('.')
-                FROM @XML_Content.nodes('/InvoiceIntercompany/Message/ItemData') AS I(N);
+            /*
+                #InterItems es la representacion relacional de ItemData.
+                El XML de cada articulo se conserva temporalmente para extraer
+                sus colecciones hijas sin volver a leer el mensaje completo.
+            */
+            CREATE TABLE #InterItems
+            (
+                ItemOrder           INT IDENTITY(1, 1) NOT NULL PRIMARY KEY,
+                ItemXML             XML NOT NULL,
+                ItemID              VARCHAR(50) NULL,
+                Cantidad            VARCHAR(50) NULL,
+                RawUnidadMedida     VARCHAR(50) NULL,
+                UnidadMedida        VARCHAR(50) NULL,
+                Plant               VARCHAR(50) NULL,
+                Material            VARCHAR(50) NULL,
+                MaterialDescripcion VARCHAR(50) NULL,
+                Valor_Subt          VARCHAR(50) NULL,
+                Valor_IVA           VARCHAR(50) NULL,
+                Bonif_Subt          VARCHAR(50) NULL,
+                PrecioUnitario      VARCHAR(50) NULL,
+                Leyenda_EN          VARCHAR(300) NULL,
+                Leyenda_ES          VARCHAR(4000) NULL
+            );
 
-            OPEN ItemCur;
-            FETCH NEXT FROM ItemCur INTO @ItemXML;
+            INSERT INTO #InterItems
+            (
+                ItemXML, ItemID, Cantidad, RawUnidadMedida, UnidadMedida, Plant
+            )
+            SELECT
+                I.N.query('.'),
+                I.N.value('(ItemNumber/text())[1]', 'varchar(50)'),
+                I.N.value('(Quantity/text())[1]', 'varchar(50)'),
+                I.N.value('(UnitOfMeasure/text())[1]', 'varchar(50)'),
+                I.N.value('(UnitOfMeasure/text())[1]', 'varchar(50)'),
+                I.N.value('(Plant/text())[1]', 'varchar(50)')
+            FROM @XML_Content.nodes('/InvoiceIntercompany/Message/ItemData') AS I(N);
 
-            WHILE @@FETCH_STATUS = 0
+            /*
+                GETCONV consultaba MX_HashTable una vez por articulo. Aqui se
+                resuelve una vez por unidad de medida distinta y se reutiliza.
+                Si no existe conversion, se conserva el valor original.
+            */
+            CREATE TABLE #InterUomMap
+            (
+                RawUnidadMedida VARCHAR(50) NOT NULL PRIMARY KEY,
+                UnidadMedida    VARCHAR(50) NULL
+            );
+
+            INSERT INTO #InterUomMap (RawUnidadMedida, UnidadMedida)
+            SELECT
+                U.RawUnidadMedida,
+                COALESCE(M.Target, U.RawUnidadMedida)
+            FROM
+            (
+                SELECT DISTINCT RawUnidadMedida
+                FROM #InterItems
+                WHERE RawUnidadMedida IS NOT NULL
+            ) AS U
+            OUTER APPLY
+            (
+                SELECT TOP (1) HT.Target
+                FROM EAI_OWNER.MX_HashTable AS HT
+                WHERE HT.Type = 'ECC_V3 UOM'
+                  AND HT.Source = U.RawUnidadMedida
+            ) AS M;
+
+            UPDATE I
+            SET UnidadMedida =
+                CASE
+                    WHEN U.UnidadMedida = 'CASES' AND @sCteFacturaSAP = 'IC-00-MX16' THEN 'CTN'
+                    ELSE U.UnidadMedida
+                END
+            FROM #InterItems AS I
+            INNER JOIN #InterUomMap AS U
+                ON U.RawUnidadMedida = I.RawUnidadMedida;
+
+            /*
+                Material, importes e IVA se calculan para todos los articulos.
+                [last()] conserva la semantica de los ciclos Oracle: si un
+                calificador se repite, el ultimo nodo sobrescribe al anterior.
+            */
+            UPDATE I
+            SET
+                Material = I.ItemXML.value(
+                    '(/ItemData/ItemID[ObjectIdentification="002"]/MaterialID/text())[last()]',
+                    'varchar(50)'),
+                MaterialDescripcion = I.ItemXML.value(
+                    '(/ItemData/ItemID[ObjectIdentification="002"]/ShortText/text())[last()]',
+                    'varchar(50)'),
+                Valor_Subt = I.ItemXML.value(
+                    '(/ItemData/ItemTerms[Qualifier="003"]/ValueAmount/text())[last()]',
+                    'varchar(50)'),
+                PrecioUnitario = I.ItemXML.value(
+                    '(/ItemData/ItemTerms[Qualifier="003"]/PriceItem/text())[last()]',
+                    'varchar(50)'),
+                Bonif_Subt = I.ItemXML.value(
+                    '(/ItemData/ItemTerms[Qualifier="007"]/ValueAmount/text())[last()]',
+                    'varchar(50)'),
+                Valor_IVA = I.ItemXML.value(
+                    '(/ItemData/ItemTaxes/ValueTax/text())[last()]',
+                    'varchar(50)')
+            FROM #InterItems AS I;
+
+            /*
+                Los impuestos de detalle ya eran insertados por conjunto dentro
+                del cursor. Ahora se expanden para todos los articulos en una sola
+                sentencia, manteniendo el signo indicado en el XML.
+            */
+            INSERT INTO EAI_OWNER.TMP_DOCUMENT_DETAIL_COND
+            (
+                ReferenceID, ItemID, Condition, Amount
+            )
+            SELECT
+                @sReferenceID,
+                I.ItemID,
+                T.N.value('(TaxConditionType/text())[1]', 'varchar(50)'),
+                CONVERT(DECIMAL(18, 6), T.N.value('(TaxConditionValue/text())[1]', 'varchar(50)')) *
+                    CASE
+                        WHEN T.N.value('(TaxConditionIndicator/text())[1]', 'varchar(50)') = '-' THEN -1
+                        ELSE 1
+                    END
+            FROM #InterItems AS I
+            CROSS APPLY I.ItemXML.nodes('/ItemData/ItemTaxTerms') AS T(N)
+            WHERE LEN(COALESCE(T.N.value('(TaxConditionType/text())[1]', 'varchar(50)'), '')) > 1;
+
+            /*
+                Las leyendas se concatenan en el orden del XML. La leyenda EN
+                conserva el limite historico de 300 caracteres y ES el de 4000.
+            */
+            CREATE TABLE #InterItemTextLines
+            (
+                LineOrder INT IDENTITY(1, 1) NOT NULL PRIMARY KEY,
+                ItemOrder INT NOT NULL,
+                Language  VARCHAR(80) NULL,
+                TextLine  VARCHAR(4000) NULL
+            );
+
+            INSERT INTO #InterItemTextLines (ItemOrder, Language, TextLine)
+            SELECT
+                I.ItemOrder,
+                H.N.value('(Language/text())[1]', 'varchar(80)'),
+                L.N.value('(TagColumn/text())[1]', 'varchar(4000)')
+            FROM #InterItems AS I
+            CROSS APPLY I.ItemXML.nodes('/ItemData/ItemTextHeader') AS H(N)
+            CROSS APPLY H.N.nodes('ItemTextDetail') AS L(N);
+
+            ;WITH ItemText AS
+            (
+                SELECT
+                    ItemOrder,
+                    LEFT(COALESCE(
+                        STRING_AGG(CASE WHEN Language = 'EN' THEN CONVERT(VARCHAR(MAX), TextLine) END, '')
+                            WITHIN GROUP (ORDER BY LineOrder), ''), 300) AS Leyenda_EN,
+                    LEFT(COALESCE(
+                        STRING_AGG(CASE WHEN Language = 'ES' THEN CONVERT(VARCHAR(MAX), TextLine) END, '')
+                            WITHIN GROUP (ORDER BY LineOrder), ''), 4000) AS Leyenda_ES
+                FROM #InterItemTextLines
+                GROUP BY ItemOrder
+            )
+            UPDATE I
+            SET
+                Leyenda_EN = T.Leyenda_EN,
+                Leyenda_ES = T.Leyenda_ES
+            FROM #InterItems AS I
+            INNER JOIN ItemText AS T
+                ON T.ItemOrder = I.ItemOrder;
+
+            INSERT INTO EAI_OWNER.TMP_DOCUMENT_DETAIL
+            (
+                ReferenceID, ItemID, Material, Plant,
+                Cantidad, UnidadMedida, Valor_Subt, Valor_IVA,
+                Bonif_Subt, Status_Producto, MaterialDescripcion,
+                PrecioUnitario, Leyenda_EN, Leyenda_ES
+            )
+            SELECT
+                @sReferenceID,
+                I.ItemID,
+                I.Material,
+                I.Plant,
+                I.Cantidad,
+                I.UnidadMedida,
+                I.Valor_Subt,
+                I.Valor_IVA,
+                I.Bonif_Subt,
+                @sStatusItem,
+                I.MaterialDescripcion,
+                I.PrecioUnitario,
+                COALESCE(I.Leyenda_EN, ''),
+                COALESCE(I.Leyenda_ES, '')
+            FROM #InterItems AS I;
+
+            /*
+                Oracle deja en sCentro el Plant del ultimo ItemData y luego lo
+                usa como ShippingPoint del encabezado. Se conserva expresamente.
+            */
+            SELECT TOP (1) @sCentro = Plant
+            FROM #InterItems
+            ORDER BY ItemOrder DESC;
+
+            IF @nOutput > 0
             BEGIN
-                SET @sDetValor_Subt  = '';
-                SET @sPrecioUnitario = '';
-                SET @sDetBonif_Subt  = '';
-                SET @sDetValor_IVA   = '';
-                SET @sMaterial       = NULL;
-                SET @sMatDescription = NULL;
-                SET @sCondZFSISign   = NULL;
-                SET @sCondZFSIValue  = NULL;
-                SET @sItemText_ES    = '';
-                SET @sItemText_EN    = '';
-
                 SELECT
-                    @sNumLinea     = @ItemXML.value('(/ItemData/ItemNumber/text())[1]',    'varchar(50)'),
-                    @sCantidadVta  = @ItemXML.value('(/ItemData/Quantity/text())[1]',      'varchar(50)'),
-                    @sUnidadMedVta = @ItemXML.value('(/ItemData/UnitOfMeasure/text())[1]', 'varchar(50)'),
-                    @sCentro       = @ItemXML.value('(/ItemData/Plant/text())[1]',         'varchar(50)');
-
-                SET @sUnidadMedVta = EAI_OWNER.GETCONV('ECC_V3 UOM', @sUnidadMedVta);
-
-                IF @sUnidadMedVta = 'CASES' AND @sCteFacturaSAP = 'IC-00-MX16'
-                    SET @sUnidadMedVta = 'CTN';
-
-                SELECT TOP (1)
-                    @sMaterial       = X.N.value('(MaterialID/text())[1]',  'varchar(50)'),
-                    @sMatDescription = X.N.value('(ShortText/text())[1]',   'varchar(50)')
-                FROM @ItemXML.nodes('/ItemData/ItemID') AS X(N)
-                WHERE X.N.value('(ObjectIdentification/text())[1]', 'varchar(50)') = '002';
-
-                SELECT
-                    @sDetValor_Subt =
-                        COALESCE(MAX(CASE WHEN X.N.value('(Qualifier/text())[1]', 'varchar(50)') = '003'
-                                          THEN X.N.value('(ValueAmount/text())[1]', 'varchar(50)') END), @sDetValor_Subt),
-                    @sPrecioUnitario =
-                        COALESCE(MAX(CASE WHEN X.N.value('(Qualifier/text())[1]', 'varchar(50)') = '003'
-                                          THEN X.N.value('(PriceItem/text())[1]', 'varchar(50)') END), @sPrecioUnitario),
-                    @sDetBonif_Subt =
-                        COALESCE(MAX(CASE WHEN X.N.value('(Qualifier/text())[1]', 'varchar(50)') = '007'
-                                          THEN X.N.value('(ValueAmount/text())[1]', 'varchar(50)') END), @sDetBonif_Subt)
-                FROM @ItemXML.nodes('/ItemData/ItemTerms') AS X(N);
-
-                SELECT TOP (1)
-                    @sCondZFSISign  = X.N.value('(TermConditionIndicator/text())[1]', 'varchar(50)'),
-                    @sCondZFSIValue = X.N.value('(TermConditionValue/text())[1]',     'varchar(50)')
-                FROM @ItemXML.nodes('/ItemData/ItemTermsCondition') AS X(N)
-                WHERE X.N.value('(TermConditionType/text())[1]', 'varchar(50)') = 'ZFSI';
-
-                INSERT INTO [EAI_OWNER].[TMP_DOCUMENT_DETAIL_COND]
-                (
-                    ReferenceID,
-                    ItemID,
-                    Condition,
-                    Amount
-                )
-                SELECT
-                    @sReferenceID,
-                    @sNumLinea,
-                    T.N.value('(TaxConditionType/text())[1]', 'varchar(50)'),
-                    /*
-                        Oracle falla si TaxConditionValue no es numerico. Usar
-                        CONVERT mantiene esa validacion; TRY_CONVERT ocultaria
-                        el problema insertando NULL.
-                    */
-                    CONVERT(DECIMAL(18, 6), T.N.value('(TaxConditionValue/text())[1]', 'varchar(50)')) *
-                    CASE WHEN T.N.value('(TaxConditionIndicator/text())[1]', 'varchar(50)') = '-' THEN -1 ELSE 1 END
-                FROM @ItemXML.nodes('/ItemData/ItemTaxTerms') AS T(N)
-                WHERE LEN(COALESCE(T.N.value('(TaxConditionType/text())[1]', 'varchar(50)'), '')) > 1;
-
-                SELECT TOP (1)
-                    @sDetValor_IVA = X.N.value('(ValueTax/text())[1]', 'varchar(50)')
-                FROM @ItemXML.nodes('/ItemData/ItemTaxes') AS X(N);
-
-                DECLARE ItemTextCur CURSOR LOCAL FAST_FORWARD FOR
-                    SELECT IT.N.query('.')
-                    FROM @ItemXML.nodes('/ItemData/ItemTextHeader') AS IT(N);
-
-                OPEN ItemTextCur;
-                FETCH NEXT FROM ItemTextCur INTO @ItemTextos;
-
-                WHILE @@FETCH_STATUS = 0
-                BEGIN
-                    SELECT
-                        @sQualifier = @ItemTextos.value('(/ItemTextHeader/TextID/text())[1]',   'varchar(80)'),
-                        @sLanguage  = @ItemTextos.value('(/ItemTextHeader/Language/text())[1]', 'varchar(80)');
-
-                    DECLARE TextLineCur CURSOR LOCAL FAST_FORWARD FOR
-                        SELECT L.N.value('(TagColumn/text())[1]', 'varchar(4000)')
-                        FROM @ItemTextos.nodes('/ItemTextHeader/ItemTextDetail') AS L(N);
-
-                    OPEN TextLineCur;
-                    FETCH NEXT FROM TextLineCur INTO @sTextLine;
-
-                    WHILE @@FETCH_STATUS = 0
-                    BEGIN
-                        IF @sLanguage = 'ES'
-                            SET @sItemText_ES = CONCAT(@sItemText_ES, COALESCE(@sTextLine, ''));
-                        ELSE IF @sLanguage = 'EN'
-                            SET @sItemText_EN = LEFT(CONCAT(@sItemText_EN, COALESCE(@sTextLine, '')), 300);
-
-                        FETCH NEXT FROM TextLineCur INTO @sTextLine;
-                    END;
-
-                    CLOSE TextLineCur;
-                    DEALLOCATE TextLineCur;
-
-                    FETCH NEXT FROM ItemTextCur INTO @ItemTextos;
-                END;
-
-                CLOSE ItemTextCur;
-                DEALLOCATE ItemTextCur;
-
-                IF @nOutput > 0
-                BEGIN
-                    PRINT CONCAT('Item               = ', @sNumLinea);
-                    PRINT CONCAT('Cantidad           = ', @sCantidadVta);
-                    PRINT CONCAT('Unidad Vta         = ', @sUnidadMedVta);
-                    PRINT CONCAT('Centro             = ', @sCentro);
-                    PRINT CONCAT('Material           = ', @sMaterial);
-                    PRINT CONCAT('Descripcion        = ', @sMatDescription);
-                    PRINT CONCAT('Valor Subt         = ', @sDetValor_Subt);
-                    PRINT CONCAT('Valor IVA          = ', @sDetValor_IVA);
-                    PRINT CONCAT('Bonif Subt         = ', @sDetBonif_Subt);
-                    PRINT CONCAT('Precio Unitario    = ', @sPrecioUnitario);
-                    PRINT CONCAT('Leyendas ES/EN     = ', @sItemText_ES, '/', @sItemText_EN);
-                    PRINT '-----------------------------------------';
-                END;
-
-                INSERT INTO EAI_OWNER.TMP_DOCUMENT_DETAIL
-                (
-                    ReferenceID,
-                    ItemID,
-                    Material,
-                    Plant,
+                    ItemID AS Item,
                     Cantidad,
                     UnidadMedida,
+                    Plant AS Centro,
+                    Material,
+                    MaterialDescripcion AS Descripcion,
                     Valor_Subt,
                     Valor_IVA,
                     Bonif_Subt,
-                    Status_Producto,
-                    MaterialDescripcion,
                     PrecioUnitario,
-                    Leyenda_EN,
-                    Leyenda_ES
-                )
-                VALUES
-                (
-                    @sReferenceID,
-                    @sNumLinea,
-                    @sMaterial,
-                    @sCentro,
-                    @sCantidadVta,
-                    @sUnidadMedVta,
-                    @sDetValor_Subt,
-                    @sDetValor_IVA,
-                    @sDetBonif_Subt,
-                    @sStatusItem,
-                    @sMatDescription,
-                    @sPrecioUnitario,
-                    @sItemText_EN,
-                    @sItemText_ES
-                );
-
-                FETCH NEXT FROM ItemCur INTO @ItemXML;
+                    Leyenda_ES,
+                    Leyenda_EN
+                FROM #InterItems
+                ORDER BY ItemOrder;
             END;
-
-            CLOSE ItemCur;
-            DEALLOCATE ItemCur;
 
             IF LEN(COALESCE(@sPedidoV3, '')) > 30
                 SET @sPedidoV3 = LEFT(@sPedidoV3, 30);
@@ -780,7 +793,7 @@ BEGIN
         END;
 
         ------------------------------------------------------------------------
-        -- Actualiza log de recepción
+        -- Actualiza log de recepciÃ³n
         ------------------------------------------------------------------------
         UPDATE EAI_OWNER.MX_RECEIVE_MESSAGE_LOG
         SET
@@ -877,3 +890,4 @@ BEGIN
     END CATCH;
 END;
 GO
+

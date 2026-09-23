@@ -8,6 +8,9 @@
     rol fijo de SQL Server Agent.
 
     Debe ejecutarlo un miembro de sysadmin despues de ejecutar el script B.
+
+    Para altas posteriores, instale D1 y use msdb.dbo.T3_ADD_JOB_EXECUTORS;
+    así el DBA sólo proporciona una lista de logins separados por comas.
 */
 
 USE [msdb];

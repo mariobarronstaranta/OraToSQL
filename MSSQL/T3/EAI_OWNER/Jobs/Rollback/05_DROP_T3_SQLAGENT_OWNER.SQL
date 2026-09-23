@@ -37,6 +37,9 @@ IF EXISTS (SELECT 1 FROM msdb.dbo.sysjobs WHERE owner_sid = @TechnicalSid)
 IF OBJECT_ID(N'msdb.dbo.T3_JOB_NEXT_RUN', N'P') IS NOT NULL
     THROW 51654, 'Todavia existe msdb.dbo.T3_JOB_NEXT_RUN; ejecute primero el paso 4.', 1;
 
+IF OBJECT_ID(N'msdb.dbo.T3_ADD_JOB_EXECUTORS', N'P') IS NOT NULL
+    THROW 51657, 'Todavia existe msdb.dbo.T3_ADD_JOB_EXECUTORS; ejecute primero el paso 4.', 1;
+
 -- Comprueba ownership de esquemas antes de intentar DROP USER.
 IF EXISTS
 (

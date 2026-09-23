@@ -1,0 +1,25 @@
+LOAD DATA 
+INFILE 'E:\IntegrationToolBox\Venta\factura.ready.txt' 
+BADFILE 'E:\IntegrationToolBox\Venta\factura.ready.bad'
+DISCARDFILE 'E:\IntegrationToolBox\Venta\factura.ready.dsc'
+
+TRUNCATE 
+INTO TABLE "TAO_SALES_DOCS_LDR"
+TRUNCATE 
+
+FIELDS TERMINATED BY ','
+(
+    doc_ord_r3,
+    doc_num_r3,
+    CUSTOMER_Number ,
+    distributor, 
+    customer,
+    doc_date, 
+    doc_type,
+    doc_num_ref1,
+    doc_num_ref2, 
+    doc_status,
+    doc_netamt,
+    doc_taxamt,
+    doc_qty
+)

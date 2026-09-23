@@ -1,0 +1,88 @@
+-- Invocado por truncate_ldr.sql en la misma sesion. No ejecutar aisladamente.
+-- Sustituye la llamada a UPDATE_711_RECEPCION para evitar insertar repetidos.
+SELECT REPLACE(REPLACE(LINEA,NCHAR(13),N''),NCHAR(65279),N'') AS Linea
+INTO #Lineas FROM [$(StageTable)]
+WHERE NULLIF(LTRIM(RTRIM(REPLACE(LINEA,NCHAR(13),N''))),N'') IS NOT NULL;
+DECLARE @Cabecera nvarchar(300)=N'@odata.etag,ItemInternalId,Fecha,Tienda,FolioRecepcion,VolumenTicket,FolioInterno,VolumenNota,CoincideVolumen';
+IF (SELECT COUNT_BIG(*) FROM #Lineas WHERE Linea COLLATE Latin1_General_100_BIN2=@Cabecera COLLATE Latin1_General_100_BIN2)<>1
+ THROW 51304,'El CSV debe contener una sola cabecera con las nueve columnas esperadas.',1;
+DELETE #Lineas WHERE Linea COLLATE Latin1_General_100_BIN2=@Cabecera COLLATE Latin1_General_100_BIN2;
+IF NOT EXISTS (SELECT 1 FROM #Lineas)
+ THROW 51305,'El CSV no contiene datos. No se modificaron las tablas.',1;
+-- Contrato del archivo actual: nueve campos por coma, sin campos entre comillas.
+IF EXISTS (SELECT 1 FROM #Lineas WHERE CHARINDEX(N'"',Linea)>0
+ OR LEN(Linea)-LEN(REPLACE(Linea,N',',N''))<>8)
+ THROW 51306,'Fila con comillas o numero de columnas distinto de nueve. Revisar CSV.',1;
+IF EXISTS (
+ SELECT 1 FROM #Lineas L
+ CROSS APPLY OPENJSON(N'["'+REPLACE(STRING_ESCAPE(L.Linea,'json'),N',',N'","')+N'"]') J
+ WHERE DATALENGTH(CONVERT(varchar(max),J.value COLLATE DATABASE_DEFAULT))>100
+)
+ THROW 51307,'Un campo supera los 100 bytes admitidos por LDR_SHAREPOINT.',1;
+CREATE TABLE #Entrada (
+ DUMMY1 varchar(100) COLLATE DATABASE_DEFAULT NULL,
+ ITEMINTERNALID varchar(100) COLLATE DATABASE_DEFAULT NULL,
+ FECHA varchar(100) COLLATE DATABASE_DEFAULT NULL,
+ TIENDA varchar(100) COLLATE DATABASE_DEFAULT NULL,
+ FOLIORECEPCION varchar(100) COLLATE DATABASE_DEFAULT NULL,
+ VOLUMENTICKET varchar(100) COLLATE DATABASE_DEFAULT NULL,
+ FOLIOINTERNO varchar(100) COLLATE DATABASE_DEFAULT NULL,
+ VOLUMENNOTA varchar(100) COLLATE DATABASE_DEFAULT NULL,
+ COINCIDEVOLUMEN varchar(100) COLLATE DATABASE_DEFAULT NULL
+);
+INSERT #Entrada
+SELECT NULLIF(J.C0,N''),NULLIF(J.C1,N''),NULLIF(J.C2,N''),NULLIF(J.C3,N''),
+ NULLIF(J.C4,N''),NULLIF(J.C5,N''),NULLIF(J.C6,N''),NULLIF(J.C7,N''),NULLIF(J.C8,N'')
+FROM #Lineas L
+CROSS APPLY OPENJSON(N'[["'+REPLACE(STRING_ESCAPE(L.Linea,'json'),N',',N'","')+N'"]]')
+WITH (C0 nvarchar(100) '$[0]',C1 nvarchar(100) '$[1]',C2 nvarchar(100) '$[2]',
+ C3 nvarchar(100) '$[3]',C4 nvarchar(100) '$[4]',C5 nvarchar(100) '$[5]',
+ C6 nvarchar(100) '$[6]',C7 nvarchar(100) '$[7]',C8 nvarchar(100) '$[8]') J;
+IF EXISTS (SELECT 1 FROM #Entrada WHERE NULLIF(LTRIM(RTRIM(FOLIOINTERNO)),'') IS NULL
+ OR NULLIF(LTRIM(RTRIM(FOLIORECEPCION)),'') IS NULL
+ OR NULLIF(LTRIM(RTRIM(TIENDA)),'') IS NULL
+ OR UPPER(TIENDA)='TIENDA' OR DATALENGTH(FOLIORECEPCION)>30)
+ THROW 51308,'Folio/tienda vacio, encabezado incorrecto o recepcion mayor a 30 bytes.',1;
+IF EXISTS (SELECT FOLIOINTERNO FROM #Entrada GROUP BY FOLIOINTERNO
+ HAVING COUNT(DISTINCT FOLIORECEPCION COLLATE Latin1_General_100_BIN2)>1)
+ THROW 51309,'Un folio interno tiene distintas recepciones. Resolver antes de cargar.',1;
+DECLARE @Filas int=(SELECT COUNT(*) FROM #Entrada),@Insertados int,
+ @Actualizaciones int,@Base bigint,@Ahora datetime2(0)=SYSDATETIME();
+BEGIN TRY
+ BEGIN TRANSACTION;
+ -- Bloqueo limitado a la aplicacion: protege ROW_ID frente a otros escritores.
+ SELECT @Base=ISNULL(CONVERT(bigint,MAX(ROW_ID)),0)
+ FROM EAI.IFC_FOLIOS_FE WITH (TABLOCKX,HOLDLOCK) WHERE ROW_ID<1000000000;
+ SELECT E.FOLIOINTERNO,MIN(E.FOLIORECEPCION) AS ENTRADA,COUNT(*) AS Repeticiones
+ INTO #Nuevos FROM #Entrada E
+ WHERE NOT EXISTS (SELECT 1 FROM EAI.IFC_FOLIOS_FE F WHERE F.VAR_1=E.FOLIOINTERNO)
+ GROUP BY E.FOLIOINTERNO;
+ SET @Insertados=(SELECT COUNT(*) FROM #Nuevos);
+ IF @Base+@Insertados>=1000000000
+  THROW 51310,'No hay suficientes ROW_ID disponibles bajo 1000000000.',1;
+ -- Conservar autorizacion y auditoria sin silenciar los errores de limpieza.
+ IF NOT EXISTS (SELECT 1 FROM EAI_OWNER.EAI_TRUNC_TABLE WITH (HOLDLOCK)
+  WHERE UPPER(TABLE_NAME) COLLATE DATABASE_DEFAULT=N'EAI.LDR_SHAREPOINT')
+  THROW 51303,'Limpieza de EAI.LDR_SHAREPOINT no autorizada.',1;
+ TRUNCATE TABLE EAI.LDR_SHAREPOINT;
+ INSERT EAI_OWNER.EAI_TRUNC_LOG(TABLE_NAME,EXECUTED,USER_SCHEMA,USER_ID,IP_ADDRESS,TERMINAL)
+ VALUES ('EAI.LDR_SHAREPOINT',@Ahora,LEFT(SCHEMA_NAME(),30),LEFT(SUSER_SNAME(),40),
+  LEFT(CONVERT(varchar(100),CONNECTIONPROPERTY('client_net_address')),40),LEFT(HOST_NAME(),40));
+ INSERT EAI.LDR_SHAREPOINT
+  (DUMMY1,ITEMINTERNALID,FECHA,TIENDA,FOLIORECEPCION,VOLUMENTICKET,FOLIOINTERNO,VOLUMENNOTA,COINCIDEVOLUMEN)
+ SELECT DUMMY1,ITEMINTERNALID,FECHA,TIENDA,FOLIORECEPCION,VOLUMENTICKET,FOLIOINTERNO,VOLUMENNOTA,COINCIDEVOLUMEN
+ FROM #Entrada;
+ UPDATE F SET MODIFICACION=@Ahora
+ FROM EAI.IFC_FOLIOS_FE F WHERE EXISTS (SELECT 1 FROM #Entrada E WHERE E.FOLIOINTERNO=F.VAR_1);
+ INSERT EAI.IFC_FOLIOS_FE(ROW_ID,ENTRADA,CREADOPOR,CREACION,VAR_1,MODIFICACION)
+ SELECT @Base+ROW_NUMBER() OVER(ORDER BY FOLIOINTERNO),ENTRADA,'INTERFACE',@Ahora,FOLIOINTERNO,
+  CASE WHEN Repeticiones>1 THEN @Ahora ELSE NULL END FROM #Nuevos;
+ -- Oracle cuenta una actualizacion por fila de entrada, no por fila destino.
+ SET @Actualizaciones=@Filas-@Insertados;
+ COMMIT TRANSACTION;
+ SELECT @Filas AS FilasCSV,@Insertados AS Insertados,@Actualizaciones AS Actualizaciones;
+END TRY
+BEGIN CATCH
+ IF XACT_STATE()<>0 ROLLBACK TRANSACTION;
+ THROW;
+END CATCH;

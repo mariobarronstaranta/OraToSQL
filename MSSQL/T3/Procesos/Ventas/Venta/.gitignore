@@ -1,0 +1,7 @@
+.venta_loader_lock/
+processed/
+process.log
+moveDailyInfo.log
+factura.ready.doc
+factura.ready.bad
+tests/work/

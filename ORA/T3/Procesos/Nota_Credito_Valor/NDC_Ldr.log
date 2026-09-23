@@ -1,0 +1,48 @@
+
+SQL*Loader: Release 11.2.0.1.0 - Production on Wed Aug 19 12:33:18 2026
+
+Copyright (c) 1982, 2009, Oracle and/or its affiliates.  All rights reserved.
+
+Control File:   NDC_Ldr.CTL
+Data File:      NDC_Ldr.txt
+  Bad File:     NDC_Ldr.bad
+  Discard File: NDC_Ldr.dsc 
+ (Allow all discards)
+
+Number to load: ALL
+Number to skip: 0
+Errors allowed: 50
+Bind array:     64 rows, maximum of 256000 bytes
+Continuation:    none specified
+Path used:      Conventional
+
+Table "T3"."X_NDC_LDR", loaded from every logical record.
+Insert option in effect for this table: TRUNCATE
+
+   Column Name                  Position   Len  Term Encl Datatype
+------------------------------ ---------- ----- ---- ---- ---------------------
+CLIENTE_SAP                         FIRST     *   ;       CHARACTER            
+VALOR_SUBT                           NEXT     *   ;       CHARACTER            
+AREA_SOLICITANTE                     NEXT     *   ;       CHARACTER            
+
+
+Table "T3"."X_NDC_LDR":
+  1026 Rows successfully loaded.
+  0 Rows not loaded due to data errors.
+  0 Rows not loaded because all WHEN clauses were failed.
+  0 Rows not loaded because all fields were null.
+
+
+Space allocated for bind array:                  49536 bytes(64 rows)
+Read   buffer bytes: 1048576
+
+Total logical records skipped:          0
+Total logical records read:          1026
+Total logical records rejected:         0
+Total logical records discarded:        0
+
+Run began on Wed Aug 19 12:33:18 2026
+Run ended on Wed Aug 19 12:33:19 2026
+
+Elapsed time was:     00:00:00.63
+CPU time was:         00:00:00.10

@@ -1,0 +1,4 @@
+user BAT V3Mexic0
+ascii
+put factura.ready.doc \CControl\incoming\factura_POA.txt
+bye

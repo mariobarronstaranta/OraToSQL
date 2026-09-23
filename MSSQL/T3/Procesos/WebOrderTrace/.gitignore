@@ -1,0 +1,7 @@
+Order.csv
+Invoice.csv
+WebOrder*.CSV
+Processed/
+Logs/
+.wot_lock/
+tests/work/

@@ -13,7 +13,8 @@ El proceso retira:
 
 - Los 37 jobs `ORA_*` y sus schedules administrados por los scripts de migracion.
 - Las filas de control de esos jobs y, si quedan vacias, sus tablas auxiliares.
-- El wrapper `msdb.dbo.T3_JOB_NEXT_RUN`.
+- El wrapper `msdb.dbo.T3_JOB_NEXT_RUN` y el procedimiento administrativo
+  `msdb.dbo.T3_ADD_JOB_EXECUTORS`.
 - Los roles `msdb.T3JobExecutors`, `T3QA.T3BODExecutors` y
   `T3QA.T3SqlAgentJobExecutor`.
 - El usuario tecnico en `T3QA` y `msdb`, y el login
@@ -91,10 +92,10 @@ no mantener parcialmente la nueva solucion de seguridad.
 
 ### 04 - `04_REMOVE_SECURITY_ROLES_AND_WRAPPER.SQL`
 
-Primero elimina el wrapper de `msdb`, luego saca todos los miembros de los roles
-creados por la solucion y finalmente elimina esos roles. Los usuarios se
-conservan en este paso para que cualquier dependencia resulte más fácil de
-diagnosticar.
+Primero elimina el wrapper y el helper de altas `T3_ADD_JOB_EXECUTORS` de
+`msdb`; luego saca todos los miembros de los roles creados por la solución y
+finalmente elimina esos roles. Los usuarios se conservan en este paso para que
+cualquier dependencia resulte más fácil de diagnosticar.
 
 Cambie `@ConfirmSecurityRollback` de `0` a `1`.
 

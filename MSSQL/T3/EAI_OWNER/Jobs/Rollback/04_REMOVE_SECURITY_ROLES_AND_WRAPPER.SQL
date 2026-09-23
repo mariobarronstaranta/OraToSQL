@@ -1,7 +1,8 @@
 /*
     PASO 4 DEL ROLLBACK TOTAL
     =========================
-    Elimina el wrapper controlado y los roles creados para la solucion.
+    Elimina el wrapper controlado, el procedimiento administrativo de altas y
+    los roles creados para la solucion.
     Los usuarios NO se eliminan aqui; eso se hace posteriormente y permite
     diagnosticar dependencias con mayor claridad.
 */
@@ -24,6 +25,10 @@ BEGIN TRY
     /* El wrapper se elimina primero porque contiene EXECUTE AS USER y depende
        del usuario tecnico de msdb. */
     DROP PROCEDURE IF EXISTS dbo.T3_JOB_NEXT_RUN;
+
+    /* Este helper fue creado por D1 y deja de tener sentido cuando se retiran
+       los roles que administra. */
+    DROP PROCEDURE IF EXISTS dbo.T3_ADD_JOB_EXECUTORS;
 
     DECLARE @Sql NVARCHAR(MAX) = N'';
 
@@ -57,7 +62,7 @@ BEGIN TRY
         EXEC (N'USE [T3QA]; DROP ROLE [T3SqlAgentJobExecutor];');
 
     COMMIT TRANSACTION;
-    PRINT 'Paso 4 completado: wrapper y roles de la solucion eliminados.';
+    PRINT 'Paso 4 completado: wrapper, helper administrativo y roles eliminados.';
 END TRY
 BEGIN CATCH
     IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;

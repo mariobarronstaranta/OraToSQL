@@ -52,6 +52,7 @@ WHERE J.[name] LIKE N'ORA[_]%'
 SELECT
     SUSER_ID(N'T3_SQLAGENT_OWNER') AS Technical_Login_Id,
     OBJECT_ID(N'msdb.dbo.T3_JOB_NEXT_RUN', N'P') AS Wrapper_Object_Id,
+    OBJECT_ID(N'msdb.dbo.T3_ADD_JOB_EXECUTORS', N'P') AS Add_Executors_Object_Id,
     (SELECT principal_id FROM msdb.sys.database_principals WHERE [name]=N'T3JobExecutors') AS Msdb_Role_Id,
     (SELECT principal_id FROM T3QA.sys.database_principals WHERE [name]=N'T3BODExecutors') AS T3_BOD_Role_Id,
     (SELECT principal_id FROM T3QA.sys.database_principals WHERE [name]=N'T3SqlAgentJobExecutor') AS T3_Agent_Role_Id;

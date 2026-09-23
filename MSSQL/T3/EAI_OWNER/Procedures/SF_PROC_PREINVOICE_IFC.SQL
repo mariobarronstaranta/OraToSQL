@@ -24,7 +24,7 @@ BEGIN
         @v_ID                NVARCHAR(30),
         @sErrorCode          NVARCHAR(20),
         @sReferenceID        NVARCHAR(30),
-        @sProcesar           NVARCHAR(20) = N'NO',
+        @sProcesar           NVARCHAR(20),
         @sFacturaSAP         NVARCHAR(30),
         @sCurrency           NVARCHAR(30),
         @sRFC                NVARCHAR(30),
@@ -87,38 +87,27 @@ BEGIN
         @sFolioFiscalDoc     NVARCHAR(30),
         @sSalesDoc_Type      NVARCHAR(30),
         @nA51                INT = 0,
+        @MessageFound        BIT = 0,
         @xmlContent          XML,
         @itemXML             XML,
         @itemTextos          XML;
 
     BEGIN TRY
-        BEGIN TRAN;
+        BEGIN TRANSACTION;
 
         IF @nOutput > 0
-        BEGIN
-            INSERT INTO [EAI_OWNER].[Trace_EAI_Owner]
+            INSERT INTO [EAI_OWNER].[TRACE_EAI_OWNER]
                 (Created, Object_Type, Object_Reference, Description)
             VALUES
-                (GETDATE(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, 'Begin');
-        END;
+                (SYSDATETIME(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, 'Begin');
 
-        SELECT @xmlContent = TRY_CONVERT(XML, XML_Content)
-        FROM [EAI_OWNER].[MX_Receive_Message_Log]
+        SELECT
+            @xmlContent = XML_Content,
+            @MessageFound = 1
+        FROM [EAI_OWNER].[MX_RECEIVE_MESSAGE_LOG]
         WHERE Row_ID = @sRow_ID;
 
-        IF @xmlContent IS NULL
-        BEGIN
-            SET @sProcesar = N'NO';
-
-            IF @nOutput > 0
-            BEGIN
-                INSERT INTO [EAI_OWNER].[Trace_EAI_Owner]
-                    (Created, Object_Type, Object_Reference, Description)
-                VALUES
-                    (GETDATE(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, 'NO Procesado - XML vacío o inválido');
-            END;
-        END
-        ELSE
+        IF @xmlContent IS NOT NULL
         BEGIN
             SELECT
                 @v_ID          = @xmlContent.value('(/Invoice/Message/InvoiceHeader/DocumentNumber/text())[1]', 'nvarchar(30)'),
@@ -142,10 +131,10 @@ BEGIN
                 DELETE FROM [EAI_OWNER].[TMP_DOCUMENT_CONDITIONS]
                 WHERE ReferenceID = @sReferenceID;
 
-                --------------------------------------------------------------------
-                -- Partners
-                --------------------------------------------------------------------
-                ;WITH P AS
+                /* Cada grupo se recorre una sola vez. La asignacion secuencial
+                   reproduce la ultima ocurrencia de Oracle sin reescanear el
+                   XML con multiples llamadas value(). */
+                ;WITH Partners AS
                 (
                     SELECT
                         X.P.value('(Function/text())[1]',   'nvarchar(20)') AS FunctionID,
@@ -160,110 +149,82 @@ BEGIN
                     FROM @xmlContent.nodes('/Invoice/Message/InvoicePartner') X(P)
                 )
                 SELECT
-                    @sClienteSAP    = COALESCE(MAX(CASE WHEN FunctionID = 'AG'  THEN PartnerID    END), @sClienteSAP),
-                    @sCountry       = COALESCE(MAX(CASE WHEN FunctionID = 'AG'  THEN Country      END), @sCountry),
-                    @sPartnerName   = COALESCE(MAX(CASE WHEN FunctionID = 'AG'  THEN PartnerName  END), @sPartnerName),
-                    @sCity          = COALESCE(MAX(CASE WHEN FunctionID = 'AG'  THEN City         END), @sCity),
-                    @sDistrict      = COALESCE(MAX(CASE WHEN FunctionID = 'AG'  THEN District     END), @sDistrict),
-                    @sPostalCode    = COALESCE(MAX(CASE WHEN FunctionID = 'AG'  THEN PostalCode   END), @sPostalCode),
-                    @sRegion        = COALESCE(MAX(CASE WHEN FunctionID = 'AG'  THEN Region       END), @sRegion),
-                    @sAddress       = COALESCE(MAX(CASE WHEN FunctionID = 'AG'  THEN Address      END), @sAddress),
-                    @sCteEntregaSAP = COALESCE(MAX(CASE WHEN FunctionID = 'WE'  THEN PartnerID    END), @sCteEntregaSAP),
-                    @sCtePagadorSAP = COALESCE(MAX(CASE WHEN FunctionID = 'RE'  THEN PartnerID    END), @sCtePagadorSAP),
+                    @sClienteSAP = COALESCE(MAX(CASE WHEN FunctionID = N'AG' THEN PartnerID END), @sClienteSAP),
+                    @sCountry = COALESCE(MAX(CASE WHEN FunctionID = N'AG' THEN Country END), @sCountry),
+                    @sPartnerName = COALESCE(MAX(CASE WHEN FunctionID = N'AG' THEN PartnerName END), @sPartnerName),
+                    @sCity = COALESCE(MAX(CASE WHEN FunctionID = N'AG' THEN City END), @sCity),
+                    @sDistrict = COALESCE(MAX(CASE WHEN FunctionID = N'AG' THEN District END), @sDistrict),
+                    @sPostalCode = COALESCE(MAX(CASE WHEN FunctionID = N'AG' THEN PostalCode END), @sPostalCode),
+                    @sRegion = COALESCE(MAX(CASE WHEN FunctionID = N'AG' THEN Region END), @sRegion),
+                    @sAddress = COALESCE(MAX(CASE WHEN FunctionID = N'AG' THEN Address END), @sAddress),
+                    @sCteEntregaSAP = COALESCE(MAX(CASE WHEN FunctionID = N'WE' THEN PartnerID END), @sCteEntregaSAP),
+                    @sCtePagadorSAP = COALESCE(MAX(CASE WHEN FunctionID = N'RE' THEN PartnerID END), @sCtePagadorSAP),
                     @sCteFacturaSAP = COALESCE(
-                                            MAX(CASE WHEN FunctionID = 'RE'  THEN PartnerID END),
-                                            MAX(CASE WHEN FunctionID = 'RSA' THEN PartnerID END),
-                                            @sCteFacturaSAP
-                                       )
-                FROM P;
+                        MAX(CASE WHEN FunctionID = N'RE' THEN PartnerID END),
+                        MAX(CASE WHEN FunctionID = N'RSA' THEN PartnerID END),
+                        @sCteFacturaSAP)
+                FROM Partners;
 
-                --------------------------------------------------------------------
-                -- Header Date
-                --------------------------------------------------------------------
                 SELECT TOP (1)
                     @sFechaVencimiento = X.H.value('(Date/text())[1]', 'nvarchar(50)')
                 FROM @xmlContent.nodes('/Invoice/Message/HeaderDate') X(H)
-                WHERE X.H.value('(Qualifier/text())[1]', 'nvarchar(20)') = '028';
+                WHERE X.H.value('(Qualifier/text())[1]', 'nvarchar(20)') = N'028';
 
-                --------------------------------------------------------------------
-                -- Reference Data
-                --------------------------------------------------------------------
                 SELECT
-                    @sPedidoV3     = COALESCE(MAX(CASE WHEN RefQualifier = '001' THEN UPPER(RefDocument) END), @sPedidoV3),
-                    @sPedidoSAP    = COALESCE(MAX(CASE WHEN RefQualifier = '002' THEN RefDocument        END), @sPedidoSAP),
-                    @sFechaFactura = COALESCE(MAX(CASE WHEN RefQualifier = '009' THEN RefDate            END), @sFechaFactura),
-                    @sHoraFactura  = COALESCE(MAX(CASE WHEN RefQualifier = '009' THEN RefTime            END), @sHoraFactura),
-                    @sFacturaV3    = COALESCE(MAX(CASE WHEN RefQualifier = '017' THEN RefDocument        END), @sFacturaV3)
+                    @sPedidoV3 = COALESCE(MAX(CASE WHEN Qualifier = N'001' THEN UPPER(DocumentValue) END), @sPedidoV3),
+                    @sPedidoSAP = COALESCE(MAX(CASE WHEN Qualifier = N'002' THEN DocumentValue END), @sPedidoSAP),
+                    @sFechaFactura = COALESCE(MAX(CASE WHEN Qualifier = N'009' THEN DateValue END), @sFechaFactura),
+                    @sHoraFactura = COALESCE(MAX(CASE WHEN Qualifier = N'009' THEN TimeValue END), @sHoraFactura),
+                    @sFacturaV3 = COALESCE(MAX(CASE WHEN Qualifier = N'017' THEN DocumentValue END), @sFacturaV3)
                 FROM
                 (
                     SELECT
-                        X.R.value('(Qualifier/text())[1]', 'nvarchar(20)') AS RefQualifier,
-                        X.R.value('(Document/text())[1]',  'nvarchar(50)') AS RefDocument,
-                        X.R.value('(Date/text())[1]',      'nvarchar(50)') AS RefDate,
-                        X.R.value('(Time/text())[1]',      'nvarchar(50)') AS RefTime
+                        X.R.value('(Qualifier/text())[1]', 'nvarchar(20)') AS Qualifier,
+                        X.R.value('(Document/text())[1]', 'nvarchar(50)') AS DocumentValue,
+                        X.R.value('(Date/text())[1]', 'nvarchar(50)') AS DateValue,
+                        X.R.value('(Time/text())[1]', 'nvarchar(50)') AS TimeValue
                     FROM @xmlContent.nodes('/Invoice/Message/ReferenceData') X(R)
-                ) R;
-
-                --------------------------------------------------------------------
-                -- Organization Data
-                --------------------------------------------------------------------
-                DECLARE curOrg CURSOR LOCAL FAST_FORWARD FOR
-                    SELECT
-                        X.O.value('(Qualifier/text())[1]',    'nvarchar(20)') AS RefQualifier,
-                        X.O.value('(Organization/text())[1]', 'nvarchar(50)') AS RefValue
-                    FROM @xmlContent.nodes('/Invoice/Message/OrganizationData') X(O);
+                ) ReferencesData;
 
                 DECLARE @OrgQualifier NVARCHAR(20), @OrgValue NVARCHAR(50);
+
+                DECLARE curOrg CURSOR LOCAL FAST_FORWARD FOR
+                    SELECT
+                        X.O.value('(Qualifier/text())[1]',    'nvarchar(20)'),
+                        X.O.value('(Organization/text())[1]', 'nvarchar(50)')
+                    FROM @xmlContent.nodes('/Invoice/Message/OrganizationData') X(O);
 
                 OPEN curOrg;
                 FETCH NEXT FROM curOrg INTO @OrgQualifier, @OrgValue;
 
                 WHILE @@FETCH_STATUS = 0
                 BEGIN
-                    IF @OrgQualifier = '008'
+                    IF @OrgQualifier = N'008'
                         SET @sOrgVentas = @OrgValue;
-                    ELSE IF @OrgQualifier = '003'
+                    ELSE IF @OrgQualifier = N'003'
+                        SELECT @sCompanyCode = @OrgValue, @sOrgVentas = @OrgValue;
+                    ELSE IF @OrgQualifier = N'015'
                     BEGIN
-                        SET @sCompanyCode = @OrgValue;
-                        SET @sOrgVentas = @OrgValue;
-                    END
-                    ELSE IF @OrgQualifier = '015'
-                    BEGIN
-                        IF @OrgValue = 'Nota de Venta'
-                            SET @sClaseFactura = 'C005';
-                        ELSE IF @OrgValue = 'Payable'
-                            SET @sClaseFactura = 'C004';
-                        ELSE IF @OrgValue = 'PROFORMA'
-                        BEGIN
-                            SET @sClaseFactura = 'C006';
-                            SET @sFacturaV3 = @sReferenceID;
-                        END
-                        ELSE IF @OrgValue = 'ZIG2'
-                        BEGIN
-                            SET @sClaseFactura = 'C022';
-                            SET @sFacturaV3 = @sReferenceID;
-                        END
-                        ELSE IF @OrgValue = 'ZB1E'
-                        BEGIN
-                            SET @sClaseFactura = 'C019';
-                            SET @sFacturaV3 = @sReferenceID;
-                        END
-                        ELSE IF @OrgValue = 'ZG'
-                        BEGIN
-                            SET @sClaseFactura = 'C025';
-                            SET @sFacturaV3 = @sReferenceID;
-
-                            IF SUBSTRING(COALESCE(@sClienteSAP, ''), 1, 3) = '009'
-                                SET @sClaseFactura = 'C031';
-                        END
-                        ELSE IF @OrgValue = 'ZL'
-                        BEGIN
-                            SET @sClaseFactura = 'C0FX';
-                            SET @sFacturaV3 = @sReferenceID;
-
-                            IF SUBSTRING(COALESCE(@sClienteSAP, ''), 1, 3) = '009'
-                                SET @sClaseFactura = 'C030';
-                        END
+                        IF @OrgValue = N'Nota de Venta'
+                            SET @sClaseFactura = N'C005';
+                        ELSE IF @OrgValue = N'Payable'
+                            SET @sClaseFactura = N'C004';
+                        ELSE IF @OrgValue = N'PROFORMA'
+                            SELECT @sClaseFactura = N'C006', @sFacturaV3 = @sReferenceID;
+                        ELSE IF @OrgValue = N'ZIG2'
+                            SELECT @sClaseFactura = N'C022', @sFacturaV3 = @sReferenceID;
+                        ELSE IF @OrgValue = N'ZB1E'
+                            SELECT @sClaseFactura = N'C019', @sFacturaV3 = @sReferenceID;
+                        ELSE IF @OrgValue = N'ZG'
+                            SELECT
+                                @sClaseFactura = CASE WHEN SUBSTRING(@sClienteSAP, 1, 3) = N'009'
+                                                     THEN N'C031' ELSE N'C025' END,
+                                @sFacturaV3 = @sReferenceID;
+                        ELSE IF @OrgValue = N'ZL'
+                            SELECT
+                                @sClaseFactura = CASE WHEN SUBSTRING(@sClienteSAP, 1, 3) = N'009'
+                                                     THEN N'C030' ELSE N'C0FX' END,
+                                @sFacturaV3 = @sReferenceID;
                     END;
 
                     FETCH NEXT FROM curOrg INTO @OrgQualifier, @OrgValue;
@@ -272,23 +233,17 @@ BEGIN
                 CLOSE curOrg;
                 DEALLOCATE curOrg;
 
-                --------------------------------------------------------------------
-                -- Summary General
-                --------------------------------------------------------------------
                 SELECT
-                    @sValor_IVA  = COALESCE(MAX(CASE WHEN RefQualifier = '005' THEN RefValue END), @sValor_IVA),
-                    @sValor_Subt = COALESCE(MAX(CASE WHEN RefQualifier = '011' THEN RefValue END), @sValor_Subt)
+                    @sValor_IVA = COALESCE(MAX(CASE WHEN Qualifier = N'005' THEN SummaryValue END), @sValor_IVA),
+                    @sValor_Subt = COALESCE(MAX(CASE WHEN Qualifier = N'011' THEN SummaryValue END), @sValor_Subt)
                 FROM
                 (
                     SELECT
-                        X.S.value('(Qualifier/text())[1]',    'nvarchar(20)') AS RefQualifier,
-                        X.S.value('(ValueSummary/text())[1]', 'nvarchar(50)') AS RefValue
+                        X.S.value('(Qualifier/text())[1]', 'nvarchar(20)') AS Qualifier,
+                        X.S.value('(ValueSummary/text())[1]', 'nvarchar(50)') AS SummaryValue
                     FROM @xmlContent.nodes('/Invoice/Message/SummaryGeneral') X(S)
-                ) S;
+                ) Summaries;
 
-                --------------------------------------------------------------------
-                -- Header Conditions
-                --------------------------------------------------------------------
                 INSERT INTO [EAI_OWNER].[TMP_DOCUMENT_CONDITIONS]
                 (
                     ReferenceID, ItemID, Condition, TotalCondition,
@@ -297,7 +252,7 @@ BEGIN
                 )
                 SELECT
                     @sReferenceID,
-                    ROW_NUMBER() OVER (ORDER BY (SELECT 1)),
+                    ROW_NUMBER() OVER (ORDER BY (SELECT NULL)),
                     X.C.value('(Indicator/text())[1]',     'nvarchar(50)'),
                     X.C.value('(Total/text())[1]',         'nvarchar(50)'),
                     X.C.value('(Amount/text())[1]',        'nvarchar(50)'),
@@ -309,9 +264,6 @@ BEGIN
                     X.C.value('(Quantity/text())[1]',      'nvarchar(50)')
                 FROM @xmlContent.nodes('/Invoice/Message/HeaderConditions') X(C);
 
-                --------------------------------------------------------------------
-                -- Header Text: Z024 PaymentMethod, Z048 BankReference
-                --------------------------------------------------------------------
                 DECLARE curHeaderText CURSOR LOCAL FAST_FORWARD FOR
                     SELECT X.T.query('.')
                     FROM @xmlContent.nodes('/Invoice/Message/TextIdentification') X(T);
@@ -323,11 +275,10 @@ BEGIN
                 BEGIN
                     SELECT
                         @sQualifier = @itemTextos.value('(/TextIdentification/TextID/text())[1]', 'nvarchar(80)'),
-                        @sLanguage  = @itemTextos.value('(/TextIdentification/Language/text())[1]', 'nvarchar(80)');
+                        @sLanguage = @itemTextos.value('(/TextIdentification/Language/text())[1]', 'nvarchar(80)');
 
                     DECLARE curHeaderLine CURSOR LOCAL FAST_FORWARD FOR
-                        SELECT
-                            X.L.value('(TextLine/text())[1]', 'nvarchar(80)')
+                        SELECT X.L.value('(TextLine/text())[1]', 'nvarchar(80)')
                         FROM @itemTextos.nodes('/TextIdentification/TextHeader') X(L);
 
                     OPEN curHeaderLine;
@@ -335,9 +286,9 @@ BEGIN
 
                     WHILE @@FETCH_STATUS = 0
                     BEGIN
-                        IF @sQualifier = 'Z024'
+                        IF @sQualifier = N'Z024'
                             SET @sPaymentMethod = CONCAT(COALESCE(@sPaymentMethod, N''), COALESCE(@sTextLine, N''));
-                        ELSE IF @sQualifier = 'Z048'
+                        ELSE IF @sQualifier = N'Z048'
                             SET @sBankReference = CONCAT(COALESCE(@sBankReference, N''), COALESCE(@sTextLine, N''));
 
                         FETCH NEXT FROM curHeaderLine INTO @sTextLine;
@@ -345,16 +296,12 @@ BEGIN
 
                     CLOSE curHeaderLine;
                     DEALLOCATE curHeaderLine;
-
                     FETCH NEXT FROM curHeaderText INTO @itemTextos;
                 END;
 
                 CLOSE curHeaderText;
                 DEALLOCATE curHeaderText;
 
-                --------------------------------------------------------------------
-                -- Document Detail / Items
-                --------------------------------------------------------------------
                 SET @nItems = 0;
 
                 DECLARE curItemData CURSOR LOCAL FAST_FORWARD FOR
@@ -368,91 +315,77 @@ BEGIN
                 BEGIN
                     SET @nItems += 1;
 
+                    /* Oracle convierte '' en NULL. En SQL Server los importes
+                       opcionales deben reiniciarse explícitamente a NULL; usar
+                       N'' provoca SQL-8114 al insertarlos en columnas NUMERIC. */
                     SELECT
-                        @sNumLinea       = N'',
-                        @sCantidadVta    = N'',
-                        @sUnidadMedVta   = N'',
-                        @sCentro         = N'',
-                        @sMaterial       = N'',
-                        @sMatDescription = N'',
-                        @sDetValor_Subt  = N'',
-                        @sPrecioUnitario = N'',
-                        @sDetBonif_Subt  = N'',
-                        @sDetValor_IVA   = N'',
-                        @sItemText_ES    = N'',
-                        @sItemText_EN    = N'',
-                        @sCondZFSIValue  = N'',
-                        @sCondZFSISign   = N'',
-                        @sCondZFSKValue  = N'',
-                        @sCondZFSKSign   = N'',
-                        @sCondZT21Value  = N'',
-                        @sCondZT21Sign   = N'',
-                        @sCondZPROValue  = N'',
-                        @sCondZEXSValue  = N'',
-                        @sCondZEXCValue  = N'',
-                        @sCondZEXOValue  = N'';
+                        @sNumLinea = NULL, @sCantidadVta = NULL,
+                        @sUnidadMedVta = NULL, @sCentro = NULL,
+                        @sMaterial = NULL, @sMatDescription = NULL,
+                        @sDetValor_Subt = NULL, @sPrecioUnitario = NULL,
+                        @sDetBonif_Subt = NULL, @sDetValor_IVA = NULL,
+                        @sItemText_ES = NULL, @sItemText_EN = NULL,
+                        @sCondZFSIValue = NULL, @sCondZFSISign = NULL,
+                        @sCondZFSKValue = NULL, @sCondZFSKSign = NULL,
+                        @sCondZT21Value = NULL, @sCondZT21Sign = NULL,
+                        @sCondZPROValue = NULL, @sCondZEXSValue = NULL,
+                        @sCondZEXCValue = NULL, @sCondZEXOValue = NULL;
 
                     SELECT
-                        @sNumLinea     = @itemXML.value('(/ItemData/ItemNumber/text())[1]',    'nvarchar(50)'),
-                        @sCantidadVta  = @itemXML.value('(/ItemData/Quantity/text())[1]',      'nvarchar(50)'),
+                        @sNumLinea = @itemXML.value('(/ItemData/ItemNumber/text())[1]', 'nvarchar(50)'),
+                        @sCantidadVta = @itemXML.value('(/ItemData/Quantity/text())[1]', 'nvarchar(50)'),
                         @sUnidadMedVta = @itemXML.value('(/ItemData/UnitOfMeasure/text())[1]', 'nvarchar(50)'),
-                        @sCentro       = @itemXML.value('(/ItemData/Plant/text())[1]',         'nvarchar(50)');
+                        @sCentro = @itemXML.value('(/ItemData/Plant/text())[1]', 'nvarchar(50)');
 
                     SELECT @sNumLinea = [EAI_OWNER].[LINE_ITEM_TEXT](@sNumLinea);
 
-                    -- LINE_ITEM_TEXT debe producir un número. Oracle usa
-                    -- TO_NUMBER, por lo que un valor inválido debe causar error.
                     IF CONVERT(DECIMAL(38,0), @sNumLinea) > 9999
                         SET @sNumLinea = CONVERT(NVARCHAR(50), @nItems);
 
                     SELECT TOP (1)
-                        @sMaterial       = X.ID.value('(MaterialID/text())[1]',          'nvarchar(50)'),
+                        @sMaterial = X.ID.value('(MaterialID/text())[1]', 'nvarchar(50)'),
                         @sMatDescription = X.ID.value('(MaterialDescription/text())[1]', 'nvarchar(50)')
                     FROM @itemXML.nodes('/ItemData/ItemID') X(ID)
-                    WHERE X.ID.value('(ObjectIdentification/text())[1]', 'nvarchar(50)') = '002';
+                    WHERE X.ID.value('(ObjectIdentification/text())[1]', 'nvarchar(50)') = N'002';
 
                     SELECT
-                        @sDetValor_Subt  = COALESCE(MAX(CASE WHEN RefQualifier = '003' THEN RefValueAmount END), @sDetValor_Subt),
-                        @sPrecioUnitario = COALESCE(MAX(CASE WHEN RefQualifier = '003' THEN RefPriceItem   END), @sPrecioUnitario),
-                        @sDetBonif_Subt  = COALESCE(MAX(CASE WHEN RefQualifier = '007' THEN RefValueAmount END), @sDetBonif_Subt)
+                        @sDetValor_Subt = COALESCE(MAX(CASE WHEN Qualifier = N'003' THEN ValueAmount END), @sDetValor_Subt),
+                        @sPrecioUnitario = COALESCE(MAX(CASE WHEN Qualifier = N'003' THEN PriceItem END), @sPrecioUnitario),
+                        @sDetBonif_Subt = COALESCE(MAX(CASE WHEN Qualifier = N'007' THEN ValueAmount END), @sDetBonif_Subt)
                     FROM
                     (
                         SELECT
-                            X.T.value('(ValueAmount/text())[1]',   'nvarchar(50)') AS RefValueAmount,
-                            X.T.value('(Qualifier/text())[1]',     'nvarchar(50)') AS RefQualifier,
-                            X.T.value('(TotalLineItem/text())[1]', 'nvarchar(50)') AS RefTotalLineItem,
-                            X.T.value('(PriceItem/text())[1]',     'nvarchar(50)') AS RefPriceItem
+                            X.T.value('(Qualifier/text())[1]', 'nvarchar(50)') AS Qualifier,
+                            X.T.value('(ValueAmount/text())[1]', 'nvarchar(50)') AS ValueAmount,
+                            X.T.value('(PriceItem/text())[1]', 'nvarchar(50)') AS PriceItem
                         FROM @itemXML.nodes('/ItemData/ItemTerms') X(T)
-                    ) IT;
+                    ) ItemTerms;
 
                     SELECT
-                        @sCondZFSISign  = COALESCE(MAX(CASE WHEN ItemCondType IN ('ZFSI', 'ZDN3') THEN ItemCondSign  END), @sCondZFSISign),
-                        @sCondZFSIValue = COALESCE(MAX(CASE WHEN ItemCondType IN ('ZFSI', 'ZDN3') THEN ItemCondValue END), @sCondZFSIValue),
-                        @sCondZFSKSign  = COALESCE(MAX(CASE WHEN ItemCondType = 'ZFSK' THEN ItemCondSign  END), @sCondZFSKSign),
-                        @sCondZFSKValue = COALESCE(MAX(CASE WHEN ItemCondType = 'ZFSK' THEN ItemCondValue END), @sCondZFSKValue),
-                        @sCondZT21Sign  = COALESCE(MAX(CASE WHEN ItemCondType = 'ZT21' THEN ItemCondSign  END), @sCondZT21Sign),
-                        @sCondZT21Value = COALESCE(MAX(CASE WHEN ItemCondType = 'ZT21' THEN ItemCondValue END), @sCondZT21Value),
-                        @sDetBonif_Subt = COALESCE(MAX(CASE WHEN ItemCondType = 'ZDNV' THEN ItemCondValue END), @sDetBonif_Subt),
-                        @sCondZPROValue = COALESCE(MAX(CASE WHEN ItemCondType = 'ZPR0' THEN ItemCondValue END), @sCondZPROValue),
-                        @sCondZEXSValue = COALESCE(MAX(CASE WHEN ItemCondType = 'ZEXS' THEN ItemCondValue END), @sCondZEXSValue),
-                        @sCondZEXCValue = COALESCE(MAX(CASE WHEN ItemCondType IN ('ZEXC', 'ZEXJ') THEN ItemCondValue END), @sCondZEXCValue),
-                        @sCondZEXOValue = COALESCE(MAX(CASE WHEN ItemCondType = 'ZEXO' THEN ItemCondValue END), @sCondZEXOValue)
+                        @sCondZFSISign = COALESCE(MAX(CASE WHEN ConditionType IN (N'ZFSI', N'ZDN3') THEN ConditionSign END), @sCondZFSISign),
+                        @sCondZFSIValue = COALESCE(MAX(CASE WHEN ConditionType IN (N'ZFSI', N'ZDN3') THEN ConditionValue END), @sCondZFSIValue),
+                        @sCondZFSKSign = COALESCE(MAX(CASE WHEN ConditionType = N'ZFSK' THEN ConditionSign END), @sCondZFSKSign),
+                        @sCondZFSKValue = COALESCE(MAX(CASE WHEN ConditionType = N'ZFSK' THEN ConditionValue END), @sCondZFSKValue),
+                        @sCondZT21Sign = COALESCE(MAX(CASE WHEN ConditionType = N'ZT21' THEN ConditionSign END), @sCondZT21Sign),
+                        @sCondZT21Value = COALESCE(MAX(CASE WHEN ConditionType = N'ZT21' THEN ConditionValue END), @sCondZT21Value),
+                        @sDetBonif_Subt = COALESCE(MAX(CASE WHEN ConditionType = N'ZDNV' THEN ConditionValue END), @sDetBonif_Subt),
+                        @sCondZPROValue = COALESCE(MAX(CASE WHEN ConditionType = N'ZPR0' THEN ConditionValue END), @sCondZPROValue),
+                        @sCondZEXSValue = COALESCE(MAX(CASE WHEN ConditionType = N'ZEXS' THEN ConditionValue END), @sCondZEXSValue),
+                        @sCondZEXCValue = COALESCE(MAX(CASE WHEN ConditionType IN (N'ZEXC', N'ZEXJ') THEN ConditionValue END), @sCondZEXCValue),
+                        @sCondZEXOValue = COALESCE(MAX(CASE WHEN ConditionType = N'ZEXO' THEN ConditionValue END), @sCondZEXOValue)
                     FROM
                     (
                         SELECT
-                            X.C.value('(TermConditionIndicator/text())[1]', 'nvarchar(50)') AS ItemCondSign,
-                            X.C.value('(TermConditionType/text())[1]',      'nvarchar(50)') AS ItemCondType,
-                            X.C.value('(TermConditionValue/text())[1]',     'nvarchar(50)') AS ItemCondValue
+                            X.C.value('(TermConditionIndicator/text())[1]', 'nvarchar(50)') AS ConditionSign,
+                            X.C.value('(TermConditionType/text())[1]', 'nvarchar(50)') AS ConditionType,
+                            X.C.value('(TermConditionValue/text())[1]', 'nvarchar(50)') AS ConditionValue
                         FROM @itemXML.nodes('/ItemData/ItemTermsCondition') X(C)
-                    ) IC;
+                    ) ItemConditions;
 
                     SELECT TOP (1)
                         @sDetValor_IVA = X.TX.value('(ValueTax/text())[1]', 'nvarchar(50)')
                     FROM @itemXML.nodes('/ItemData/ItemTaxes') X(TX);
 
-                    ----------------------------------------------------------------
-                    -- Item Texts
-                    ----------------------------------------------------------------
                     DECLARE curItemText CURSOR LOCAL FAST_FORWARD FOR
                         SELECT X.TH.query('.')
                         FROM @itemXML.nodes('/ItemData/ItemTextHeader') X(TH);
@@ -463,21 +396,21 @@ BEGIN
                     WHILE @@FETCH_STATUS = 0
                     BEGIN
                         SELECT
-                            @sQualifier = @itemTextos.value('(/ItemTextHeader/TextID/text())[1]',   'nvarchar(80)'),
-                            @sLanguage  = @itemTextos.value('(/ItemTextHeader/Language/text())[1]', 'nvarchar(80)');
+                            @sQualifier = @itemTextos.value('(/ItemTextHeader/TextID/text())[1]', 'nvarchar(80)'),
+                            @sLanguage = @itemTextos.value('(/ItemTextHeader/Language/text())[1]', 'nvarchar(80)');
 
                         DECLARE curItemTextLine CURSOR LOCAL FAST_FORWARD FOR
-                            SELECT X.TD.value('(TextLine/text())[1]', 'nvarchar(80)')
-                            FROM @itemTextos.nodes('/ItemTextHeader/ItemTextDetail') X(TD);
+                            SELECT X.D.value('(TextLine/text())[1]', 'nvarchar(80)')
+                            FROM @itemTextos.nodes('/ItemTextHeader/ItemTextDetail') X(D);
 
                         OPEN curItemTextLine;
                         FETCH NEXT FROM curItemTextLine INTO @sTextLine;
 
                         WHILE @@FETCH_STATUS = 0
                         BEGIN
-                            IF @sLanguage = 'ES'
+                            IF @sLanguage = N'ES'
                                 SET @sItemText_ES = CONCAT(COALESCE(@sItemText_ES, N''), COALESCE(@sTextLine, N''));
-                            ELSE IF @sLanguage = 'EN'
+                            ELSE IF @sLanguage = N'EN'
                                 SET @sItemText_EN = CONCAT(COALESCE(@sItemText_EN, N''), COALESCE(@sTextLine, N''));
 
                             FETCH NEXT FROM curItemTextLine INTO @sTextLine;
@@ -485,36 +418,31 @@ BEGIN
 
                         CLOSE curItemTextLine;
                         DEALLOCATE curItemTextLine;
-
                         FETCH NEXT FROM curItemText INTO @itemTextos;
                     END;
 
                     CLOSE curItemText;
                     DEALLOCATE curItemText;
 
-                    ----------------------------------------------------------------
-                    -- Workaround materiales
-                    ----------------------------------------------------------------
-                    IF @sMaterial IN ('R031', 'R902')
-                        SET @sMaterial = '8800111';
+                    /* Workarounds de materiales y notas de debito de Oracle. */
+                    IF @sMaterial IN (N'R031', N'R902')
+                        SET @sMaterial = N'8800111';
 
-                    ----------------------------------------------------------------
-                    -- Workaround Debit Note
-                    ----------------------------------------------------------------
-                    IF @sMaterial IN ('88000001', '99000001')
+                    IF @sMaterial IN (N'88000001', N'99000001')
                     BEGIN
-                        SET @sTipoDocV3 = 'DN';
+                        SET @sTipoDocV3 = N'DN';
                         SET @sPartnerName = @sFacturaV3;
                         SET @sFacturaV3 = @sClienteSAP;
-                        SET @sClienteSAP = RIGHT(REPLICATE('0', 10) + COALESCE(@sPartnerName, ''), 10);
-                        SET @sPartnerName = 'DebitNote';
-                        SET @sBankReference = CONVERT(CHAR(8), GETDATE(), 112) + ' ' + CONVERT(CHAR(8), GETDATE(), 108);
+                        SET @sClienteSAP = RIGHT(REPLICATE(N'0', 10) + COALESCE(@sPartnerName, N''), 10);
+                        SET @sPartnerName = N'DebitNote';
+                        SET @sBankReference =
+                            CONCAT(CONVERT(CHAR(8), SYSDATETIME(), 112), N' ',
+                                   CONVERT(CHAR(8), SYSDATETIME(), 108));
                     END;
 
-                    ----------------------------------------------------------------
-                    -- Workaround UOM
-                    ----------------------------------------------------------------
-                    SET @sMaterialUOM = SUBSTRING(COALESCE(@sMaterial, ''), 11, 8);
+                    /* Se conserva este cursor residual porque Oracle aplica la
+                       conversion secuencialmente a cada coincidencia MATERIAL. */
+                    SET @sMaterialUOM = SUBSTRING(@sMaterial, 11, 8);
 
                     DECLARE
                         @UOM_Fact NVARCHAR(50),
@@ -526,39 +454,47 @@ BEGIN
 
                     DECLARE curSKU CURSOR LOCAL FAST_FORWARD FOR
                         SELECT
-                            [EAI_OWNER].[GETCONV]('ECC_V3 UOM', @sUnidadMedVta) AS UOM_Fact,
-                            SKU.UM AS UOM_SKU,
-                            COALESCE(SKU.CIG_X_CLL, 0) AS CIG_X_CLL,
+                            [EAI_OWNER].[GETCONV](N'ECC_V3 UOM', @sUnidadMedVta),
+                            SKU.UM,
+                            COALESCE(SKU.CIG_X_CLL, 0),
                             CASE
                                 WHEN COALESCE(SKU.CIG_X_CLL, 0) = 0 THEN 1
-                                ELSE CONVERT(DECIMAL(18,6), SKU.CIG_X_PAQ) / CONVERT(DECIMAL(18,6), SKU.CIG_X_CLL)
-                            END AS CASE_PACK,
+                                ELSE CONVERT(DECIMAL(18,6), SKU.CIG_X_PAQ) /
+                                     CONVERT(DECIMAL(18,6), SKU.CIG_X_CLL)
+                            END,
                             CASE
                                 WHEN COALESCE(SKU.CIG_X_CLL, 0) = 0 THEN 1
-                                ELSE CONVERT(DECIMAL(18,6), SKU.CIG_X_CT) / CONVERT(DECIMAL(18,6), SKU.CIG_X_CLL)
-                            END AS MASTER_CASE
+                                ELSE CONVERT(DECIMAL(18,6), SKU.CIG_X_CT) /
+                                     CONVERT(DECIMAL(18,6), SKU.CIG_X_CLL)
+                            END
                         FROM [T3].[MATERIAL] SKU
                         WHERE SKU.MATERIAL = @sMaterialUOM;
 
                     OPEN curSKU;
-                    FETCH NEXT FROM curSKU INTO @UOM_Fact, @UOM_SKU, @CIG_X_CLL, @CASE_PACK, @MASTER_CASE;
+                    FETCH NEXT FROM curSKU
+                    INTO @UOM_Fact, @UOM_SKU, @CIG_X_CLL, @CASE_PACK, @MASTER_CASE;
 
                     WHILE @@FETCH_STATUS = 0
                     BEGIN
-                        IF COALESCE(@UOM_Fact, '') <> COALESCE(@UOM_SKU, '')
+                        /* Sin COALESCE: en Oracle NULL != valor no es TRUE. */
+                        IF @UOM_Fact <> @UOM_SKU
                         BEGIN
                             SET @sUnidadMedVta = @UOM_SKU;
                             SET @CantidadDecimal = CONVERT(DECIMAL(18,6), @sCantidadVta);
 
-                            IF @UOM_Fact = 'PAQ'
-                                SET @sCantidadVta = CONVERT(NVARCHAR(50), @CantidadDecimal * @CASE_PACK);
-                            ELSE IF @UOM_Fact = 'CASES'
-                                SET @sCantidadVta = CONVERT(NVARCHAR(50), @CantidadDecimal * @MASTER_CASE);
+                            IF @UOM_Fact = N'PAQ'
+                                SET @sCantidadVta =
+                                    CONVERT(NVARCHAR(50), @CantidadDecimal * @CASE_PACK);
+                            ELSE IF @UOM_Fact = N'CASES'
+                                SET @sCantidadVta =
+                                    CONVERT(NVARCHAR(50), @CantidadDecimal * @MASTER_CASE);
                             ELSE
                                 SET @sUnidadMedVta = @UOM_Fact;
                         END;
 
-                        FETCH NEXT FROM curSKU INTO @UOM_Fact, @UOM_SKU, @CIG_X_CLL, @CASE_PACK, @MASTER_CASE;
+                        FETCH NEXT FROM curSKU
+                        INTO @UOM_Fact, @UOM_SKU, @CIG_X_CLL,
+                             @CASE_PACK, @MASTER_CASE;
                     END;
 
                     CLOSE curSKU;
@@ -566,21 +502,21 @@ BEGIN
 
                     IF @nOutput > 0
                     BEGIN
-                        INSERT INTO [EAI_OWNER].[Trace_EAI_Owner]
+                        INSERT INTO [EAI_OWNER].[TRACE_EAI_OWNER]
                             (Created, Object_Type, Object_Reference, Description)
                         VALUES
-                            (GETDATE(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('Item           = ', @sNumLinea)),
-                            (GETDATE(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('Cantidad       = ', @sCantidadVta)),
-                            (GETDATE(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('Unidad Vta     = ', @sUnidadMedVta)),
-                            (GETDATE(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('Centro         = ', @sCentro)),
-                            (GETDATE(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('Material       = ', @sMaterial)),
-                            (GETDATE(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('Descripcion    = ', @sMatDescription)),
-                            (GETDATE(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('Valor Subt     = ', @sDetValor_Subt)),
-                            (GETDATE(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('Valor IVA      = ', @sDetValor_IVA)),
-                            (GETDATE(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('Envio Subt     = ', @sCondZFSIValue)),
-                            (GETDATE(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('Credito Subt   = ', @sCondZFSKValue)),
-                            (GETDATE(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('Valor IEPS     = ', @sCondZT21Value)),
-                            (GETDATE(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('Bonif Subt     = ', @sDetBonif_Subt));
+                            (SYSDATETIME(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('Item           = ', @sNumLinea)),
+                            (SYSDATETIME(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('Cantidad       = ', @sCantidadVta)),
+                            (SYSDATETIME(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('Unidad Vta     = ', @sUnidadMedVta)),
+                            (SYSDATETIME(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('Centro         = ', @sCentro)),
+                            (SYSDATETIME(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('Material       = ', @sMaterial)),
+                            (SYSDATETIME(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('Descripcion    = ', @sMatDescription)),
+                            (SYSDATETIME(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('Valor Subt     = ', @sDetValor_Subt)),
+                            (SYSDATETIME(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('Valor IVA      = ', @sDetValor_IVA)),
+                            (SYSDATETIME(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('Envio Subt     = ', @sCondZFSIValue)),
+                            (SYSDATETIME(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('Credito Subt   = ', @sCondZFSKValue)),
+                            (SYSDATETIME(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('Valor IEPS     = ', @sCondZT21Value)),
+                            (SYSDATETIME(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('Bonif Subt     = ', @sDetBonif_Subt));
                     END;
 
                     INSERT INTO [EAI_OWNER].[TMP_DOCUMENT_DETAIL]
@@ -608,9 +544,6 @@ BEGIN
                 CLOSE curItemData;
                 DEALLOCATE curItemData;
 
-                --------------------------------------------------------------------
-                -- Header insert
-                --------------------------------------------------------------------
                 INSERT INTO [EAI_OWNER].[TMP_DOCUMENT_HEADER]
                 (
                     ReferenceID, Cust_to_SAP, Bill_to_SAP, Ship_to_SAP,
@@ -627,128 +560,125 @@ BEGIN
                     @sReferenceID, @sClienteSAP, @sCteFacturaSAP, @sCteEntregaSAP,
                     @sCentro, @sClaseFactura, @sFacturaV3, @sPedidoSAP,
                     @sPedidoV3, @sValor_Subt, @sValor_IVA,
-                    CONCAT(@sFechaFactura, ' ', @sHoraFactura),
+                    CONCAT(@sFechaFactura, N' ', @sHoraFactura),
                     @sCurrency, @sRFC, @sRate, @sPaymentTerms,
                     @sCountry, @sPartnerName, @sCity, @sDistrict,
                     @sPostalCode, @sRegion, @sAddress, @sPaymentMethod,
-                    @sFechaVencimiento, GETDATE(),
+                    @sFechaVencimiento, SYSDATETIME(),
                     @sCompanyCode, @sOrgVentas, @sBankReference
                 );
             END
-            ELSE
-            BEGIN
-                IF @nOutput > 0
-                BEGIN
-                    INSERT INTO [EAI_OWNER].[Trace_EAI_Owner]
-                        (Created, Object_Type, Object_Reference, Description)
-                    VALUES
-                        (GETDATE(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, 'NO Procesado');
-                END;
-            END;
+            ELSE IF @nOutput > 0
+                INSERT INTO [EAI_OWNER].[TRACE_EAI_OWNER]
+                    (Created, Object_Type, Object_Reference, Description)
+                VALUES
+                    (SYSDATETIME(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, 'NO Procesado');
+        END
+        ELSE IF @MessageFound = 1
+        BEGIN
+            /* XML_CONTENT es tipo XML en SQL Server. NULL reproduce el registro
+               Oracle cuyo DocumentNumber no puede procesarse. */
+            SET @sProcesar = N'NO';
+            IF @nOutput > 0
+                INSERT INTO [EAI_OWNER].[TRACE_EAI_OWNER]
+                    (Created, Object_Type, Object_Reference, Description)
+                VALUES
+                    (SYSDATETIME(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, 'NO Procesado');
         END;
 
-        ------------------------------------------------------------------------
-        -- Determinación de tipo de documento
-        ------------------------------------------------------------------------
+        /* Reglas posteriores al parseo, en el mismo orden que Oracle. */
         SELECT @nA51 = COUNT(1)
-        FROM [EAI_OWNER].[MX_Hashtable] CFG
+        FROM [EAI_OWNER].[MX_HASHTABLE] CFG
         WHERE CFG.Type = 'PDV A51'
           AND CFG.Source = @sClienteSAP;
 
         IF @nA51 > 0
-            SET @sDOC_TYPE = 'PR';
+            SET @sDOC_TYPE = N'PR';
         ELSE
             SELECT @sDOC_TYPE = [EAI_OWNER].[FN_GET_DOC_TYPE](@sPedidoV3);
 
-        IF @sDOC_TYPE = 'VD'
+        IF @sDOC_TYPE = N'VD'
         BEGIN
-            SET @sProcesar = 'VD';
-            SET @sClaseFactura = 'C003';
+            SET @sProcesar = N'VD';
+            SET @sClaseFactura = N'C003';
         END;
 
-        IF @sPartnerName = 'DebitNote'
-            SET @sProcesar = 'SI';
+        IF @sPartnerName = N'DebitNote'
+            SET @sProcesar = N'SI';
 
-        IF SUBSTRING(COALESCE(@sCompanyCode, ''), 1, 2) <> 'MX'
-            SET @sProcesar = 'DI';
+        /* Sin COALESCE: Oracle no rechaza cuando CompanyCode es NULL. */
+        IF SUBSTRING(@sCompanyCode, 1, 2) <> N'MX'
+            SET @sProcesar = N'DI';
 
-        IF @sClaseFactura = 'Discard'
-            SET @sProcesar = 'CN';
+        IF @sClaseFactura = N'Discard'
+            SET @sProcesar = N'CN';
 
         UPDATE [EAI_OWNER].[MX_RECEIVE_MESSAGE_LOG]
         SET
-            Processed = GETDATE(),
+            Processed = SYSDATETIME(),
             Reference = @sReferenceID,
             Status =
                 CASE @sProcesar
-                    WHEN 'SI' THEN 'Processed'
-                    WHEN 'VD' THEN 'Processed'
-                    WHEN 'NA' THEN 'NotApply'
-                    WHEN 'ED' THEN 'CheckData'
-                    WHEN 'CN' THEN 'ConfirmCN'
-                    WHEN 'DI' THEN CONCAT('Reject', COALESCE(@sCompanyCode, ''))
+                    WHEN N'SI' THEN 'Processed'
+                    WHEN N'VD' THEN 'Processed'
+                    WHEN N'NA' THEN 'NotApply'
+                    WHEN N'ED' THEN 'CheckData'
+                    WHEN N'CN' THEN 'ConfirmCN'
+                    WHEN N'DI' THEN CONCAT('Reject', @sCompanyCode)
                     ELSE 'Review'
                 END
         WHERE Row_ID = @sRow_ID;
 
         IF @nOutput > 0
-        BEGIN
-            INSERT INTO [EAI_OWNER].[Trace_EAI_Owner]
+            INSERT INTO [EAI_OWNER].[TRACE_EAI_OWNER]
                 (Created, Object_Type, Object_Reference, Description)
             VALUES
-                (GETDATE(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('Procesar      -> ', @sProcesar)),
-                (GETDATE(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('ClaseFactura  -> ', @sClaseFactura)),
-                (GETDATE(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('SalesDoc_Type -> ', @sSalesDoc_Type)),
-                (GETDATE(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('PedidoV3      -> ', @sPedidoV3));
-        END;
+                (SYSDATETIME(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('Procesar      -> ', @sProcesar)),
+                (SYSDATETIME(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('ClaseFactura  -> ', @sClaseFactura)),
+                (SYSDATETIME(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('SalesDoc_Type -> ', @sSalesDoc_Type)),
+                (SYSDATETIME(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('PedidoV3      -> ', @sPedidoV3));
 
-        ------------------------------------------------------------------------
-        -- Dispatch downstream
-        ------------------------------------------------------------------------
-        IF @sProcesar = 'SI'
+        IF @sProcesar = N'SI'
         BEGIN
-            IF @sTipoDocV3 = 'DN'
+            IF @sTipoDocV3 = N'DN'
             BEGIN
-                SET @sPedidoV3 = REPLACE(@sPedidoV3, ' ', '_');
+                SET @sPedidoV3 = REPLACE(@sPedidoV3, N' ', N'_');
 
                 UPDATE [EAI_OWNER].[TMP_DOCUMENT_HEADER]
                 SET PedidoV3 = @sPedidoV3
                 WHERE ReferenceID = @sReferenceID;
 
                 IF @nOutput > 0
-                BEGIN
-                    INSERT INTO [EAI_OWNER].[Trace_EAI_Owner]
+                    INSERT INTO [EAI_OWNER].[TRACE_EAI_OWNER]
                         (Created, Object_Type, Object_Reference, Description)
                     VALUES
-                        (GETDATE(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('DEBITNOTE_TO_IFC( ', @sReferenceID, ' )'));
-                END;
+                        (SYSDATETIME(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID,
+                         CONCAT('DEBITNOTE_TO_IFC( ', @sReferenceID, ' )'));
 
                 EXEC [EAI_OWNER].[DEBITNOTE_TO_IFC] @sReferenceID;
             END
             ELSE
             BEGIN
                 IF @nOutput > 0
-                BEGIN
-                    INSERT INTO [EAI_OWNER].[Trace_EAI_Owner]
+                    INSERT INTO [EAI_OWNER].[TRACE_EAI_OWNER]
                         (Created, Object_Type, Object_Reference, Description)
                     VALUES
-                        (GETDATE(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('INVOICE_TO_PREVENTA( ', @sReferenceID, ' )'));
-                END;
+                        (SYSDATETIME(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID,
+                         CONCAT('INVOICE_TO_PREVENTA( ', @sReferenceID, ' )'));
 
                 EXEC [EAI_OWNER].[INVOICE_TO_PREVENTA]
                     @sReferenceID,
                     @sFolioFiscalDoc OUTPUT;
             END;
         END
-        ELSE IF @sProcesar = 'VD'
+        ELSE IF @sProcesar = N'VD'
         BEGIN
             IF @nOutput > 0
-            BEGIN
-                INSERT INTO [EAI_OWNER].[Trace_EAI_Owner]
+                INSERT INTO [EAI_OWNER].[TRACE_EAI_OWNER]
                     (Created, Object_Type, Object_Reference, Description)
                 VALUES
-                    (GETDATE(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, CONCAT('INVOICE_TO_FACTURA( ', @sReferenceID, ' )'));
-            END;
+                    (SYSDATETIME(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID,
+                     CONCAT('INVOICE_TO_FACTURA( ', @sReferenceID, ' )'));
 
             EXEC [EAI_OWNER].[INVOICE_TO_FACTURA]
                 @sReferenceID,
@@ -756,38 +686,58 @@ BEGIN
         END;
 
         IF @nOutput > 0
-        BEGIN
-            INSERT INTO [EAI_OWNER].[Trace_EAI_Owner]
+            INSERT INTO [EAI_OWNER].[TRACE_EAI_OWNER]
                 (Created, Object_Type, Object_Reference, Description)
             VALUES
-                (GETDATE(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, 'End');
-        END;
+                (SYSDATETIME(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, 'End');
 
-        COMMIT;
+        COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
-        -- Un error puede ocurrir dentro de cursores anidados. Se cierran sólo
-        -- los que estén abiertos y después se liberan si llegaron a declararse.
-        IF CURSOR_STATUS('local', 'curHeaderLine') >= 0 CLOSE curHeaderLine;
-        IF CURSOR_STATUS('local', 'curHeaderLine') > -3 DEALLOCATE curHeaderLine;
-        IF CURSOR_STATUS('local', 'curItemTextLine') >= 0 CLOSE curItemTextLine;
-        IF CURSOR_STATUS('local', 'curItemTextLine') > -3 DEALLOCATE curItemTextLine;
-        IF CURSOR_STATUS('local', 'curItemText') >= 0 CLOSE curItemText;
-        IF CURSOR_STATUS('local', 'curItemText') > -3 DEALLOCATE curItemText;
-        IF CURSOR_STATUS('local', 'curSKU') >= 0 CLOSE curSKU;
-        IF CURSOR_STATUS('local', 'curSKU') > -3 DEALLOCATE curSKU;
-        IF CURSOR_STATUS('local', 'curItemData') >= 0 CLOSE curItemData;
-        IF CURSOR_STATUS('local', 'curItemData') > -3 DEALLOCATE curItemData;
-        IF CURSOR_STATUS('local', 'curHeaderText') >= 0 CLOSE curHeaderText;
-        IF CURSOR_STATUS('local', 'curHeaderText') > -3 DEALLOCATE curHeaderText;
-        IF CURSOR_STATUS('local', 'curOrg') >= 0 CLOSE curOrg;
-        IF CURSOR_STATUS('local', 'curOrg') > -3 DEALLOCATE curOrg;
+        IF CURSOR_STATUS('local', 'curItemTextLine') >= 0
+            CLOSE curItemTextLine;
+        IF CURSOR_STATUS('local', 'curItemTextLine') >= -1
+            DEALLOCATE curItemTextLine;
+        IF CURSOR_STATUS('local', 'curItemText') >= 0
+            CLOSE curItemText;
+        IF CURSOR_STATUS('local', 'curItemText') >= -1
+            DEALLOCATE curItemText;
+        IF CURSOR_STATUS('local', 'curHeaderLine') >= 0
+            CLOSE curHeaderLine;
+        IF CURSOR_STATUS('local', 'curHeaderLine') >= -1
+            DEALLOCATE curHeaderLine;
+        IF CURSOR_STATUS('local', 'curHeaderText') >= 0
+            CLOSE curHeaderText;
+        IF CURSOR_STATUS('local', 'curHeaderText') >= -1
+            DEALLOCATE curHeaderText;
+        IF CURSOR_STATUS('local', 'curOrg') >= 0
+            CLOSE curOrg;
+        IF CURSOR_STATUS('local', 'curOrg') >= -1
+            DEALLOCATE curOrg;
+        IF CURSOR_STATUS('local', 'curSKU') >= 0
+            CLOSE curSKU;
+        IF CURSOR_STATUS('local', 'curSKU') >= -1
+            DEALLOCATE curSKU;
+        IF CURSOR_STATUS('local', 'curItemData') >= 0
+            CLOSE curItemData;
+        IF CURSOR_STATUS('local', 'curItemData') >= -1
+            DEALLOCATE curItemData;
 
         IF XACT_STATE() <> 0
-            ROLLBACK;
+            ROLLBACK TRANSACTION;
 
-        SET @sErrorCode = CONCAT('SQL-', ERROR_NUMBER());
-        SET @sMsg = LEFT(CONCAT(ERROR_NUMBER(), '-', ERROR_MESSAGE()), 250);
+        SET @sErrorCode = CONCAT(N'SQL-', ERROR_NUMBER());
+        SET @sMsg = LEFT
+        (
+            CONCAT
+            (
+                N'SQL-', ERROR_NUMBER(),
+                N'; linea=', ERROR_LINE(),
+                N'; procedimiento=', COALESCE(ERROR_PROCEDURE(), N'SF_PROC_PREINVOICE_IFC_OPTIMIZADO'),
+                N'; mensaje=', ERROR_MESSAGE()
+            ),
+            250
+        );
 
         INSERT INTO [EAI_OWNER].[MX_EAI_MESSAGE_LOG]
         (
@@ -797,13 +747,13 @@ BEGIN
         )
         VALUES
         (
-            'Job Logging', @sReferenceID, GETDATE(), NULL, @nPID,
+            'Job Logging', @sReferenceID, SYSDATETIME(), NULL, @nPID,
             'Error', 'PROC_PREINVOICE_IFC', @sMsg, 'T-SQL',
             @sErrorCode, NULL, NULL, NULL
         );
 
-        -- El proceso que consume la cola consulta el estado y la bitácora; no
-        -- se propaga la excepción porque el procedure Oracle tampoco lo hace.
+        /* Igual que Oracle y el procedimiento SQL Server actual, el error se
+           registra para que el consumidor de la cola decida el reintento. */
     END CATCH;
 END;
 GO

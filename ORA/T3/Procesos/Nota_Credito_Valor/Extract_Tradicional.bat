@@ -1,0 +1,1 @@
+sqlplus EAI_APPS/TURIN$2023$PMO@owba030p @HeaderTradicional.sql
