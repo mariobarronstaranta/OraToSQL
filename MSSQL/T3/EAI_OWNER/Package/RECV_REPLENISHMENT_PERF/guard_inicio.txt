@@ -1,0 +1,12 @@
+/* Parche basado en el respaldo de T3QA del 20/10/2026.
+   Aplicar fuera del lote. Modifica 4 DELETE y 3 UPDATE por ReferenceID.
+   @Revertir=0 aplica; @Revertir=1 restaura el cuerpo original adjuntado.
+   Si el cuerpo desplegado difiere del respaldo o del parche, se detiene.
+*/
+SET NOCOUNT ON;
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+DECLARE @Revertir bit=0;
+IF DB_NAME()<>N'T3QA' THROW 51960,'Seleccionar T3QA.',1;
+IF @@TRANCOUNT<>0 OR (2 & @@OPTIONS)=2
+ THROW 51961,'Ejecutar fuera de transacciones externas o implicitas.',1;

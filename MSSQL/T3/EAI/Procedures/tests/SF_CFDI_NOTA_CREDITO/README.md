@@ -1,5 +1,10 @@
 # Validacion de transacciones de SF_CFDI_NOTA_CREDITO
 
+Actualizacion 2026-10-08: ademas de las pruebas transaccionales, Run.ps1 ejecuta
+OracleRules.sql con 17 comprobaciones de reglas Oracle. Se corrigieron notas
+sin cobranza, contador de filas recorridas y cadenas vacias. Detalle completo
+en [revision Oracle](../../SF_CFDI_NOTA_CREDITO.MD).
+
 La correccion conserva los filtros y calculos; elimina confirmaciones intermedias y confirma la reconstruccion, aplicaciones y auditoria juntas. El script principal usa CREATE OR ALTER para actualizar el objeto existente.
 
 En ejecucion independiente, el procedimiento abre una transaccion, la confirma al terminar y la revierte ante error. Despues del rollback intenta registrar el error y relanza la excepcion original, incluso si la bitacora falla.

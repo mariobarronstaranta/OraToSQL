@@ -1,4 +1,94 @@
-# EAI.SF_CFDI_OPEN_ITEMS_OPTIMIZADO
+# Comparacion Oracle: SF_CFDI_OPEN_ITEMS (2026-10-08)
+
+## Dictamen actual
+
+**No hay equivalencia completa.** Se hicieron tres pasadas: reglas por etapa,
+nulos/cardinalidad y contrato de ejecucion. Esta revision solo agrega comentarios
+al procedimiento: se verifico que su SQL ejecutable permanezca identico.
+No se desplego ni ejecuto en produccion.
+
+Se compararon los archivos `.SQL` de ORA y MSSQL. El archivo principal MSSQL
+declara `EAI.SF_CFDI_OPEN_ITEMS_OPTIMIZADO`, pero el job 849 llama
+`EAI.SF_CFDI_OPEN_ITEMS`. Ejecutar ese archivo no actualiza el objeto del job.
+
+## Diferencias reproducidas
+
+| Caso | MSSQL actual | Oracle |
+|---|---|---|
+| D01 Nombre desplegado | Sufijo _OPTIMIZADO | Nombre sin sufijo |
+| D02 RFC/centro final | Agrupa por Nota_Venta y mezcla clientes del mismo folio | Agrega por Cliente_SAP de cada fila |
+| D03 Cliente inexistente | Conserva centro anterior | Agregado escalar pone RFC/centro NULL |
+| D04 RF inexistente | Conserva PedidoSAP/FacturaSAP anteriores | Subconsulta escalar pone ambas NULL |
+| D05 Importe_Vta NULL en devolucion | ISNULL lo convierte a cero antes del ajuste | NULL + ajuste sigue NULL |
+| D06 Devolucion sin cobranza | INNER JOIN omite la actualizacion | Agregado sin GROUP BY limpia aplicaciones a NULL |
+| D07 P2 devolucion sin cobranza | Cuenta cero actualizadas | Cuenta una vuelta del cursor |
+| D08 Venta con importes NULL | Importe/efectivo terminan en cero | SUM conserva NULL cuando no hay valores no nulos |
+| D09 P2 ventas sin cobranza | Cuenta solo actualizadas | Cuenta todas las filas del cursor, aun sin cobranza |
+| D10 Dos filas abiertas de un folio | DISTINCT elimina multiplicador: 116 por fila | JOIN al reporte duplica detalle: 232 por fila |
+| D11 P3 en ese caso | Cuenta dos destinos | Cuenta un grupo fiscal |
+| D12 Varias RF por folio en Final | UPDATE FROM selecciona una coincidencia | Subconsulta escalar lanza error |
+| D13 Historico existente, Last_Updated NULL | NOT EXISTS lo excluye | LEFT JOIN y prueba de marca nula permiten insertarlo |
+| D14 Factura NULL en Otros_General | NOT EXISTS permite referencias no coincidentes | NOT IN elimina candidatas por logica de NULL |
+| D15 Fecha SAP invalida | TRY_CONVERT inserta fecha NULL | TO_DATE falla |
+
+No todas deben corregirse ciegamente: NOT IN con NULL y multiplicacion por
+duplicados pueden ser defectos heredados. Cambiarlos requiere reconocer que se
+modifica el comportamiento Oracle, no afirmar que son optimizaciones equivalentes.
+
+## Otras diferencias y limites de la revision estatica
+
+- En etapas 20/30/80 Oracle selecciona Vta/Dev pero actualiza por Nota_Venta,
+  incluyendo otras filas del mismo folio. MSSQL tambien filtra el tipo destino.
+- Etapas 20/60/70/80/90: varias coincidencias con valores distintos dejan
+  resultados ambiguos. El cursor Oracle sobrescribe sin orden total; UPDATE FROM
+  no garantiza elegir la misma fuente. No asumir prioridad del UNION ALL de 90.
+- P2/P3 cuentan cursores en Oracle y destinos actualizados en SQL: relaciones
+  multiples tambien afectan auditoria en etapas 60/70/80/90.
+- UUID vacio es NULL en Oracle; SQL comprueba solo IS NULL. Otras comparaciones
+  de cadenas tambien dependen del cotejamiento y de la normalizacion de carga.
+- Historicos usan las funciones externas FN_Cobza_Pay/FN_COBZA_CM_UUID: no se
+  encontro su codigo en el repositorio. No se certifica equivalencia interna.
+  Oracle asigna su resultado a NUMBER(16,2); verificar tipo/escala desplegados.
+- Oracle usa sFactura VARCHAR2(20); el reporte SQL admite 30 caracteres. Revisar
+  folios largos. Etapa Oracle es NUMBER y SQL INT; se revisaron etapas enteras.
+- Final siempre se ejecuta, incluso etapa 100, y suma nuevamente ajuste fiscal
+  a Dev: no es idempotente, comportamiento presente en ambas versiones.
+- MSSQL no abre transaccion propia. XACT_ABORT ON no hace atomico el proceso.
+  Oracle usa COMMIT por lotes y absorbe errores; MSSQL usa autocommit y THROW.
+  Con transaccion externa condenada, el INSERT del CATCH puede ocultar el error.
+
+## Reglas confirmadas en la lectura
+
+Etapas acumulativas 0/10/20/30/60/70/80/90/Final; NULL equivale a cero;
+refoleo DOI; clasificacion C003/C005 como Vta y C004/C006/C019/C025 como Dev;
+fallback por signo de saldo y ABS condicionado; historicos desde 2023, cliente
+vigente, preventas procesadas no canceladas y tolerancia estricta >0.05;
+suma de subtotal/IVA/envio/credito; vias 01,02/03,CM,AI; nota de debito posterior
+al importe fiscal; historia PAC y fallback de folio en creditos.
+
+ScrCobza de ventas SI tiene GROUP BY: venta sin cobranza conserva valores.
+ScrCreditMemo de devoluciones NO tiene GROUP BY: sin cobranza debe limpiar NULL.
+Timbrado es suma de tres indicadores (0..3): importe 10 con tres UUID aporta 30,
+no 10. Los JOIN fiscales pueden multiplicar filas y Oracle tambien lo hace.
+
+## Evidencia local
+
+`tests/SF_CFDI_OPEN_ITEMS/Run.ps1` crea/elimina una base LocalDB aleatoria.
+Usa DDL del repositorio, LOG_START y FN_GET_TAX_ISSUE reales del repositorio;
+las dos funciones de cobranza externas se simulan devolviendo cero.
+Se compilo el procedimiento completo bajo el nombre que declara el archivo.
+`Differences.sql` reprodujo D01..D15 y comprobo dos reglas conservadas (R01/R02).
+Un diagnostico exitoso significa que la diferencia fue reproducida, NO que
+el procedimiento cumple Oracle. No se ejecuto el motor Oracle ni una prueba
+de rendimiento; los esperados se derivaron de la lectura del PL/SQL.
+
+## Antecedentes previos (no acreditan equivalencia Oracle)
+
+El texto siguiente describe una comparacion anterior entre versiones MSSQL.
+Sus afirmaciones de reglas preservadas quedan limitadas por los hallazgos de
+esta revision. Comparar dos versiones MSSQL con el mismo defecto no valida Oracle.
+
+### EAI.SF_CFDI_OPEN_ITEMS_OPTIMIZADO
 
 ## Objetivo
 

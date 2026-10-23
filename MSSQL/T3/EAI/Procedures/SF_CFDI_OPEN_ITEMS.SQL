@@ -1,34 +1,12 @@
-/*
-    Procedure : EAI.SF_CFDI_OPEN_ITEMS_OPTIMIZADO
-    Objetivo  : Construir y enriquecer el universo de documentos abiertos para
-                conciliacion CFDI, conservando las etapas del proceso Oracle.
-
-    Criterios de optimizacion:
-    - Filtrar las tablas de cobranza y fiscales por los documentos abiertos
-      antes de ejecutar agregaciones costosas.
-    - Eliminar auto-joins a CFDI_OPEN_ITEMS que no aportan columnas distintas.
-    - Mantener las funciones de cobranza porque su implementacion no forma
-      parte del repositorio y reemplazarlas pondria en riesgo reglas externas.
-
-    Guia rapida para desarrolladores JR
-    -----------------------------------
-    1. CFDI_OPEN_ITEMS es una tabla de trabajo: primero se carga y despues se
-       enriquece mediante varias etapas.
-    2. @nEtapa indica desde que etapa comenzar. Por ejemplo:
-       - @nEtapa = 0  ejecuta todo el proceso.
-       - @nEtapa = 20 omite 0 y 10; ejecuta 20, 30, 60, 70, 80, 90 y Final.
-       - @nEtapa = 100 ejecuta solamente Final.
-    3. Una CTE es un resultado temporal con nombre que solo existe para la
-       instruccion inmediatamente siguiente.
-    4. OI significa Open Item; RF significa Registro Fiscal; CFD identifica
-       datos del comprobante fiscal digital.
-*/
-SET ANSI_NULLS ON;
+USE [T3QA]
 GO
-SET QUOTED_IDENTIFIER ON;
+/****** Object:  StoredProcedure [EAI].[SF_CFDI_OPEN_ITEMS]    Script Date: 10/8/2026 2:54:50 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
 GO
 
-CREATE OR ALTER PROCEDURE [EAI].[SF_CFDI_OPEN_ITEMS_OPTIMIZADO]
+ALTER   PROCEDURE [EAI].[SF_CFDI_OPEN_ITEMS]
     @nEtapa INT = 0
 AS
 BEGIN
@@ -82,6 +60,7 @@ BEGIN
             -- existen llaves foraneas relacionadas.
             DELETE FROM [EAI].[CFDI_OPEN_ITEMS];
 
+
             INSERT INTO [EAI].[CFDI_OPEN_ITEMS]
             (
                 Nota_Venta, Cliente_SAP, Fecha_Venta, Tipo_Docto,
@@ -90,8 +69,9 @@ BEGIN
             SELECT
                 D.Nota_Venta,
                 D.Cliente_SAP,
-                -- Fecha_Doc llega desde SAP como texto YYYYMMDD. TRY_CONVERT
-                -- evita abortar toda la carga si una fecha no es valida.
+                -- Fecha_Doc llega como texto YYYYMMDD.
+                -- REVISION ORACLE: TO_DATE falla ante fecha invalida; este
+                -- TRY_CONVERT produce NULL y permite continuar. Diferencia pendiente.
                 TRY_CONVERT(DATE, D.Fecha_Doc, 112),
                 -- Primero manda la clase fiscal. Si no se conoce, el signo del
                 -- saldo define si se trata de venta o devolucion.
@@ -134,8 +114,10 @@ BEGIN
                 ) AS SAP
                 LEFT JOIN [T3].[Registro_Fiscal] AS RF
                     ON RF.Factura = SAP.Referencia
-                -- Otros_General contiene documentos administrados por otro
-                -- flujo; por eso no deben aparecer en esta tabla de trabajo.
+                -- Exclusion de documentos de otro flujo.
+                -- REVISION ORACLE: el original usa NOT IN. Con Factura NULL en
+                -- Otros_General, NOT IN y NOT EXISTS no son equivalentes;
+                -- tampoco siempre lo son para una referencia SAP NULL.
                 WHERE NOT EXISTS
                 (
                     SELECT 1
@@ -178,13 +160,19 @@ BEGIN
                   + ISNULL(FD.Credito_IVA, 0)
                   + ISNULL(FD.Envio_Subt, 0)
                   + ISNULL(FD.Envio_IVA, 0) AS Importe_Item
+                -- SELECT COUNT(*)
+                -- Conteo de universo de datos
+                -- 54,995,831 (20230101)
+                -- 36,274,833 (20240101)
+                -- 19,344,229 (20250101)
+                --  5,484,630 (20260101)
                 FROM [T3].[Factura_General] AS FG
                 INNER JOIN [T3].[Factura_Detalle] AS FD
                     ON FD.Factura = FG.Factura
                 INNER JOIN [T3].[Cliente] AS C
                     ON C.Cliente_SAP = FG.Cliente_SAP
                    AND FG.Fecha_Factura BETWEEN C.Fecha_Ini_Vig AND C.Fecha_Fin_Vig
-                WHERE FG.Fecha_Factura >= CONVERT(DATE, '20230101', 112)
+                WHERE FG.Fecha_Factura >= CONVERT(DATE, '20260101', 112)
                   AND FG.Tipo_Docto IN ('C003', 'C004')
 
                 UNION ALL
@@ -202,13 +190,15 @@ BEGIN
                   + ISNULL(PD.Credito_IVA, 0)
                   + ISNULL(PD.Envio_Subt, 0)
                   + ISNULL(PD.Envio_IVA, 0)
+                -- select count(*)
+                -- 5,008,634
                 FROM [T3].[Preventa_General] AS PG
                 INNER JOIN [T3].[Preventa_Detalle] AS PD
                     ON PD.Factura = PG.Factura
                 INNER JOIN [T3].[Cliente] AS C
                     ON C.Cliente_SAP = PG.Cliente_SAP
                    AND PG.Fecha_Factura BETWEEN C.Fecha_Ini_Vig AND C.Fecha_Fin_Vig
-                WHERE PG.Fecha_Factura >= CONVERT(DATE, '20230101', 112)
+                WHERE PG.Fecha_Factura >= CONVERT(DATE, '20260101', 112)
                   AND PG.Clase_Factura IN ('C005', 'C006', 'C019', 'C025')
                   AND PG.Fecha_Proc_BATMD IS NOT NULL
                   AND PG.Fecha_Cancelacion IS NULL
@@ -238,7 +228,10 @@ BEGIN
                 H.Importe_Venta,
                 GETDATE()
             FROM Historic AS H
-            -- Un historico solo se agrega cuando no llego desde la cartera SAP.
+            -- Regla ACTUAL: insertar solo si el folio no existe.
+            -- REVISION ORACLE: se evalua DOI.Last_Updated IS NULL de un LEFT
+            -- JOIN. Una fila existente sin marca de tiempo SI permite insertar
+            -- en Oracle; ademas varias coincidencias pueden multiplicar entradas.
             WHERE NOT EXISTS
             (
                 SELECT 1
@@ -287,9 +280,13 @@ BEGIN
                 -- fiscales relacionados cuentan con UUID.
                 SELECT
                     C.Factura,
+                    -- REVISION ORACLE: ScrCobza usa Importe sin NVL; convertirlo
+                    -- a cero modifica SUM cuando los importes aplicables son NULL.
                     ISNULL(C.Importe, 0) AS Importe,
                     C.Via_Pago,
-                    -- Timbrado puede valer de 0 a 3: pago individual,
+                    -- Timbrado NO es booleano: puede valer de 0 a 3. Se suman
+                    -- indicadores, sin DISTINCT ni limite de 1, como Oracle.
+                    -- Pago individual,
                     -- agrupacion y nota de credito pueden tener CFDI propio.
                     CASE WHEN P.Folio_Fiscal IS NULL THEN 0 ELSE 1 END
                   + CASE WHEN AD.Folio_Fiscal IS NULL THEN 0 ELSE 1 END
@@ -321,8 +318,10 @@ BEGIN
                     CM    = aplicacion de nota de credito.
                     AI    = importe incobrable.
 
-                    Los campos *_UUID conservan solamente el importe asociado
-                    con documentos timbrados.
+                    Los campos *_UUID multiplican el importe por Timbrado.
+                    Si los tres documentos tienen UUID, un importe 10 aporta 30.
+                    JOIN con varios CFDI/agrupaciones tambien multiplica filas;
+                    no convertirlo a EXISTS sin acordar un cambio de negocio.
                 */
                 SELECT
                     Factura,
@@ -338,6 +337,10 @@ BEGIN
                 FROM CollectionItem
                 GROUP BY Factura
             )
+            -- REVISION ORACLE etapa 20: el cursor elige ventas, pero su UPDATE
+            -- filtra solo Nota_Venta y puede afectar otras filas del mismo folio.
+            -- Aqui tambien se filtra Tipo_Docto. Metodo_Pago no tiene una
+            -- eleccion unica garantizada si existen varios CFDI diferentes.
             UPDATE OI
                SET OI.Importe = C.Importe,
                    OI.Efectivo = C.Efectivo,
@@ -358,8 +361,9 @@ BEGIN
                 ON CFD.Nota_Venta = OI.Nota_Venta
             WHERE OI.Tipo_Docto = 'Vta';
 
-            -- Guardar @@ROWCOUNT inmediatamente: cualquier otra sentencia lo
-            -- reemplazaria y el log final quedaria incorrecto.
+            -- Guardar inmediatamente el numero actualizado por MSSQL.
+            -- REVISION ORACLE: P2 cuenta filas del cursor (incluye ventas sin
+            -- cobranza y coincidencias CFDI), no filas actualizadas. No es equivalente.
             SET @nProceso2 = @@ROWCOUNT;
         END;
 
@@ -370,8 +374,11 @@ BEGIN
 
         IF ISNULL(@nEtapa, 0) <= 30
         BEGIN
-            -- OpenCredit aplica el mismo filtro temprano, ahora para notas de
-            -- credito y devoluciones abiertas.
+            -- OpenCredit filtra notas/devoluciones abiertas.
+            -- REVISION ORACLE: ScrCreditMemo es agregado SIN GROUP BY; aun sin
+            -- cobranza devuelve SUM/MAX=NULL. El INNER JOIN actual omite esas
+            -- notas y puede dejar aplicaciones anteriores. No confundir con
+            -- ScrCobza de ventas, que SI agrupa y no devuelve fila sin cobranza.
             ;WITH OpenCredit AS
             (
                 SELECT DISTINCT Nota_Venta
@@ -419,6 +426,9 @@ BEGIN
             */
             ;WITH OpenDocument AS
             (
+                -- REVISION ORACLE: ScrImporteVenta une todas las filas OI al
+                -- detalle fiscal. DISTINCT elimina ese multiplicador; con dos
+                -- filas OI del mismo folio este importe difiere del original.
                 SELECT DISTINCT Nota_Venta
                 FROM [EAI].[CFDI_OPEN_ITEMS]
             ), FiscalAmount AS
@@ -461,7 +471,10 @@ BEGIN
                 requerir el importe de DEBIT_NOTE_IFC. Esta segunda actualizacion
                 se ejecuta despues y, por lo tanto, tiene precedencia.
 
-                El auto-join del original se elimina: OI ya es la fila objetivo.
+                REVISION ORACLE: el cursor cuenta cada coincidencia OI/DN/MC;
+                @@ROWCOUNT cuenta destinos. Si hay distintas coincidencias para
+                un folio, Oracle sobrescribe sin ORDER BY y UPDATE FROM escoge
+                una fuente no garantizada: falta una regla unica para esos datos.
             */
             UPDATE OI
                SET OI.Ctro = MC.Ctro,
@@ -487,6 +500,8 @@ BEGIN
             -- Historia_Docto_PAC traduce la nota operativa al numero realmente
             -- enviado al PAC. El LEFT JOIN conserva la nota aunque el CFDI aun
             -- no haya sido timbrado.
+            -- REVISION ORACLE: varias relaciones HDP/CFD generan varias vueltas
+            -- de cursor y P3; UPDATE FROM no garantiza escoger la misma fila.
             UPDATE OI
                SET OI.Nota_Venta_CFDI = H.Nota_Venta_CFDI,
                    OI.Folio_Fiscal = CFD.Folio_Fiscal,
@@ -509,9 +524,13 @@ BEGIN
         IF ISNULL(@nEtapa, 0) <= 80
         BEGIN
             /*
-                Para devoluciones, Importe_NC_UUID debe ser igual al importe
-                aplicado cuando existe Folio_Fiscal; de lo contrario debe ser 0.
+                Cuando HAY fila CFD coincidente, Importe_NC_UUID es el importe
+                aplicado si tiene Folio_Fiscal; si su UUID es NULL, es cero.
+                Sin fila CFD, el INNER JOIN deja el valor previo sin cambios.
                 ISNULL permite usar el numero original si no hubo traduccion PAC.
+                REVISION ORACLE: selecciona Dev pero actualiza todas las filas
+                del folio; aqui solo Dev. UUID vacio en MSSQL no es NULL como
+                en Oracle; varios CFDI tambien dejan ambiguo el valor final.
             */
             UPDATE OI
                SET OI.Importe_NC_UUID =
@@ -539,6 +558,10 @@ BEGIN
                 Algunas ventas se registran para un cliente operativo, pero se
                 facturan a otro cliente SAP. Las dos fuentes se normalizan en
                 BilledCustomer y despues se actualiza la tabla de trabajo.
+                REVISION ORACLE: UNION ALL produce todas las coincidencias y
+                el cursor actualiza por ROWID. Si hay varios clientes candidatos,
+                no existe ORDER BY que defina cual gana. No asumir que UNION ALL
+                o el UPDATE garantizan prioridad entre factura y preventa.
             */
             ;WITH BilledCustomer AS
             (
@@ -569,8 +592,11 @@ BEGIN
         -------------------------------------------------------------------
         SET @v_ID = 'Final';
 
-        -- Solo completa RFC/Ctro faltantes. MAX conserva el comportamiento del
-        -- original cuando Mov_Cliente contiene mas de una fila por cliente.
+        -- Se ejecuta cuando RFC falta (aunque Ctro ya tenga valor).
+        -- REVISION ORACLE: MAX(RFC)/MAX(Ctro) se calculan por Cliente_SAP de CADA
+        -- fila, y ambos pueden quedar NULL sin cliente. Aqui se agrupa por
+        -- Nota_Venta y se usa INNER JOIN: puede mezclar clientes del mismo folio
+        -- o conservar un centro antiguo cuando no existe Mov_Cliente.
         ;WITH MissingCustomer AS
         (
             SELECT
@@ -596,13 +622,20 @@ BEGIN
             ON C.Nota_Venta = OI.Nota_Venta
         WHERE OI.RFC IS NULL;
 
-        -- Pedido y entrega de Registro_Fiscal se exponen como referencias SAP.
+        -- Ajuste de IVA en devoluciones. NO es idempotente: repetir Final puede
+        -- volver a sumar el ajuste al importe existente.
+        -- REVISION ORACLE: Importe_Vta + funcion conserva NULL si un operando
+        -- es NULL. Estos ISNULL introducen ceros que no aparecen en Oracle.
         UPDATE OI
            SET OI.Importe_Vta = ISNULL(OI.Importe_Vta, 0)
                              + ISNULL([EAI_OWNER].[FN_GET_TAX_ISSUE](OI.Nota_Venta), 0)
         FROM [EAI].[CFDI_OPEN_ITEMS] AS OI
         WHERE OI.Tipo_Docto = 'Dev';
 
+        -- REVISION ORACLE referencias SAP: subconsulta escalar por fila. Sin RF
+        -- pone PedidoSAP/FacturaSAP en NULL; con varias RF lanza error.
+        -- El INNER JOIN actual conserva datos antiguos sin RF y puede escoger
+        -- una coincidencia arbitraria con duplicados.
         UPDATE OI
            SET OI.PedidoSAP = RF.Pedido,
                OI.FacturaSAP = RF.Entrega
@@ -632,8 +665,9 @@ BEGIN
         SET @sErrorCode = CONCAT('ERR-', ERROR_NUMBER());
         SET @sMsg = LEFT(CONCAT(ERROR_NUMBER(), '-', ERROR_MESSAGE()), 250);
 
-        -- @v_ID contiene la ultima etapa iniciada y facilita localizar el punto
-        -- aproximado del fallo sin revisar todo el procedimiento.
+        -- @v_ID contiene la ultima seccion visitada (se asigna incluso cuando
+        -- @nEtapa omite el bloque). En una transaccion externa condenada este
+        -- INSERT puede fallar y ocultar el error original: limitacion pendiente.
         INSERT INTO [EAI_OWNER].[MX_EAI_MESSAGE_LOG]
         (
             DIRECTION, REFERENCE, CREATED, MESSAGE, JOB_PID, STATUS,
@@ -648,7 +682,7 @@ BEGIN
         );
 
         PRINT '--------------------------------------';
-        PRINT '**** Error en SF_CFDI_OPEN_ITEMS_OPTIMIZADO *****';
+        PRINT '**** Error en SF_CFDI_OPEN_ITEMS *****';
         PRINT @sMsg;
 
         /*
@@ -659,4 +693,3 @@ BEGIN
         THROW;
     END CATCH;
 END;
-GO

@@ -32,6 +32,12 @@ BEGIN
             - NEXT_DATE se toma de sysjobschedules.next_run_date/time.
             - TOTAL_TIME se normaliza a segundos; SQL Agent guarda run_duration
               en formato HHMMSS empaquetado.
+            - INSTANCE_JOB es FLOAT en INTERNAL_JOBS y representa afinidad
+              numerica Oracle, no el nombre del servidor. Se usa 0 (sin afinidad
+              Oracle); el servidor SQL se conserva como texto en NLS_ENV.
+            - LOG_USER/PRIV_USER tienen 30 caracteres e INTERVAL_JOB 200 en
+              el DDL migrado. Se limitan los textos a esos tamanos de resumen;
+              los intervalos completos permanecen en la tabla de mapeo.
     */
 
     BEGIN TRY
@@ -181,8 +187,8 @@ BEGIN
             )
             SELECT
                 Map.Oracle_Job_No AS JOBNO,
-                SUSER_SNAME(Job.owner_sid) AS LOG_USER,
-                SUSER_SNAME(Job.owner_sid) AS PRIV_USER,
+                LEFT(SUSER_SNAME(Job.owner_sid), 30) AS LOG_USER,
+                LEFT(SUSER_SNAME(Job.owner_sid), 30) AS PRIV_USER,
                 'EAI_OWNER' AS SCHEMA_USER,
 
                 LastRun.last_date AS LAST_DATE,
@@ -222,7 +228,7 @@ BEGIN
                         ScheduleDef.schedule_definition,
                         'NO_SCHEDULE'
                     ),
-                    4000
+                    200
                 ) AS INTERVAL_JOB,
 
                 ISNULL(Failures.failures, 0) AS FAILURES,
@@ -234,12 +240,15 @@ BEGIN
                     (
                         'LANGUAGE=', @@LANGUAGE,
                         ';COLLATION=', CONVERT(VARCHAR(128), DATABASEPROPERTYEX(DB_NAME(), 'Collation')),
-                        ';DATEFIRST=', CONVERT(VARCHAR(10), @@DATEFIRST)
+                        ';DATEFIRST=', CONVERT(VARCHAR(10), @@DATEFIRST),
+                        ';SERVER=', CONVERT(VARCHAR(128), @@SERVERNAME)
                     ),
                     4000
                 ) AS NLS_ENV,
 
-                LEFT(CONVERT(VARCHAR(128), @@SERVERNAME), 128) AS INSTANCE_JOB
+                -- No insertar @@SERVERNAME aqui: varchar -> float causa 8114.
+                -- SQL Agent no utiliza afinidad de instancia de DBMS_JOB.
+                CONVERT(FLOAT, 0) AS INSTANCE_JOB
             FROM [EAI_OWNER].[Job_Oracle_SQLAgent_Map] AS Map
             INNER JOIN msdb.dbo.sysjobs AS Job
                 ON Job.job_id = Map.SqlAgent_Job_Id

@@ -5,7 +5,9 @@
     Integridad: La reconstrucción temporal se ejecuta en una transacción para
                 evitar mezclar datos nuevos con restos de una ejecución anterior.
     Errores   : Se revierten los cambios, se libera cualquier cursor abierto y
-                se registra la incidencia sin propagarla, como en Oracle.
+                se registra la incidencia si la transaccion es propia. Con
+                transaccion externa se propaga la causa al llamador, sin
+                confirmar ni revertir toda su transaccion.
 */
 CREATE OR ALTER PROCEDURE [EAI_OWNER].[SF_PROC_PREINVOICE_IFC]
 (
@@ -18,6 +20,11 @@ AS
 BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT OFF;
+
+    -- La transaccion del llamador no pertenece a este procedimiento.
+    DECLARE @EntryTranCount INT = @@TRANCOUNT,
+            @StartedTran BIT = 0,
+            @SavepointCreated BIT = 0;
 
     DECLARE
         @sMsg                NVARCHAR(500),
@@ -93,7 +100,16 @@ BEGIN
         @itemTextos          XML;
 
     BEGIN TRY
-        BEGIN TRANSACTION;
+        IF @EntryTranCount = 0
+        BEGIN
+            BEGIN TRANSACTION;
+            SET @StartedTran = 1;
+        END
+        ELSE
+        BEGIN
+            SAVE TRANSACTION PreinvoiceWork;
+            SET @SavepointCreated = 1;
+        END;
 
         IF @nOutput > 0
             INSERT INTO [EAI_OWNER].[TRACE_EAI_OWNER]
@@ -131,9 +147,10 @@ BEGIN
                 DELETE FROM [EAI_OWNER].[TMP_DOCUMENT_CONDITIONS]
                 WHERE ReferenceID = @sReferenceID;
 
-                /* Cada grupo se recorre una sola vez. La asignacion secuencial
-                   reproduce la ultima ocurrencia de Oracle sin reescanear el
-                   XML con multiples llamadas value(). */
+                /* Agregaciones sin entradas NULL: el indicador conserva NULL cuando
+                   no hay valores aplicables; el MAX de texto conserva vacios y
+                   duplicados como antes, sin emitir el aviso 8153.
+                   ANSI_WARNINGS permanece habilitado. */
                 ;WITH Partners AS
                 (
                     SELECT
@@ -149,19 +166,31 @@ BEGIN
                     FROM @xmlContent.nodes('/Invoice/Message/InvoicePartner') X(P)
                 )
                 SELECT
-                    @sClienteSAP = COALESCE(MAX(CASE WHEN FunctionID = N'AG' THEN PartnerID END), @sClienteSAP),
-                    @sCountry = COALESCE(MAX(CASE WHEN FunctionID = N'AG' THEN Country END), @sCountry),
-                    @sPartnerName = COALESCE(MAX(CASE WHEN FunctionID = N'AG' THEN PartnerName END), @sPartnerName),
-                    @sCity = COALESCE(MAX(CASE WHEN FunctionID = N'AG' THEN City END), @sCity),
-                    @sDistrict = COALESCE(MAX(CASE WHEN FunctionID = N'AG' THEN District END), @sDistrict),
-                    @sPostalCode = COALESCE(MAX(CASE WHEN FunctionID = N'AG' THEN PostalCode END), @sPostalCode),
-                    @sRegion = COALESCE(MAX(CASE WHEN FunctionID = N'AG' THEN Region END), @sRegion),
-                    @sAddress = COALESCE(MAX(CASE WHEN FunctionID = N'AG' THEN Address END), @sAddress),
-                    @sCteEntregaSAP = COALESCE(MAX(CASE WHEN FunctionID = N'WE' THEN PartnerID END), @sCteEntregaSAP),
-                    @sCtePagadorSAP = COALESCE(MAX(CASE WHEN FunctionID = N'RE' THEN PartnerID END), @sCtePagadorSAP),
+                    @sClienteSAP = COALESCE(CASE WHEN MAX(CASE WHEN FunctionID = N'AG' AND PartnerID IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN FunctionID = N'AG' THEN COALESCE(PartnerID, N'') ELSE N'' END) END, @sClienteSAP),
+                    @sCountry = COALESCE(CASE WHEN MAX(CASE WHEN FunctionID = N'AG' AND Country IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN FunctionID = N'AG' THEN COALESCE(Country, N'') ELSE N'' END) END, @sCountry),
+                    @sPartnerName = COALESCE(CASE WHEN MAX(CASE WHEN FunctionID = N'AG' AND PartnerName IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN FunctionID = N'AG' THEN COALESCE(PartnerName, N'') ELSE N'' END) END, @sPartnerName),
+                    @sCity = COALESCE(CASE WHEN MAX(CASE WHEN FunctionID = N'AG' AND City IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN FunctionID = N'AG' THEN COALESCE(City, N'') ELSE N'' END) END, @sCity),
+                    @sDistrict = COALESCE(CASE WHEN MAX(CASE WHEN FunctionID = N'AG' AND District IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN FunctionID = N'AG' THEN COALESCE(District, N'') ELSE N'' END) END, @sDistrict),
+                    @sPostalCode = COALESCE(CASE WHEN MAX(CASE WHEN FunctionID = N'AG' AND PostalCode IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN FunctionID = N'AG' THEN COALESCE(PostalCode, N'') ELSE N'' END) END, @sPostalCode),
+                    @sRegion = COALESCE(CASE WHEN MAX(CASE WHEN FunctionID = N'AG' AND Region IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN FunctionID = N'AG' THEN COALESCE(Region, N'') ELSE N'' END) END, @sRegion),
+                    @sAddress = COALESCE(CASE WHEN MAX(CASE WHEN FunctionID = N'AG' AND Address IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN FunctionID = N'AG' THEN COALESCE(Address, N'') ELSE N'' END) END, @sAddress),
+                    @sCteEntregaSAP = COALESCE(CASE WHEN MAX(CASE WHEN FunctionID = N'WE' AND PartnerID IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN FunctionID = N'WE' THEN COALESCE(PartnerID, N'') ELSE N'' END) END, @sCteEntregaSAP),
+                    @sCtePagadorSAP = COALESCE(CASE WHEN MAX(CASE WHEN FunctionID = N'RE' AND PartnerID IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN FunctionID = N'RE' THEN COALESCE(PartnerID, N'') ELSE N'' END) END, @sCtePagadorSAP),
                     @sCteFacturaSAP = COALESCE(
-                        MAX(CASE WHEN FunctionID = N'RE' THEN PartnerID END),
-                        MAX(CASE WHEN FunctionID = N'RSA' THEN PartnerID END),
+                        CASE WHEN MAX(CASE WHEN FunctionID = N'RE' AND PartnerID IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN FunctionID = N'RE' THEN COALESCE(PartnerID, N'') ELSE N'' END) END,
+                        CASE WHEN MAX(CASE WHEN FunctionID = N'RSA' AND PartnerID IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN FunctionID = N'RSA' THEN COALESCE(PartnerID, N'') ELSE N'' END) END,
                         @sCteFacturaSAP)
                 FROM Partners;
 
@@ -171,11 +200,16 @@ BEGIN
                 WHERE X.H.value('(Qualifier/text())[1]', 'nvarchar(20)') = N'028';
 
                 SELECT
-                    @sPedidoV3 = COALESCE(MAX(CASE WHEN Qualifier = N'001' THEN UPPER(DocumentValue) END), @sPedidoV3),
-                    @sPedidoSAP = COALESCE(MAX(CASE WHEN Qualifier = N'002' THEN DocumentValue END), @sPedidoSAP),
-                    @sFechaFactura = COALESCE(MAX(CASE WHEN Qualifier = N'009' THEN DateValue END), @sFechaFactura),
-                    @sHoraFactura = COALESCE(MAX(CASE WHEN Qualifier = N'009' THEN TimeValue END), @sHoraFactura),
-                    @sFacturaV3 = COALESCE(MAX(CASE WHEN Qualifier = N'017' THEN DocumentValue END), @sFacturaV3)
+                    @sPedidoV3 = COALESCE(CASE WHEN MAX(CASE WHEN Qualifier = N'001' AND UPPER(DocumentValue) IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN Qualifier = N'001' THEN COALESCE(UPPER(DocumentValue), N'') ELSE N'' END) END, @sPedidoV3),
+                    @sPedidoSAP = COALESCE(CASE WHEN MAX(CASE WHEN Qualifier = N'002' AND DocumentValue IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN Qualifier = N'002' THEN COALESCE(DocumentValue, N'') ELSE N'' END) END, @sPedidoSAP),
+                    @sFechaFactura = COALESCE(CASE WHEN MAX(CASE WHEN Qualifier = N'009' AND DateValue IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN Qualifier = N'009' THEN COALESCE(DateValue, N'') ELSE N'' END) END, @sFechaFactura),
+                    @sHoraFactura = COALESCE(CASE WHEN MAX(CASE WHEN Qualifier = N'009' AND TimeValue IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN Qualifier = N'009' THEN COALESCE(TimeValue, N'') ELSE N'' END) END, @sHoraFactura),
+                    @sFacturaV3 = COALESCE(CASE WHEN MAX(CASE WHEN Qualifier = N'017' AND DocumentValue IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN Qualifier = N'017' THEN COALESCE(DocumentValue, N'') ELSE N'' END) END, @sFacturaV3)
                 FROM
                 (
                     SELECT
@@ -234,8 +268,10 @@ BEGIN
                 DEALLOCATE curOrg;
 
                 SELECT
-                    @sValor_IVA = COALESCE(MAX(CASE WHEN Qualifier = N'005' THEN SummaryValue END), @sValor_IVA),
-                    @sValor_Subt = COALESCE(MAX(CASE WHEN Qualifier = N'011' THEN SummaryValue END), @sValor_Subt)
+                    @sValor_IVA = COALESCE(CASE WHEN MAX(CASE WHEN Qualifier = N'005' AND SummaryValue IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN Qualifier = N'005' THEN COALESCE(SummaryValue, N'') ELSE N'' END) END, @sValor_IVA),
+                    @sValor_Subt = COALESCE(CASE WHEN MAX(CASE WHEN Qualifier = N'011' AND SummaryValue IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN Qualifier = N'011' THEN COALESCE(SummaryValue, N'') ELSE N'' END) END, @sValor_Subt)
                 FROM
                 (
                     SELECT
@@ -349,9 +385,12 @@ BEGIN
                     WHERE X.ID.value('(ObjectIdentification/text())[1]', 'nvarchar(50)') = N'002';
 
                     SELECT
-                        @sDetValor_Subt = COALESCE(MAX(CASE WHEN Qualifier = N'003' THEN ValueAmount END), @sDetValor_Subt),
-                        @sPrecioUnitario = COALESCE(MAX(CASE WHEN Qualifier = N'003' THEN PriceItem END), @sPrecioUnitario),
-                        @sDetBonif_Subt = COALESCE(MAX(CASE WHEN Qualifier = N'007' THEN ValueAmount END), @sDetBonif_Subt)
+                        @sDetValor_Subt = COALESCE(CASE WHEN MAX(CASE WHEN Qualifier = N'003' AND ValueAmount IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN Qualifier = N'003' THEN COALESCE(ValueAmount, N'') ELSE N'' END) END, @sDetValor_Subt),
+                        @sPrecioUnitario = COALESCE(CASE WHEN MAX(CASE WHEN Qualifier = N'003' AND PriceItem IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN Qualifier = N'003' THEN COALESCE(PriceItem, N'') ELSE N'' END) END, @sPrecioUnitario),
+                        @sDetBonif_Subt = COALESCE(CASE WHEN MAX(CASE WHEN Qualifier = N'007' AND ValueAmount IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN Qualifier = N'007' THEN COALESCE(ValueAmount, N'') ELSE N'' END) END, @sDetBonif_Subt)
                     FROM
                     (
                         SELECT
@@ -362,17 +401,28 @@ BEGIN
                     ) ItemTerms;
 
                     SELECT
-                        @sCondZFSISign = COALESCE(MAX(CASE WHEN ConditionType IN (N'ZFSI', N'ZDN3') THEN ConditionSign END), @sCondZFSISign),
-                        @sCondZFSIValue = COALESCE(MAX(CASE WHEN ConditionType IN (N'ZFSI', N'ZDN3') THEN ConditionValue END), @sCondZFSIValue),
-                        @sCondZFSKSign = COALESCE(MAX(CASE WHEN ConditionType = N'ZFSK' THEN ConditionSign END), @sCondZFSKSign),
-                        @sCondZFSKValue = COALESCE(MAX(CASE WHEN ConditionType = N'ZFSK' THEN ConditionValue END), @sCondZFSKValue),
-                        @sCondZT21Sign = COALESCE(MAX(CASE WHEN ConditionType = N'ZT21' THEN ConditionSign END), @sCondZT21Sign),
-                        @sCondZT21Value = COALESCE(MAX(CASE WHEN ConditionType = N'ZT21' THEN ConditionValue END), @sCondZT21Value),
-                        @sDetBonif_Subt = COALESCE(MAX(CASE WHEN ConditionType = N'ZDNV' THEN ConditionValue END), @sDetBonif_Subt),
-                        @sCondZPROValue = COALESCE(MAX(CASE WHEN ConditionType = N'ZPR0' THEN ConditionValue END), @sCondZPROValue),
-                        @sCondZEXSValue = COALESCE(MAX(CASE WHEN ConditionType = N'ZEXS' THEN ConditionValue END), @sCondZEXSValue),
-                        @sCondZEXCValue = COALESCE(MAX(CASE WHEN ConditionType IN (N'ZEXC', N'ZEXJ') THEN ConditionValue END), @sCondZEXCValue),
-                        @sCondZEXOValue = COALESCE(MAX(CASE WHEN ConditionType = N'ZEXO' THEN ConditionValue END), @sCondZEXOValue)
+                        @sCondZFSISign = COALESCE(CASE WHEN MAX(CASE WHEN ConditionType IN (N'ZFSI', N'ZDN3') AND ConditionSign IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN ConditionType IN (N'ZFSI', N'ZDN3') THEN COALESCE(ConditionSign, N'') ELSE N'' END) END, @sCondZFSISign),
+                        @sCondZFSIValue = COALESCE(CASE WHEN MAX(CASE WHEN ConditionType IN (N'ZFSI', N'ZDN3') AND ConditionValue IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN ConditionType IN (N'ZFSI', N'ZDN3') THEN COALESCE(ConditionValue, N'') ELSE N'' END) END, @sCondZFSIValue),
+                        @sCondZFSKSign = COALESCE(CASE WHEN MAX(CASE WHEN ConditionType = N'ZFSK' AND ConditionSign IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN ConditionType = N'ZFSK' THEN COALESCE(ConditionSign, N'') ELSE N'' END) END, @sCondZFSKSign),
+                        @sCondZFSKValue = COALESCE(CASE WHEN MAX(CASE WHEN ConditionType = N'ZFSK' AND ConditionValue IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN ConditionType = N'ZFSK' THEN COALESCE(ConditionValue, N'') ELSE N'' END) END, @sCondZFSKValue),
+                        @sCondZT21Sign = COALESCE(CASE WHEN MAX(CASE WHEN ConditionType = N'ZT21' AND ConditionSign IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN ConditionType = N'ZT21' THEN COALESCE(ConditionSign, N'') ELSE N'' END) END, @sCondZT21Sign),
+                        @sCondZT21Value = COALESCE(CASE WHEN MAX(CASE WHEN ConditionType = N'ZT21' AND ConditionValue IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN ConditionType = N'ZT21' THEN COALESCE(ConditionValue, N'') ELSE N'' END) END, @sCondZT21Value),
+                        @sDetBonif_Subt = COALESCE(CASE WHEN MAX(CASE WHEN ConditionType = N'ZDNV' AND ConditionValue IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN ConditionType = N'ZDNV' THEN COALESCE(ConditionValue, N'') ELSE N'' END) END, @sDetBonif_Subt),
+                        @sCondZPROValue = COALESCE(CASE WHEN MAX(CASE WHEN ConditionType = N'ZPR0' AND ConditionValue IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN ConditionType = N'ZPR0' THEN COALESCE(ConditionValue, N'') ELSE N'' END) END, @sCondZPROValue),
+                        @sCondZEXSValue = COALESCE(CASE WHEN MAX(CASE WHEN ConditionType = N'ZEXS' AND ConditionValue IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN ConditionType = N'ZEXS' THEN COALESCE(ConditionValue, N'') ELSE N'' END) END, @sCondZEXSValue),
+                        @sCondZEXCValue = COALESCE(CASE WHEN MAX(CASE WHEN ConditionType IN (N'ZEXC', N'ZEXJ') AND ConditionValue IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN ConditionType IN (N'ZEXC', N'ZEXJ') THEN COALESCE(ConditionValue, N'') ELSE N'' END) END, @sCondZEXCValue),
+                        @sCondZEXOValue = COALESCE(CASE WHEN MAX(CASE WHEN ConditionType = N'ZEXO' AND ConditionValue IS NOT NULL THEN 1 ELSE 0 END) = 1
+                        THEN MAX(CASE WHEN ConditionType = N'ZEXO' THEN COALESCE(ConditionValue, N'') ELSE N'' END) END, @sCondZEXOValue)
                     FROM
                     (
                         SELECT
@@ -691,7 +741,8 @@ BEGIN
             VALUES
                 (SYSDATETIME(), 'SF_PROC_PREINVOICE_IFC', @sRow_ID, 'End');
 
-        COMMIT TRANSACTION;
+        IF @StartedTran = 1
+            COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
         IF CURSOR_STATUS('local', 'curItemTextLine') >= 0
@@ -723,8 +774,15 @@ BEGIN
         IF CURSOR_STATUS('local', 'curItemData') >= -1
             DEALLOCATE curItemData;
 
-        IF XACT_STATE() <> 0
+        IF @StartedTran = 1 AND XACT_STATE() <> 0
             ROLLBACK TRANSACTION;
+        ELSE IF @SavepointCreated = 1 AND XACT_STATE() = 1
+            ROLLBACK TRANSACTION PreinvoiceWork;
+
+        -- Una transaccion externa invalida no admite rollback a savepoint
+        -- ni INSERT al log. El llamador debe recibir la causa y revertirla.
+        IF @EntryTranCount > 0
+            THROW;
 
         SET @sErrorCode = CONCAT(N'SQL-', ERROR_NUMBER());
         SET @sMsg = LEFT
@@ -752,8 +810,8 @@ BEGIN
             @sErrorCode, NULL, NULL, NULL
         );
 
-        /* Igual que Oracle y el procedimiento SQL Server actual, el error se
-           registra para que el consumidor de la cola decida el reintento. */
+        /* Sin transaccion externa, el error se registra para que el
+           consumidor de la cola decida el reintento. */
     END CATCH;
 END;
 GO

@@ -1,100 +1,117 @@
-# EAI.SF_BITACORA_CFDI_RESUMEN_OPTIMIZADO
+﻿# Revision de EAI.SF_BITACORA_CFDI_RESUMEN
 
-## Objetivo
+Revision: 2026-10-08. Se comparo el archivo principal MSSQL contra
+`ORA/T3/EAI/Procedures/SF_BITACORA_CFDI_RESUMEN.SQL` en tres pasadas.
+Las correcciones estan en `SF_BITACORA_CFDI_RESUMEN.SQL`. El archivo paralelo
+`SF_BITACORA_CFDI_RESUMEN_OPTIMIZADO.SQL` NO contiene esta revision.
 
-Reconstruye `EAI.CFDI_INFORME` con el resumen de CFDI individuales y
-agrupados. El original permanece disponible para comparacion y rollback.
+## Resultado
 
-## Optimizaciones principales
+Se encontraron diferencias funcionales; no bastaba con que estuvieran presentes
+todas las etapas. El archivo principal incluso declaraba el nombre _OPTIMIZADO,
+pero el job 569 invoca EAI.SF_BITACORA_CFDI_RESUMEN. Se corrigio la declaracion.
 
-- El rango se convierte una sola vez a `DATE`; se eliminaron conversiones de
-  la columna `Fecha_Factura` en los filtros.
-- El historial del periodo se materializa una vez en `#HDocPeriodo` y se
-  reutiliza en las tres cargas.
-- Signos y valores dependientes del estado PAC se calculan una sola vez por
-  fila mediante `CROSS APPLY`.
-- Cabeceras fiscales se reducen a una fila por documento antes de unir el
-  detalle, evitando multiplicar cantidades e importes por duplicados.
-- Los dos bloques de ajustes fiscales, que ejecutaban la misma operacion, se
-  consolidaron en un solo `UPDATE`.
-- Addenda se resuelve en un recorrido con `CASE/EXISTS`.
-- Se elimino el `LEFT JOIN` sin uso de la actualizacion centralizada.
-- Las diferencias menores de seis centavos se corrigen directamente, sin
-  volver a leer `CFDI_INFORME` mediante una subconsulta derivada.
+Compilacion y 22 comprobaciones funcionales satisfactorias en LocalDB usando
+resultados esperados derivados de las expresiones Oracle. No se ejecuto Oracle,
+no se conecto a produccion y no se midio rendimiento productivo. No constituye
+una certificacion de igualdad sobre datos reales.
 
-## Reglas de negocio conservadas
+## Pasada 1: fuentes, fechas y reglas
 
-- Fecha predeterminada: un mes antes de `FC__TIME_WINDOW.Start_Date` hasta hoy.
-- Ventas y devoluciones conservan sus factores positivo y negativo.
-- Preventas canceladas o con fecha de proceso en 2999 tienen `Monto_T3In = 0`.
-- `CONFIRMADO` usa importes PAC; `PENDING` y, cuando aplica, `PUBLICADO` usan
-  importes T3.
-- Los agrupados usan RFC generico `XAXX010101000` y sociedad `MX06`.
-- Se conservan calculos de cigarrillos, envio, credito, lista de precio,
-  ajustes fiscales, Addenda y origen SAP para ventas centralizadas.
-- Se mantienen el proceso 802, contadores, control de reporte y bitacora de
-  errores.
+- Inicio NULL/vacio usa ventana y hoy, ignorando fecha final, como Oracle.
+- ADD_MONTHS conserva fin de mes: 30/04 menos un mes debe ser 31/03.
+  Se corrigio con EOMONTH. El periodo incluye todo el ultimo dia.
+- Se conservaron las fuentes y multiplicidad de cada JOIN de las tres cargas:
+  factura individual, preventa individual y CFDI agrupado.
+- RFC individual procede de Paso; RFC de preventa de Cliente.
+- Individual C003 positivo; otras clases negativas. Preventa C005/C0FX/C020
+  positivas, otras negativas. C020/C021/C022 usan MX01, otras MX06.
+- Cancelacion y anio 2999 dejan importe operativo inicial en cero; las reglas
+  fiscales posteriores de envio/credito siguen aplicando.
+- Entrega es opcional y su ubicacion tiene prioridad; vacio se trata como NULL.
+- Agrupados conservan DISTINCT de historia y agrupacion por centro/fecha/folio.
+- CONFIRMADO usa PAC; individuales PENDING/PUBLICADO usan T3. Agrupados PUBLICADO
+  inicialmente tiene fiscales cero; al final Valor se normaliza a Monto_T3In.
 
-## Verificacion contra Oracle
+## Pasada 2: nulos, multiplicidad y ajustes
 
-Se comparo el flujo con
-`ORA/T3/EAI/Procedures/SF_BITACORA_CFDI_RESUMEN.SQL`. No se encontraron etapas
-de negocio omitidas en la version MSSQL original. La version optimizada conserva
-las tres fuentes del informe, las condiciones PAC, los factores, volumen,
-complemento agrupado, diferencias, centavos, Addenda y venta central.
+1. Se retiraron ISNULL adicionales sobre importes PAC y CASE fiscales.
+   Oracle no convierte esos NULL a cero.
+2. Se retiraron ISNULL extra sobre Valor_Subt/Valor_IVA de detalle agrupado.
+   Se mantienen solamente los NVL originales de envio y credito.
+3. Se restauro la multiplicidad de Registro_Fiscal y CFDI_Agrupado; Oracle une
+   todas sus cabeceras. Deduplicarlas cambia cantidades e importes.
+   EXISTS limita los agregados fiscales a folios del informe sin multiplicarlos
+   por filas repetidas de CFDI_INFORME.
+4. Se suman TODOS los ajustes no nulos y distintos de cero por folio.
+   Proceso_4 cuenta cada pareja fila-informe/ajuste, incluso netos iguales a cero.
+5. Se conserva ABS(diferencia)<0.06, folios NOT LIKE 'G-%' y fecha de ventana.
+6. Addenda conserva valores anteriores no nulos si el RFC no coincide;
+   coincidencia recibe SI y el resto nulo recibe NO.
+7. Centralizadas: un Doc_Num elegible actualiza TODAS sus filas en bitacora,
+   incluso otra fila con distinto cliente o fecha. Cada fila toma su SAP_Amount.
 
-Existen dos diferencias tecnicas deliberadas:
+## LP: pendiente de regla del cliente
 
-- Las cabeceras fiscales repetidas se reducen a una fila antes de agregar el
-  detalle. Una cabecera duplicada ya no multiplica importes o cantidades.
-- Las fechas invalidas se rechazan antes del `DELETE`, evitando dejar vacio el
-  informe por un parametro incorrecto.
+Oracle sobrescribe LP con un cursor de DISTINCT Fact_T3 UNION ALL DISTINCT
+Nota_T3 sin ORDER BY. MAX no es equivalente si hay varios valores posibles.
 
-## Validacion de fechas
+Se agrego una validacion ANTES del DELETE: si un folio del periodo existente
+ en CFDI_Agrupado tiene varias LP, lanza 54104. NULL cuenta como alternativa y
+vacio se normaliza a NULL. Una LP unica se recupera sin escoger arbitrariamente.
 
-Se aceptan ambas fechas como `NULL` o ambas en formato `YYYYMMDD`. La version
-optimizada detiene la ejecucion antes de borrar `CFDI_INFORME` si el formato es
-invalido, falta una fecha o el rango esta invertido.
+Es una diferencia deliberada: Oracle continuaba con un resultado dependiente
+del orden. La validacion es conservadora: revisa folios candidatos aunque un
+JOIN posterior pueda impedir insertarlos o una fila individual ya tenga LP.
+Ejecutar `tests/SF_BITACORA_CFDI_RESUMEN/Prevalidacion.sql` con el periodo real.
+Si devuelve conflictos, el cliente debe definir la regla; no quitar el control
+ni elegir MAX/MIN para afirmar equivalencia.
 
-## Caller identificado
+## Pasada 3: ejecucion, pruebas y limites
 
-El job `ORA_569_EAI_SF_BITACORA_CFDI_RESUMEN` ejecuta actualmente:
+- Se mantienen proceso 802, contadores, control de reporte y componentes.
+- Una sola fila FC__TIME_WINDOW es premisa confirmada por el cliente.
+- Fechas invalidas/incompletas/invertidas se rechazan antes del DELETE. Es una
+  proteccion existente distinta de Oracle, que comparaba texto y podia vaciar
+  el informe. Inicio NULL/vacio es la excepcion que usa fechas predeterminadas.
+- SQL Server relanza errores para SQL Agent; Oracle registraba y hacia COMMIT.
+  Se conserva el comportamiento MSSQL, con Source T-SQL y codigo ERR.
+- Los puntos de COMMIT no son equivalentes: Oracle confirma cada 1000/5000 filas
+  y por etapas; MSSQL usa sentencias por conjuntos en autocommit. Un fallo puede
+  dejar informe parcial. No ejecutar concurrentemente ni envolver en transaccion
+  externa sin revisar el CATCH: XACT_ABORT ON puede impedir registrar el error
+  si la transaccion externa queda invalidada.
+- @@ROWCOUNT se consulta inmediatamente despues de INSERT. Para una conexion
+  recuperada de SSMS ejecutar SELECT 1 y GO antes del EXEC (error 4083).
+- Se requieren fuentes estables y textos compatibles con el cotejamiento destino.
+  No se auditaron collation, triggers ni definiciones desplegadas en produccion.
+  La materializacion del historial/LP fija su lectura durante la corrida;
+  Oracle abre sus cursores en momentos distintos.
 
-```sql
-EXEC [EAI].[SF_BITACORA_CFDI_RESUMEN] NULL, NULL;
+## Evidencia reproducible
+
+Ejecutar desde la raiz del proyecto:
+
+```powershell
+& .\MSSQL\T3\EAI\Procedures\tests\SF_BITACORA_CFDI_RESUMEN\Run.ps1
 ```
 
-El job no se cambia automaticamente. Debe apuntar a `_OPTIMIZADO` solo despues
-de las pruebas funcionales y de rendimiento en QA.
+El runner crea una base aleatoria CodexResumen_* en LocalDB y la elimina al
+terminar. Usa DDL real disponible. Fact_T3/Nota_T3 usan contratos minimos de
+Factura/Grupo_Precio porque no se encontro su DDL. Instala LOG_START del repo
+ y ejecuta el procedimiento completo.
 
-## Dependencias principales
+Pruebas: 15 filas principales; cuatro estados PAC; nulos; seis clases de preventa;
+cancelacion y 2999; entrega vacia/ausente; cabeceras duplicadas; material CAJ/PAQ,
+conversion nula y material inexistente; historia agrupada repetida; LP unica;
+ajustes multiples de uno/dos centavos y neto cero; umbral 0.05/0.06; ultimo segundo
+del periodo; centralizadas con Doc_Num duplicado; contadores 7/6/2/5 y cierre.
+Otras ejecuciones verifican fin de mes, inicio NULL/vacio, fecha final ignorada,
+fecha invalida y LP ambigua antes del DELETE. Las advertencias por NULL en
+agregados son esperadas; 54102 y 54104 se provocan intencionalmente.
 
-- EAI: `CFDI_INFORME`, `CFDI_BITACORA`, `CONTROL_REPORTE`,
-  `FC__TIME_WINDOW`.
-- EAI_OWNER: `ProcessID`, `Log_Start`, `MX_COMPONENTS`,
-  `MX_EAI_MESSAGE_LOG`, `WA_VENTA_CENTRALIZADA`.
-- T3: historial y documentos CFDI, facturas, preventas, clientes, entregas,
-  registros fiscales, materiales, agrupados, diferencias, Addenda, `Fact_T3`,
-  `Nota_T3` y `RF_PROCESOS_LOG`.
-
-## Pruebas recomendadas en QA
-
-1. Ejecutar original y optimizado con el mismo rango en copias aisladas.
-2. Comparar todas las columnas por `Folio_Interno` y detectar duplicados.
-3. Incluir venta, devolucion, preventa cancelada, individual y agrupado.
-4. Probar estados `CONFIRMADO`, `PENDING`, `PUBLICADO` y otro estado.
-5. Incluir envio, credito, materiales CAJ/PAQ, ajustes y centavos.
-6. Comparar `STATISTICS IO`, `STATISTICS TIME` y planes reales.
-
-## Validacion tecnica realizada
-
-Se compilaron y ejecutaron ambas versiones en una base LocalDB temporal. El
-escenario incluyo una factura individual, una preventa publicada y un CFDI
-agrupado, ademas de volumen, envio, credito, lista de precio, ajuste, Addenda y
-venta centralizada. Todas las columnas de `CFDI_INFORME` coincidieron entre el
-original y el optimizado.
-
-Tambien se validaron la invocacion predeterminada `NULL, NULL`, el cierre de
-auditoria y el rechazo de fechas invalidas antes de eliminar el resumen. Los
-tiempos de este conjunto pequeno no son representativos; la conclusion de
-performance requiere datos y planes reales de QA.
+Antes de aceptar el reporte productivo, conciliar con Oracle sobre el mismo
+corte: filas y multiplicidad por folio, todas las columnas, totales por
+sociedad/tipo/status, volumen, ajustes y marcas centralizadas. Conteos globales
+o comparaciones entre dos MSSQL con el mismo defecto no bastan. Las pruebas
+locales no sustituyen esa conciliacion ni una prueba de carga.

@@ -9,8 +9,9 @@ GO
     Objetivo
     --------
     Transformar el encabezado y los detalles temporales de una factura en las
-    tablas definitivas T3. Esta version conserva las reglas del procedimiento
-    original, pero elimina sus tres cursores y procesa el detalle por conjuntos.
+    tablas definitivas T3. Procesa el detalle por conjuntos sin los tres cursores.
+    Excepcion autorizada: material no convertible omite todo DetailBase de la
+    factura y permite continuar; los totales sobre detalle vacio quedan NULL.
 
     Guia rapida para un developer Jr
     ---------------------------------
@@ -200,11 +201,11 @@ BEGIN
                 (
                     SELECT
                         Det.ItemID AS Num_Linea,
-                        CONVERT(VARCHAR(18), CONVERT(NUMERIC(38,0), TRIM(Det.Material))) AS Material,
+                        CONVERT(VARCHAR(18), TRY_CONVERT(NUMERIC(38,0), TRIM(Det.Material))) AS Material,
                         ISNULL(Det.UnidadMedida, 'UA') AS Unidad_Med_Vta,
                         CASE WHEN Det.Status_Producto = 'MALO' THEN 'Q' ELSE ' ' END AS Status_Prod,
                         CAST(0 AS NUMERIC(22,7)) AS Tasa_IEPS,
-                        SUM(CASE WHEN @Clase_Factura = 'C019' THEN 1 ELSE Det.Cantidad END) AS Cantidad_Vta,
+                        CASE WHEN MAX(CASE WHEN @Clase_Factura = 'C019' OR Det.Cantidad IS NOT NULL THEN 1 ELSE 0 END) = 1 THEN SUM(CASE WHEN @Clase_Factura = 'C019' THEN 1 ELSE ISNULL(Det.Cantidad, 0) END) END AS Cantidad_Vta,
                         SUM(ISNULL(Det.Valor_Subt, 0)) AS Valor_Subt,
                         SUM(ISNULL(Det.Valor_IVA, 0)) AS Valor_IVA,
                         CAST(0 AS NUMERIC(22,7)) AS Valor_ISSA,
@@ -212,17 +213,29 @@ BEGIN
                         CAST(0 AS NUMERIC(22,7)) AS Bonif_Vol,
                         SUM(ISNULL(Det.Envio_Subt, 0)) AS Envio_Subt,
                         SUM(ISNULL(Det.Credito_Subt, 0)) AS Credito_Subt,
-                        MAX(Mat.Unidad_Med_Vta) AS Material_UMV,
-                        MAX(Mat.Cig_x_CLL) AS Material_PackSize
+                        (SELECT MAX(MU.Unidad_Med_Vta) FROM T3.Material AS MU WHERE MU.Material = CONVERT(VARCHAR(18), TRY_CONVERT(NUMERIC(38,0), TRIM(Det.Material))) AND MU.Unidad_Med_Vta IS NOT NULL) AS Material_UMV,
+                        (SELECT MAX(MP.Cig_x_CLL) FROM T3.Material AS MP WHERE MP.Material = CONVERT(VARCHAR(18), TRY_CONVERT(NUMERIC(38,0), TRIM(Det.Material))) AND MP.Cig_x_CLL IS NOT NULL) AS Material_PackSize
                     FROM EAI_OWNER.TMP_DOCUMENT_HEADER AS Head
                     INNER JOIN EAI_OWNER.TMP_DOCUMENT_DETAIL AS Det
                         ON Det.ReferenceID = Head.ReferenceID
                     LEFT JOIN T3.Material AS Mat
-                        ON Mat.Material = CONVERT(VARCHAR(18), CONVERT(NUMERIC(38,0), TRIM(Det.Material)))
+                        ON Mat.Material = CONVERT(VARCHAR(18), TRY_CONVERT(NUMERIC(38,0), TRIM(Det.Material)))
                     WHERE Head.ReferenceID = @sInvoiceID
+                      -- RI8114_DETAILBASE_VACIO_V1
+                      -- Un material no convertible omite TODO el detalle de esta factura.
+                      -- TRY_CONVERT protege expresiones evaluadas antes del filtro.
+                      -- NULL conserva su tratamiento previo; no se omiten otras facturas.
+                      AND NOT EXISTS
+                      (
+                          SELECT 1
+                          FROM EAI_OWNER.TMP_DOCUMENT_DETAIL AS MaterialInvalido
+                          WHERE MaterialInvalido.ReferenceID = @sInvoiceID
+                            AND MaterialInvalido.Material IS NOT NULL
+                            AND TRY_CONVERT(NUMERIC(38,0), TRIM(MaterialInvalido.Material)) IS NULL
+                      )
                     GROUP BY
                         Det.ItemID,
-                        CONVERT(VARCHAR(18), CONVERT(NUMERIC(38,0), TRIM(Det.Material))),
+                        CONVERT(VARCHAR(18), TRY_CONVERT(NUMERIC(38,0), TRIM(Det.Material))),
                         ISNULL(Det.UnidadMedida, 'UA'),
                         CASE WHEN Det.Status_Producto = 'MALO' THEN 'Q' ELSE ' ' END
                 ),
@@ -381,6 +394,14 @@ BEGIN
         SET @pFolioFiscal = @sFacturaV3;
     END TRY
     BEGIN CATCH
+        -- RI3930_PROPAGATE_V1
+        -- La transaccion pertenece al llamador. Propagar antes de escribir
+        -- para conservar la causa original y evitar confirmar cambios parciales.
+        -- Los cursores LOCAL se liberan al salir del procedimiento.
+        IF @@TRANCOUNT > 0
+        BEGIN
+            THROW;
+        END;
         SET @sErrorCode = 'SQL-' + CAST(ERROR_NUMBER() AS VARCHAR(10));
         SET @sMsg = LEFT(CAST(ERROR_NUMBER() AS VARCHAR(10)) + '-' + ERROR_MESSAGE(), 250);
 
@@ -396,8 +417,8 @@ BEGIN
             @sMsg, 'XML', @sErrorCode, NULL, NULL, NULL
         );
 
-        -- Igual que Oracle y la version MSSQL actual, el error se registra y
-        -- no se propaga al proceso integrador.
+        -- Sin transaccion activa se conserva el registro y retorno originales.
+        -- Con transaccion activa, el guard anterior propaga al propietario.
     END CATCH;
 END;
 GO

@@ -10,4 +10,5 @@ MSSQL/T3/EAI_OWNER/Jobs_Creacion_Persmisos.zip
 *.zip
 MSSQL/T3/TableSize.txt
 .tmp/
+tmp/
 ~$*

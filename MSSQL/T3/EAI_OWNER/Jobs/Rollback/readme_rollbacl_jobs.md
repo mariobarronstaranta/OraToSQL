@@ -99,6 +99,20 @@ cualquier dependencia resulte más fácil de diagnosticar.
 
 Cambie `@ConfirmSecurityRollback` de `0` a `1`.
 
+Al eliminar `T3SqlAgentJobExecutor` tambien se retiran sus permisos sobre
+`T3.RF_PROCESOS_LOG` (SELECT, INSERT y UPDATE) incorporados al script de
+seguridad E. Esto afecta a todos los miembros del rol.
+
+Una version inicial de `06_PERMISOS_LOG_JOB.sql` concedia esos permisos
+directamente a `T3_SQLAGENT_OWNER`. Si se ejecuto, eliminar el rol no retira
+los permisos directos del usuario. Si se conserva la cuenta tecnica, revisar
+esos permisos por separado antes de declarar completada la reversa.
+La version actual del script 06 utiliza el rol.
+
+Para revertir exclusivamente la correccion del error 229 no usar este
+rollback completo: consultar la salida ANTES del script 06 y restaurar solo
+los permisos agregados, considerando los otros jobs que comparten la cuenta.
+
 ### 05 - `05_DROP_T3_SQLAGENT_OWNER.SQL`
 
 Retira las membresias restantes del usuario tecnico, elimina sus usuarios en

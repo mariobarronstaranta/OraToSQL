@@ -1,35 +1,4 @@
-/*
-    Procedure : EAI.SF_BITACORA_CFDI
-    Objetivo  : Construir y enriquecer la bitacora detallada de CFDI.
-
-    Esta version conserva las etapas Oracle, corrige omisiones de la migracion
-    MSSQL y elimina auto-joins/correlaciones que recorrian repetidamente la
-    tabla EAI.CFDI_BITACORA.
-
-    Guia para desarrolladores JR:
-    - @nEtapa indica desde donde iniciar. Con 0 se ejecutan todas las etapas.
-    - Una etapa N se ejecuta cuando @nEtapa <= N.
-      Ejemplo: con @nEtapa = 80 se ejecutan 80, 90, 100 y el bloque final.
-    - Con @nEtapa = NULL o un valor mayor a 100 solo se ejecuta el bloque final.
-    - Las actualizaciones finales siempre se ejecutan.
-    - La etapa 0 elimina y reconstruye toda EAI.CFDI_BITACORA. No debe
-      ejecutarse manualmente mientras el job productivo este procesando datos.
-
-    Abreviaturas usadas en el codigo:
-    - CB  = CFDI_BITACORA (tabla resultado).
-    - FG/FD = Factura_General / Factura_Detalle.
-    - PG/PD = Preventa_General / Preventa_Detalle.
-    - HDP = historial que relaciona una venta con su CFDI agrupado.
-    - CFD = datos fiscales/timbrado del comprobante.
-    - RFD = detalle del registro fiscal.
-    - SAP = documentos provenientes de SAP.
-*/
-SET ANSI_NULLS ON;
-GO
-SET QUOTED_IDENTIFIER ON;
-GO
-
-CREATE OR ALTER PROCEDURE [EAI].[SF_BITACORA_CFDI]
+ALTER   PROCEDURE [EAI].[SF_BITACORA_CFDI]
     @nEtapa INT = 0
 AS
 BEGIN
@@ -58,6 +27,9 @@ BEGIN
         @nProceso2   INT = 0,
         @nProceso3   INT = 0,
         @nProceso4   INT = 0;
+
+    DECLARE @Start_Date datetime 
+    SET @Start_Date =  DATEADD(MONTH, -1, CONVERT(DATE, (select top 1 Start_Date from [EAI].[FC__TIME_WINDOW]), 103))
 
     BEGIN TRY
         -------------------------------------------------------------------
@@ -103,6 +75,9 @@ BEGIN
             */
             ;WITH SourceItem AS
             (
+                
+                
+
                 SELECT
                     FG.Ctro,
                     FG.Factura AS Doc_Num,
@@ -124,14 +99,13 @@ BEGIN
                     FD.Credito_Subt,
                     FD.Credito_IVA
                 FROM [T3].[Factura_General] AS FG
-                CROSS JOIN [EAI].[FC__TIME_WINDOW] AS TW
+                --CROSS JOIN [EAI].[FC__TIME_WINDOW] AS TW
                 INNER JOIN [T3].[Factura_Detalle] AS FD
                     ON FD.Factura = FG.Factura
                 -- LEFT JOIN: una factura puede no pertenecer a un CFDI agrupado.
                 LEFT JOIN [T3].[CFDI_Historia_Docto_PAC] AS HDP
                     ON HDP.Nota_Venta = FG.Factura
-                WHERE FG.Fecha_Factura >=
-                      DATEADD(MONTH, -1, CONVERT(DATE, TW.Start_Date, 103))
+                WHERE FG.Fecha_Factura >= @Start_Date
 
                 -- Une los movimientos de preventa sin ordenar ni eliminar filas;
                 -- la siguiente CTE los consolida por documento.
@@ -159,11 +133,10 @@ BEGIN
                     PD.Credito_Subt,
                     PD.Credito_IVA
                 FROM [T3].[Preventa_General] AS PG
-                CROSS JOIN [EAI].[FC__TIME_WINDOW] AS TW
+                --CROSS JOIN [EAI].[FC__TIME_WINDOW] AS TW
                 INNER JOIN [T3].[Preventa_Detalle] AS PD
                     ON PD.Factura = PG.Factura
-                WHERE PG.Fecha_Factura >=
-                      DATEADD(MONTH, -1, CONVERT(DATE, TW.Start_Date, 103))
+                WHERE PG.Fecha_Factura >= @Start_Date
                   AND PG.Fecha_Proc_BATMD IS NOT NULL
                   AND PG.Clase_Factura IN ('C005', 'C006', 'C025')
             ), Document AS
@@ -207,9 +180,10 @@ BEGIN
              WHERE Tipo_Vta <> 'Vta';
 
             /*
-                El original consultaba Registro_Fiscal_Detalle dos veces por
-                fila: una subconsulta para el valor y otra para EXISTS. Aqui se
-                agrega una vez y se actualiza mediante JOIN.
+                Agrega solo las facturas presentes en la ventana de la bitacora.
+                EXISTS evita multiplicar los importes si Doc_Num esta repetido.
+                Se conservan todos los detalles de cada factura elegible y el
+                filtro de fecha del UPDATE para no modificar filas historicas.
             */
             ;WITH Bonus AS
             (
@@ -217,6 +191,13 @@ BEGIN
                     RFD.Factura,
                     SUM(ISNULL(RFD.Bonif_Subt, 0) + ISNULL(RFD.Bonif_IVA, 0)) AS Bonif_Subt
                 FROM [T3].[Registro_Fiscal_Detalle] AS RFD
+                WHERE EXISTS
+                (
+                    SELECT 1
+                    FROM [EAI].[CFDI_BITACORA] AS Elegible
+                    WHERE Elegible.Doc_Num = RFD.Factura
+                      AND Elegible.Invc_dt >= @Start_Date
+                )
                 GROUP BY RFD.Factura
                 -- Solo se reemplaza la bonificacion cuando existe subtotal
                 -- bonificado; esta condicion reproduce la regla de Oracle.
@@ -225,11 +206,10 @@ BEGIN
             UPDATE CB
                SET CB.Bonif_Subt = B.Bonif_Subt
             FROM [EAI].[CFDI_BITACORA] AS CB
-            CROSS JOIN [EAI].[FC__TIME_WINDOW] AS TW
+            --CROSS JOIN [EAI].[FC__TIME_WINDOW] AS TW
             INNER JOIN Bonus AS B
                 ON B.Factura = CB.Doc_Num
-            WHERE CB.Invc_dt >=
-                  DATEADD(MONTH, -1, CONVERT(DATE, TW.Start_Date, 103));
+            WHERE CB.Invc_dt >= @Start_Date;
         END;
 
         -------------------------------------------------------------------
@@ -586,4 +566,3 @@ BEGIN
         THROW;
     END CATCH;
 END;
-GO

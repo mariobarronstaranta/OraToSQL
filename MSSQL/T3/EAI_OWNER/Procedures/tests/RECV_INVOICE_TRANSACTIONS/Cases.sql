@@ -1,0 +1,72 @@
+SET NOCOUNT ON;
+SET ANSI_WARNINGS ON;
+SET XACT_ABORT OFF;
+DECLARE @xml xml = '<Invoice><Header><Sender><System><SystemName>TEST</SystemName></System></Sender></Header></Invoice>';
+INSERT EAI_OWNER.MX_RECEIVE_MESSAGE_LOG (ROW_ID, CREATED, XML_CONTENT, QUEUE_NAME)
+VALUES ('OK',SYSDATETIME(),@xml,'Invoice');
+EXEC EAI_OWNER.RECV_INVOICE;
+IF @@TRANCOUNT <> 0 OR NOT EXISTS (SELECT 1 FROM EAI_OWNER.MX_RECEIVE_MESSAGE_LOG WHERE ROW_ID='OK' AND PROCESSED IS NOT NULL)
+BEGIN
+    SELECT * FROM EAI_OWNER.MX_EAI_MESSAGE_LOG;
+    THROW 51000,'Fallo exito sin transaccion externa',1;
+END;
+PRINT 'PASS: exito autonomo';
+
+UPDATE EAI_OWNER.MX_RECEIVE_MESSAGE_LOG SET PROCESSED=NULL;
+BEGIN TRANSACTION;
+BEGIN TRANSACTION;
+INSERT dbo.CallerWork VALUES (1);
+EXEC EAI_OWNER.RECV_INVOICE;
+IF @@TRANCOUNT <> 2 OR XACT_STATE() <> 1
+    THROW 51000,'Se modifico la transaccion externa en exito',1;
+ROLLBACK;
+IF EXISTS (SELECT 1 FROM dbo.CallerWork) OR EXISTS (SELECT 1 FROM EAI_OWNER.MX_RECEIVE_MESSAGE_LOG WHERE PROCESSED IS NOT NULL)
+    THROW 51000,'El llamador no pudo revertir el trabajo',1;
+PRINT 'PASS: exito externo, contador 2 y rollback del llamador';
+
+DELETE EAI_OWNER.MX_RECEIVE_MESSAGE_LOG;
+INSERT EAI_OWNER.MX_RECEIVE_MESSAGE_LOG (ROW_ID, CREATED, XML_CONTENT, QUEUE_NAME)
+VALUES ('FAIL',SYSDATETIME(),@xml,'Invoice');
+BEGIN TRANSACTION;
+INSERT dbo.CallerWork VALUES (2);
+DECLARE @caught int = 0;
+BEGIN TRY
+    EXEC EAI_OWNER.RECV_INVOICE;
+END TRY
+BEGIN CATCH
+    SET @caught=ERROR_NUMBER();
+END CATCH;
+IF @caught <> 547 OR @@TRANCOUNT <> 1 OR XACT_STATE() <> 1
+    THROW 51000,'No se preservo error recuperable / transaccion externa',1;
+IF NOT EXISTS (SELECT 1 FROM dbo.CallerWork WHERE ID=2)
+    THROW 51000,'Se perdieron cambios previos del llamador',1;
+ROLLBACK;
+PRINT 'PASS: error 547 original, savepoint y cambios previos preservados';
+
+EXEC EAI_OWNER.RECV_INVOICE;
+IF @@TRANCOUNT <> 0 OR NOT EXISTS (SELECT 1 FROM EAI_OWNER.MX_EAI_MESSAGE_LOG WHERE QUEUE_NAME='PROC_PREINVOICE_IFC' AND SIEBEL_ERROR_CODE='SQL-547')
+    THROW 51000,'Fallo rollback y registro de error autonomo',1;
+PRINT 'PASS: fallo autonomo registrado sin desbalance';
+
+DELETE EAI_OWNER.MX_RECEIVE_MESSAGE_LOG;
+INSERT EAI_OWNER.MX_RECEIVE_MESSAGE_LOG (ROW_ID, CREATED, XML_CONTENT, QUEUE_NAME)
+VALUES ('DOOM',SYSDATETIME(),@xml,'Invoice');
+BEGIN TRANSACTION;
+INSERT dbo.CallerWork VALUES (3);
+SET @caught=0;
+BEGIN TRY
+    EXEC EAI_OWNER.RECV_INVOICE;
+END TRY
+BEGIN CATCH
+    SET @caught=ERROR_NUMBER();
+END CATCH;
+IF @caught <> 51091 OR @@TRANCOUNT <> 1 OR XACT_STATE() <> -1
+    THROW 51000,'No se preservo error original / transaccion invalidada',1;
+ROLLBACK;
+PRINT 'PASS: transaccion externa invalidada, error original y rollback del llamador';
+
+EXEC EAI_OWNER.RECV_INVOICE;
+IF @@TRANCOUNT <> 0 OR NOT EXISTS (SELECT 1 FROM EAI_OWNER.MX_EAI_MESSAGE_LOG WHERE QUEUE_NAME='PROC_PREINVOICE_IFC' AND SIEBEL_ERROR_CODE='SQL-51091')
+    THROW 51000,'Fallo rollback autonomo de transaccion invalidada',1;
+PRINT 'PASS: transaccion propia invalidada revertida y error registrado';
+GO

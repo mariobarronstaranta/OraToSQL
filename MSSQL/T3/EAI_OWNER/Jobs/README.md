@@ -197,7 +197,7 @@ flujo funcional autorizado.
 |---|---|---|---|
 | `msdb` | `SQLAgentUserRole` | `T3_SQLAGENT_OWNER` | Permite administrar únicamente jobs/schedules propios. |
 | `msdb` | `T3JobExecutors` | Login técnico y equipo autorizado | Permite ejecutar el wrapper controlado. |
-| `T3QA` | `T3SqlAgentJobExecutor` | `T3_SQLAGENT_OWNER` | Permite ejecutar los entry points de los 37 jobs. |
+| `T3QA` | `T3SqlAgentJobExecutor` | `T3_SQLAGENT_OWNER` | Ejecuta los entry points de los 37 jobs y recibe permisos acotados de control y log. |
 | `T3QA` | `T3BODExecutors` | Equipo autorizado | Permite ejecutar `T3.PROC_T3_BOD`. |
 
 ### 5.3 Usuarios humanos autorizados actualmente
@@ -272,7 +272,7 @@ No se debe:
 | `C_SECURITY_REASSIGN_T3_JOB_OWNERS.SQL` | `msdb` | Reasigna los 37 jobs y schedules al login técnico. |
 | `D_SECURITY_GRANT_T3_JOB_EXECUTORS.SQL` | `msdb`, `T3QA` | Crea roles y agrega a los usuarios humanos autorizados. |
 | `D1_SECURITY_CREATE_MSDB_T3_ADD_JOB_EXECUTORS.SQL` | `msdb` | Crea el procedimiento reutilizable para altas posteriores mediante una lista CSV. |
-| `E_SECURITY_GRANT_T3_SQLAGENT_OWNER_EXECUTE.SQL` | `T3QA` | Concede al login técnico permisos mínimos sobre los entry points. |
+| `E_SECURITY_GRANT_T3_SQLAGENT_OWNER_EXECUTE.SQL` | `T3QA` | Concede mediante rol permisos de ejecución, control y acceso a `T3.RF_PROCESOS_LOG`. |
 
 ### 6.3 Archivos de soporte
 
@@ -566,6 +566,19 @@ msdb.dbo.sp_update_schedule
 
 ### Paso E: autorizar al propietario técnico
 
+Actualizacion del flujo RECV_REPLENISHMENT: el script E incluye permisos
+por objeto para sus dependencias revisadas de T3 y EAI y para las llamadas
+desde T3 a EAI_OWNER. Para una base existente usar
+[09_PERMISOS_FLUJO_REPLENISHMENT.sql](../Package/RECV_REPLENISHMENT_PERF/09_PERMISOS_FLUJO_REPLENISHMENT.sql).
+Este archivo agrupa las correcciones de permisos de 06/07/08 y agrega las
+operaciones identificadas en entregas, remisiones y catalogos. No es necesario
+ejecutar primero esos tres archivos. La lista exacta esta en @RRPermisos;
+no concede permisos de esquema, ALTER ni roles de administracion.
+Guardar el resultado ANTES; todas las filas de verificacion deben mostrar
+Permitido=1. Si falla, el archivo 09 revierte sus concesiones de esa ejecucion.
+La prueba del job sigue siendo necesaria: cambios posteriores en dependencias,
+SQL dinamico o triggers pueden requerir otra revision.
+
 Archivo:
 
 ```text
@@ -578,9 +591,63 @@ Crea el rol `T3QA.T3SqlAgentJobExecutor`, agrega únicamente a
 - `EXECUTE` sobre los 37 procedimientos principales del catálogo.
 - `SELECT` y `UPDATE` sobre `Job_Oracle_SQLAgent_Map`.
 - `SELECT` sobre `Job_Oracle_Migration_Catalog`.
+- `EXECUTE` sobre `T3.FN_EVAL_REMISION_OBD`, llamada por el parser de reabasto.
+- `SELECT` sobre `EAI_OWNER.MX_HASHTABLE` y `T3.MATERIAL`, por errores 229
+  confirmados al ejecutar el flujo mediante el job.
+- `SELECT`, `INSERT` y `UPDATE` sobre `T3.RF_PROCESOS_LOG`, mediante el rol
+  `T3SqlAgentJobExecutor`. Permiten registrar el inicio y cierre por `PID`
+  cuando el procedimiento y la tabla tienen propietarios distintos.
 - `VIEW DEFINITION` sobre `JOB_NEXT_RUN`, `PROC_T3_BOD` y `PROC_T3_EOD`.
 
+- `EXECUTE` sobre `T3.PROC_T3_OT_GENERAL`, dependencia del coordinador
+  `EAI_OWNER.RECV_INVOICE_INTERCOMPANY`. En T3QA se confirmaron propietarios
+  diferentes y falta de visibilidad/ejecucion bajo `T3_SQLAGENT_OWNER`.
+  Para una instalacion existente basta ejecutar como sysadmin la
+  [correccion puntual del permiso](../../Diagnosticos/RECV_INVOICE_INTERCOMPANY_50021_CORREGIR_PERMISO.sql).
+  Verifica el acceso efectivo sin iniciar jobs ni procesar documentos; no es
+  necesario repetir el despliegue completo. El mensaje `50021` no demostraba
+  ausencia del objeto: `OBJECT_ID` devolvia NULL por falta de visibilidad.
+  La siguiente corrida normal debe validarse por separado para detectar
+  errores posteriores. No se conceden permisos adicionales sobre los dos
+  procedimientos internos T3 que comparten propietario con el procedimiento.
+
 No agregar usuarios humanos a este rol.
+
+El lote con datos del 23 de octubre de 2026, PID `26516078`, fallo por DELETE
+denegado en `T3.PREVENTA_GENERAL`. Para la ruta `INVOICE_TO_PREVENTA`, el script E
+incluye SELECT/INSERT/UPDATE/DELETE en general, SELECT/INSERT/DELETE en detalle y
+condiciones y EXECUTE en `T3.DELIVERY_WA_OXXO`. RF_COMPLEMENTO y MATERIAL ya estan
+incluidos en el bloque de permisos anterior. Para una base existente ejecutar
+solo [el ajuste puntual de preventa](../../Diagnosticos/RECV_INVOICE_INTERCOMPANY_229_PERMISOS_PREVENTA.sql)
+como sysadmin; verifica quince permisos efectivos sin procesar documentos.
+El delegado puede haber marcado el mensaje antes del fallo. Ejecutar tambien
+[la revision de mensajes](../../Diagnosticos/RECV_INVOICE_INTERCOMPANY_26516078_REVISION_MENSAJE.sql)
+antes de decidir un reproceso; no actualiza estados ni garantiza que los
+candidatos temporales correspondan al PID. No se modificaron procedimientos.
+
+La revision posterior identifico diez errores adicionales por SELECT denegado
+en `T3.OTROS_GENERAL`. El script E incluye tambien los permisos de reconstruccion
+de OTROS, UPDATE de detalle para V33/retenciones y SELECT de `CFDI_PRODSERV_WA`.
+Para una instalacion existente usar el
+[ajuste combinado PREVENTA/OTROS](../../Diagnosticos/RECV_INVOICE_INTERCOMPANY_229_PERMISOS_RUTAS.sql),
+que verifica 29 permisos y puede aplicarse aunque ya se haya ejecutado el ajuste
+de PREVENTA. RF_COMPLEMENTO y los catalogos se incluyen sin permisos de esquema.
+Los once mensajes se marcaron Processed pese a sus errores. La
+[revision de los once documentos](../../Diagnosticos/RECV_INVOICE_INTERCOMPANY_26516078_ESTADO_11_DOCUMENTOS.sql)
+verifica identidad, temporales, salidas y definicion instalada. Sus CREATED son
+del 4/5 de octubre, fuera de los cinco dias del selector local al 23 de octubre;
+no basta con resetear PROCESSED sin verificar la version instalada. Estos scripts
+no ejecutan reprocesos ni cambian reglas de estados/errores de los SP.
+
+En la corrida de las 17:25 se reporto SELECT denegado en
+`EAI_OWNER.TMP_DOCUMENT_PARTNERS`, consultada tambien por
+`T3.PROC_V40_GENERAR_OTROS`. El ajuste combinado y el script E incluyen ahora
+esa lectura (el combinado anterior verificaba 28 permisos). Si ya se aplico
+el combinado anterior, ejecutar solo el
+[permiso puntual de partners](../../Diagnosticos/RECV_INVOICE_INTERCOMPANY_229_PERMISO_PARTNERS.sql)
+como sysadmin. Debe devolver `PuedeLeer=1`. No inicia jobs ni reprocesos, ni
+concede permisos de modificacion sobre partners. El mensaje aislado no
+identifica el PID, la factura ni el procedimiento exacto que lo registro.
 
 Antes de ejecutar `E` deben existir:
 
@@ -588,6 +655,40 @@ Antes de ejecutar `E` deben existir:
 - `EAI_OWNER.JOB_NEXT_RUN`, ya actualizado para llamar al wrapper de `msdb`.
 - `T3.PROC_T3_BOD`.
 - `T3.PROC_T3_EOD`.
+- La tabla `T3.RF_PROCESOS_LOG` (si falta, el script devuelve `51506`).
+- La funcion escalar `T3.FN_EVAL_REMISION_OBD` (si falta, devuelve `51507`).
+- Las tablas `EAI_OWNER.MX_HASHTABLE` y `T3.MATERIAL` (si falta alguna,
+  devuelve `51508`).
+
+Para agregar solo las lecturas confirmadas en una instalacion existente,
+ejecutar [08_PERMISOS_CATALOGOS_JOB.sql](../Package/RECV_REPLENISHMENT_PERF/08_PERMISOS_CATALOGOS_JOB.sql).
+Verifica ambos permisos efectivos en la cuenta tecnica sin procesar documentos.
+
+Para el error 229 especifico de la funcion OBD en una instalacion existente,
+ejecutar [07_PERMISO_FUNCION_OBD_JOB.sql](../Package/RECV_REPLENISHMENT_PERF/07_PERMISO_FUNCION_OBD_JOB.sql)
+como administrador. Agrega EXECUTE al mismo rol y debe devolver
+PuedeEjecutarFuncion=1. No ejecuta la funcion ni inicia el job. Esa verificacion
+no certifica los permisos de los objetos internos de la funcion.
+
+La correccion puntual [06_PERMISOS_LOG_JOB.sql](../Package/RECV_REPLENISHMENT_PERF/06_PERMISOS_LOG_JOB.sql)
+concede estos mismos permisos al rol existente y verifica su acceso efectivo
+para `T3_SQLAGENT_OWNER`. No habilita ni inicia jobs. Si ya se ejecuto una
+version anterior que concedia permisos directamente al usuario, esos permisos
+se conservan; este despliegue no los revoca automaticamente.
+
+Esta correccion atiende el error 229 de `RECV_REPLENISHMENT` al insertar en
+`T3.RF_PROCESOS_LOG`. El diagnostico mostro propietarios diferentes para el
+procedimiento y la tabla. La cuenta tecnica ya tenia EXECUTE sobre el
+procedimiento, pero le faltaba acceso a la tabla.
+
+Para corregir una instalacion existente basta el script 06, ejecutado como
+administrador; no es necesario recrear jobs ni repetir todo el despliegue.
+Debe devolver PuedeLeer=1, PuedeInsertar=1 y PuedeActualizar=1. Esto verifica
+permisos efectivos sobre el log; luego se debe comprobar una ejecucion del job
+y sus resultados de negocio. El procedimiento puede registrar errores sin
+relanzarlos, por lo que un estado exitoso en Agent no basta.
+La habilitacion del horario del job es independiente y no la realiza el script 06.
+Ver [instrucciones y reversa puntual](../Package/RECV_REPLENISHMENT_PERF/LEEME.md).
 
 Si falta un procedimiento del catálogo, el script devuelve `51504`, muestra
 `Missing_Procedure` y no concede permisos parciales. Si falta uno de los tres

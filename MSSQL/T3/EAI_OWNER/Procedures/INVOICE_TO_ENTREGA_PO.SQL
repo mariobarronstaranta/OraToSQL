@@ -162,6 +162,14 @@ BEGIN
     END TRY
 
     BEGIN CATCH
+        -- RI3930_PROPAGATE_V1
+        -- La transaccion pertenece al llamador. Propagar antes de escribir
+        -- para conservar la causa original y evitar confirmar cambios parciales.
+        -- Los cursores LOCAL se liberan al salir del procedimiento.
+        IF @@TRANCOUNT > 0
+        BEGIN
+            THROW;
+        END;
 
         SET @sErrorCode =
             'SQL-' + CAST(ERROR_NUMBER() AS VARCHAR(20));
@@ -205,7 +213,8 @@ BEGIN
             NULL
         );
 
-        -- Se conserva el contrato Oracle: registrar el error y finalizar.
+        -- Sin transaccion activa: registrar y finalizar como en el contrato previo.
+        -- Con transaccion activa: el guard propaga al propietario de la transaccion.
 
     END CATCH
 

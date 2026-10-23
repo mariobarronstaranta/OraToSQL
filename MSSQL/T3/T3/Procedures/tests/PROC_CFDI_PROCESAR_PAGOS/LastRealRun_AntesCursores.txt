@@ -1,0 +1,27 @@
+﻿
+(2 rows affected)
+
+(5 rows affected)
+PASS compilacion del procedimiento completo y dependencias disponibles
+PASS REPRODUCCION instalado + 2026-10-14 00:00:00: cero filas sin excepcion
+PASS REPRODUCCION instalado + hora exacta: seis filas, seis saldos/parcialidades NULL
+PASS REPRODUCCION CHD-33522: INCOBRABLE e importe factura 0 pese a existir cancelacion por 20723.95
+Escenario             Asignacion_ID                  Factura                        Importe            Importe_Factura    Saldo_Anterior     Numero_Pago  Status               UUID_Venta                              
+--------------------- ------------------------------ ------------------------------ ------------------ ------------------ ------------------ ------------ -------------------- ----------------------------------------
+INSTALADO_HORA_EXACTA 262201996890                   CHD-33522                                20723.95                .00               NULL         NULL INCOBRABLE                                                   
+INSTALADO_HORA_EXACTA 262201997839                   V0010-134061                              1119.81            1049.57               NULL         NULL INCOBRABLE                                                   
+INSTALADO_HORA_EXACTA 262201996684                   V1972-85517                                852.94            5688.53               NULL         NULL INCOBRABLE                                                   
+INSTALADO_HORA_EXACTA 262201996690                   V1972-85517                               4835.59            5688.53               NULL         NULL INCOBRABLE                                                   
+INSTALADO_HORA_EXACTA 262201997324                   V2363-145780                               194.05                .00               NULL         NULL INCOBRABLE                                                   
+INSTALADO_HORA_EXACTA 262201997328                   V2363-145780                                38.51                .00               NULL         NULL INCOBRABLE                                                   
+PASS REPRODUCCION DATE + medianoche: seis filas equivalentes al instalado con hora exacta
+HALLAZGO NO RESUELTO: DATE corrige seleccion; siguen NULL los seis saldos y parcialidades
+Escenario             Asignacion_ID                  Factura                        Importe            Importe_Factura    Saldo_Anterior     Numero_Pago  Status               UUID_Venta                              
+--------------------- ------------------------------ ------------------------------ ------------------ ------------------ ------------------ ------------ -------------------- ----------------------------------------
+LOCAL_DATE_MEDIANOCHE 262201996890                   CHD-33522                                20723.95                .00               NULL         NULL INCOBRABLE                                                   
+LOCAL_DATE_MEDIANOCHE 262201997839                   V0010-134061                              1119.81            1049.57               NULL         NULL INCOBRABLE                                                   
+LOCAL_DATE_MEDIANOCHE 262201996684                   V1972-85517                                852.94            5688.53               NULL         NULL INCOBRABLE                                                   
+LOCAL_DATE_MEDIANOCHE 262201996690                   V1972-85517                               4835.59            5688.53               NULL         NULL INCOBRABLE                                                   
+LOCAL_DATE_MEDIANOCHE 262201997324                   V2363-145780                               194.05                .00               NULL         NULL INCOBRABLE                                                   
+LOCAL_DATE_MEDIANOCHE 262201997328                   V2363-145780                                38.51                .00               NULL         NULL INCOBRABLE                                                   
+PASS base temporal eliminada

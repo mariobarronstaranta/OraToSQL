@@ -1,0 +1,44 @@
+﻿
+(2 rows affected)
+
+(5 rows affected)
+SOURCE MSSQL/T3/T3/Tables/T3.ASIGNACION_PAGO.Table.sql SHA256=A63E50C24CB9321274EF1B2A799E978987ADF828EB3205B84C8C820A979FBAC4
+SOURCE MSSQL/T3/T3/Tables/T3.CLIENTE.Table.sql SHA256=B89F1F790D8DDDFD302FB57264E641F87C14CFF517B6FEAED0D55D0FE0D19E94
+SOURCE MSSQL/T3/T3/Tables/T3.REGISTRO_FISCAL.Table.sql SHA256=A62070C7AB666FEBB5FB00B97CD995A475F2DF6BBBD22EE6E059A3A1ED810ED9
+SOURCE MSSQL/T3/T3/Tables/T3.TIPO_DOCUMENTO.Table.sql SHA256=B44BE880D596F3CD4AA95F0C8973C5AE55924F1E7F1A17D0D232883345CC98EF
+SOURCE MSSQL/T3/T3/Tables/T3.PAGO.Table.sql SHA256=1CB9AD127DD9623F6BDC4D0BA68944D54554B036CC53F65855FFFF94CACA568A
+SOURCE MSSQL/T3/T3/Tables/T3.FACTURA_DETALLE.Table.sql SHA256=A97689A34FD2B71B17AE68E59AADE1EFE57F112F2E3CA5795F193EA554E874A7
+SOURCE MSSQL/T3/T3/Tables/T3.PREVENTA_GENERAL.Table.sql SHA256=2B3CA428978A7F98D8B9087C06875EB5E56B7C56FB17AF5B20DCCF398FE2D330
+SOURCE MSSQL/T3/T3/Tables/T3.PREVENTA_DETALLE.Table.sql SHA256=C131EDFC7745D217CB95679DF18F5C617026445F0B156AA4C719C6D7E6B0D65C
+SOURCE MSSQL/T3/T3/Tables/T3.CFDI_HISTORIA_DOCTO_PAC.Table.sql SHA256=D4190AE099C3FE95F2B17109062FFD8549176077142C9DB60DBFF55706C09F19
+SOURCE MSSQL/T3/T3/Tables/T3.CFDI_DOCUMENTOS.Table.sql SHA256=351DE5436507689BB7707B56B3A7B956772DC50A223388E7EBCE9D6EACBA8426
+SOURCE MSSQL/T3/T3/Tables/T3.DEBIT_NOTE_IFC.Table.sql SHA256=E959CF53ED4D0AACA1D50567605165B720F64629708E8FB6F26E8E8086790FA0
+SOURCE MSSQL/T3/T3/Tables/T3.CFDI_COBRANZA.Table.sql SHA256=7970B998742744CAA07DE2F0B81160277780B83B6AA38A072792AC16219569CD
+SOURCE MSSQL/T3/T3/Tables/T3.RF_PROCESOS_LOG.Table.sql SHA256=FF3C643044CCEB87B727422BF1E85D7F5A0540D3725ADE3745BA1385E7D8E807
+SOURCE MSSQL/T3/T3/Tables/T3.REGISTRO_FISCAL_DETALLE.Table.sql SHA256=ED692C092AA4F1CFAB278DB141DDBD59CA0B7D4A3F2706A091AFB68E09B2D4AC
+SOURCE MSSQL/T3/T3/Tables/T3.FACTURA_GENERAL.SQL SHA256=F21C0B183B24CF8304DD330B7006B0F8E4867FE8D2F4494328342511B5B27900
+SOURCE MSSQL/T3/T3/Funciones/FN_TOTAL_FACT.SQL SHA256=8F600C01D0A445C15501DE887FCAD110343DAD4CD94A5A9D7D4839733EF406CE
+SOURCE MSSQL/T3/EAI_OWNER/Functions/GETCONV.SQL SHA256=8B8B02C5FB7944E0DE033EAF5D76356E37BC13D07AF7E70E0CF2E206CC5D982B
+SOURCE MSSQL/T3/EAI_OWNER/Procedures/LOG_START.SQL SHA256=734014F03C1CD75F1CB2CB59D6EF5EB5370785D3269D23AB5C09D03DD0CEF45A
+SOURCE MSSQL/T3/T3/Procedures/T3.WA_CFDI_COBZA_ASIG_CTRL.StoredProcedure.sql SHA256=18FC94F0DCB93A5790DB894D4A2935FFED957FFF2635A3F80619BFDC6A3EB0EB
+SOURCE MSSQL/T3/T3/Procedures/T3.PROC_CFDI_PROCESAR_PAGOS.sql SHA256=E722EFE5F19949F1D2077E038C8DD0A999600BE5F6A2ADCA86A5BCE2349ED823
+PASS compilacion del procedimiento completo y dependencias disponibles
+Seccion  Fecha                   VersionSQL                                                                                                                                                                                                                                                                                                  
+-------- ----------------------- ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+AMBIENTE 2026-10-23 14:23:03.807 Microsoft SQL Server 2025 (RTM-CU3) (KB5077896) - 17.0.4025.3 (X64) 
+	Feb 25 2026 20:54:27 
+	Copyright (C) 2025 Microsoft Corporation
+	Express Edition (64-bit) on Windows 10 Enterprise 10.0 <X64> (Build 26100: ) (Hypervisor)
+                                                                           
+PASS base cero con pago previo: importe factura 0, saldo anterior -100, parcialidad 2, sin error
+PASS regla SAT activa puede sustituir una base cero por 348
+PASS venta T3 cero: importe/saldo/tasa 0, sin division por cero
+PASS diferencia vigente: FN_TOTAL_FACT sin detalle devuelve 0, pero PAGOS usa suma local y conserva NULL
+Asignacion_ID                  Factura                        Importe_Factura    Saldo_Anterior     Numero_Pago  Tasa_IVA RetornoFuncionCompartida
+------------------------------ ------------------------------ ------------------ ------------------ ------------ -------- ------------------------
+N_NOW                          ABSENT                                       NULL               NULL            1     NULL                      .00
+S_NOW                          ZERO_SAT                                   348.00             348.00            1     NULL                      .00
+V_NOW                          V_ZERO                                        .00                .00            1      .00                      .00
+Z_NOW                          ZERO                                          .00            -100.00            2     NULL                      .00
+PASS compatibilidad con cero comprobada en LocalDB; no se modifico ningun procedimiento ni base real
+PASS base temporal eliminada

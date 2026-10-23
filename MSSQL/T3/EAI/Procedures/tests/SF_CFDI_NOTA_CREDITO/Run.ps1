@@ -8,7 +8,7 @@ try {
     sqlcmd -S $server -E -No -b -Q "CREATE DATABASE [$testDb]"
     if($LASTEXITCODE -ne 0){ throw 'No se pudo crear la base de pruebas.' }
     $created=$true
-    foreach($script in @((Join-Path $PSScriptRoot 'Schema.sql'),(Join-Path $PSScriptRoot '..\..\SF_CFDI_NOTA_CREDITO.SQL'),(Join-Path $PSScriptRoot 'Cases.sql'))){
+    foreach($script in @((Join-Path $PSScriptRoot 'Schema.sql'),(Join-Path $PSScriptRoot '..\..\SF_CFDI_NOTA_CREDITO.SQL'),(Join-Path $PSScriptRoot 'Cases.sql'),(Join-Path $PSScriptRoot 'OracleRules.sql'))){
         sqlcmd -S $server -E -No -b -d $testDb -i $script
         if($LASTEXITCODE -ne 0){ throw "Fallo la prueba: $script" }
     }

@@ -17,12 +17,16 @@
 
     Los errores del coordinador se guardan en MX_EAI_MESSAGE_LOG y su ROW_ID
     BIGINT se obtiene del DEFAULT configurado para la tabla.
+    Con transaccion externa, el error se propaga para que el llamador decida
+    el rollback; no se continua el lote despues de una factura fallida.
 */
 CREATE OR ALTER PROCEDURE [EAI_OWNER].[RECV_INVOICE]
 AS
 BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT OFF;
+
+    DECLARE @EntryTranCount INT = @@TRANCOUNT;
 
     DECLARE
           @nComponent INT = 405
@@ -91,6 +95,11 @@ BEGIN
          WHERE PID = @nPID;
     END TRY
     BEGIN CATCH
+        -- Con transaccion externa el llamador decide el rollback. No ocultar
+        -- la causa ni intentar escribir si la transaccion quedo invalidada.
+        IF @EntryTranCount > 0 OR XACT_STATE() = -1
+            THROW;
+
         -- Error general del job; los detalles por factura pertenecen al delegado.
         INSERT INTO [EAI_OWNER].[MX_EAI_MESSAGE_LOG]
             (DIRECTION, REFERENCE, CREATED, MESSAGE, JOB_PID, STATUS,

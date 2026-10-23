@@ -358,7 +358,7 @@ BEGIN
                             ISNULL(Det.UnidadMedida, 'UA') AS Unidad_Med_Vta,
                             CASE WHEN Det.Status_Producto = 'MALO' THEN 'Q' ELSE ' ' END AS Status_Prod,
                             MAX(CONVERT(NUMERIC(22,7), 0)) AS Tasa_IEPS,
-                            SUM(CASE WHEN Head.DeliveryType = 'C019' THEN 1 ELSE Det.Cantidad END) AS Cantidad_Vta,
+                            CASE WHEN MAX(CASE WHEN Head.DeliveryType = 'C019' OR Det.Cantidad IS NOT NULL THEN 1 ELSE 0 END) = 1 THEN SUM(CASE WHEN Head.DeliveryType = 'C019' THEN 1 ELSE ISNULL(Det.Cantidad, 0) END) END AS Cantidad_Vta,
                             SUM(ISNULL(Det.Valor_Subt, 0)) AS Valor_Subt,
                             SUM(ISNULL(Det.Valor_IVA, 0)) AS Valor_IVA,
                             SUM(CONVERT(NUMERIC(22,7), 0)) AS Valor_ISSA,
@@ -494,7 +494,7 @@ BEGIN
                         SELECT
                             Factura, Prefijo, Num_Linea, Material, Unidad_Med_Vta, Status_Prod,
                             MAX(Tasa_IEPS),
-                            SUM(Cantidad_Vta),
+                            CASE WHEN MAX(CASE WHEN Cantidad_Vta IS NOT NULL THEN 1 ELSE 0 END) = 1 THEN SUM(ISNULL(Cantidad_Vta, 0)) END,
                             SUM(Valor_Subt),
                             SUM(Valor_IVA),
                             SUM(Valor_ISSA),
@@ -689,6 +689,14 @@ BEGIN
         EXEC [T3].[DELIVERY_WA_OXXO] @sFacturaV3, 1, 0;
     END TRY
     BEGIN CATCH
+        -- RI3930_PROPAGATE_V1
+        -- La transaccion pertenece al llamador. Propagar antes de escribir
+        -- para conservar la causa original y evitar confirmar cambios parciales.
+        -- Los cursores LOCAL se liberan al salir del procedimiento.
+        IF @@TRANCOUNT > 0
+        BEGIN
+            THROW;
+        END;
         -----------------------------------------------------------------------
         -- MANEJO DE ERRORES
         --

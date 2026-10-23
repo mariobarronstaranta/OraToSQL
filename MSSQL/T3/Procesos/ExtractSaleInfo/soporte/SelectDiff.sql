@@ -1,0 +1,17 @@
+SELECT S.Ctro AS CTRO, S.Fecha AS FECHA, S.Tipo_Docto AS TIPO_DOCUMENTO,
+       S.Cliente_SAP AS CLIENTE_SAP, S.Nombre_Cliente AS NOMBRE_CLIENTE,
+       S.Referencia_TMD AS [REFERENCIA TMD], S.Referencia_TMD AS [REFERENCIA SAP],
+       S.Referencia_SAT AS [REFERENCIA SAT], S.Folio_Fiscal AS [FOLIO FISCAL],
+       S.Monto_TMD AS IMPORTE_TMD, S.Monto_SAP AS IMPORTE_SAP,
+       S.Monto_T3MX AS IMPORTE_T3MX, S.Monto_SAT AS IMPORTE_SAT,
+       S.Dif_TMD_SAP AS DIF_TMD_SAP, S.Dif_SAP_T3MX AS DIF_SAP_T3MX,
+       S.Dif_T3MX_SAT AS DIF_T3MX_SAT, S.Diferencia AS DIFERENCIA,
+       CONVERT(varchar(19), ISNULL(CFD.Fecha_Liberacion, CFD.Fecha_Envio), 120) AS FECHA_EDICOM,
+       CASE WHEN EAI_OWNER.CHK_ZLOB_DOCUMENT(S.Referencia_TMD) = 'Discard'
+            THEN 'LOB-Ok' ELSE '' END AS ZLOB_PROCESS,
+       Comm.Comentarios AS COMENTARIOS
+FROM #Sale S
+LEFT JOIN T3.CFDI_DOCUMENTOS CFD ON S.Nota_Venta_CFDI = CFD.Nota_Venta
+LEFT JOIN EAI.CIFRAS_COMENTARIOS Comm ON S.Referencia_TMD = Comm.Referencia
+WHERE ABS(S.Diferencia) > 0.05;
+DROP TABLE #Sale;

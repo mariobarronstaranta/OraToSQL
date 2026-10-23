@@ -1,0 +1,44 @@
+SET NOCOUNT ON;
+-- Reproduccion del error original con el mismo tipo del DDL real.
+DECLARE @Error int=0;
+BEGIN TRY
+ INSERT EAI_OWNER.INTERNAL_JOBS(INSTANCE_JOB) VALUES(CONVERT(varchar(128),'SERVIDOR\INSTANCIA'));
+END TRY
+BEGIN CATCH
+ SET @Error=ERROR_NUMBER();
+END CATCH;
+IF @Error<>8114 THROW 55300,'No se reprodujo el error original varchar -> float.',1;
+PRINT 'PASS: error 8114 original reproducido';
+
+EXEC EAI_OWNER.JOB_REFRESH;
+IF (SELECT COUNT(*) FROM EAI_OWNER.INTERNAL_JOBS)<>1 THROW 55301,'Numero de jobs incorrecto.',1;
+IF NOT EXISTS(SELECT 1 FROM EAI_OWNER.INTERNAL_JOBS WHERE JOBNO=849 AND INSTANCE_JOB=0
+ AND TOTAL_TIME=3723 AND FAILURES=2 AND BROKEN='N' AND LEN(INTERVAL_JOB)=200
+ AND LAST_DATE='20261007 09:30:00' AND THIS_DATE='20261008 10:00:00'
+ AND NEXT_DATE='20261009 12:34:56' AND NLS_ENV LIKE '%;SERVER=%')
+ THROW 55302,'Foto de jobs incorrecta.',1;
+IF @@TRANCOUNT<>0 THROW 55303,'Transaccion abierta tras exito.',1;
+PRINT 'PASS: carga completa, INSTANCE numerico, intervalo largo, duracion, fechas y fallos';
+
+-- Sin intervalo Oracle usa descripcion SQL Agent, acotada al DDL varchar(200).
+UPDATE EAI_OWNER.Job_Oracle_SQLAgent_Map SET Last_Interval=NULL, Original_Interval=NULL;
+EXEC EAI_OWNER.JOB_REFRESH;
+IF NOT EXISTS(SELECT 1 FROM EAI_OWNER.INTERNAL_JOBS WHERE INTERVAL_JOB LIKE 'freq_type=4;%')
+ THROW 55304,'No uso descripcion del schedule.',1;
+
+-- Error posterior al TRUNCATE: el snapshot previo debe restaurarse.
+SELECT * INTO #Antes FROM EAI_OWNER.INTERNAL_JOBS;
+ALTER TABLE EAI_OWNER.INTERNAL_JOBS WITH NOCHECK ADD CONSTRAINT CK_Test_Job CHECK(JOBNO<>849);
+SET @Error=0;
+BEGIN TRY
+ EXEC EAI_OWNER.JOB_REFRESH;
+END TRY
+BEGIN CATCH
+ SET @Error=ERROR_NUMBER();
+END CATCH;
+IF @Error<>547 OR @@TRANCOUNT<>0 THROW 55305,'Fallo o rollback inesperado.',1;
+IF EXISTS(SELECT * FROM #Antes EXCEPT SELECT * FROM EAI_OWNER.INTERNAL_JOBS)
+ OR EXISTS(SELECT * FROM EAI_OWNER.INTERNAL_JOBS EXCEPT SELECT * FROM #Antes)
+ THROW 55306,'No restauro snapshot tras fallo de INSERT.',1;
+PRINT 'PASS: rollback restaura INTERNAL_JOBS despues de fallo posterior al TRUNCATE';
+GO

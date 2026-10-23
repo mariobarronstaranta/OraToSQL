@@ -1,0 +1,42 @@
+﻿
+(2 rows affected)
+
+(5 rows affected)
+PASS compilacion del procedimiento completo y dependencias disponibles
+PASS carga sintetica: limites de dia/vigencia, historial y rutas de negocio
+PASS FN_TOTAL_FACT real: venta, envio, credito, multiples lineas, NULL, vacio e inexistente
+PASS causa reproducida: DECLARE antes de SET no encuentra filas; despues de SET si
+PASS BATMD con hora, inicio/fin de vigencia, exclusiones y horas originales
+PASS historial desde 2018-09-01, pago anterior, CM y parcialidades
+PASS rutas PendienteT3, incobrable y RFC generico
+PASS sin errores registrados; cierre de procesos 604/889 y transacciones
+PASS lote vacio y parametro NULL sin errores
+--------------------------------------------------------------------------------
+Problemas en la ejecucion del Procedimiento
+FAVOR DE ESCALAR LOS SIGUIENTES DATOS :
+Procedimiento : PROC_CFDI_PAGOS
+Fecha         : 20261023 13:36:11
+Referencia    : A1
+Substep       : ScrAsignaciones
+Error         : Arithmetic overflow error converting numeric to data type numeric.
+--------------------------------------------------------------------------------
+PASS limpieza con cursor abierto: conserva 8115 y permite siguiente ejecucion sin fugas
+PASS casos con CURSOR_DEFAULT LOCAL
+PASS causa reproducida: DECLARE antes de SET no encuentra filas; despues de SET si
+PASS BATMD con hora, inicio/fin de vigencia, exclusiones y horas originales
+PASS historial desde 2018-09-01, pago anterior, CM y parcialidades
+PASS rutas PendienteT3, incobrable y RFC generico
+PASS sin errores registrados; cierre de procesos 604/889 y transacciones
+PASS lote vacio y parametro NULL sin errores
+--------------------------------------------------------------------------------
+Problemas en la ejecucion del Procedimiento
+FAVOR DE ESCALAR LOS SIGUIENTES DATOS :
+Procedimiento : PROC_CFDI_PAGOS
+Fecha         : 20261023 13:36:13
+Referencia    : A1
+Substep       : ScrAsignaciones
+Error         : Arithmetic overflow error converting numeric to data type numeric.
+--------------------------------------------------------------------------------
+PASS limpieza con cursor abierto: conserva 8115 y permite siguiente ejecucion sin fugas
+PASS casos con CURSOR_DEFAULT GLOBAL
+PASS base temporal eliminada

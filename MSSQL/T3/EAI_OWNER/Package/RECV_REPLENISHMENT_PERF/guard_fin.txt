@@ -1,0 +1,35 @@
+
+DECLARE @Actual nvarchar(max)=OBJECT_DEFINITION(OBJECT_ID(N'EAI_OWNER.SF_PROC_REPLENISHMENT'));
+IF @Actual IS NULL THROW 51962,'No se puede leer la definicion del procedimiento.',1;
+DECLARE @Pos int=CHARINDEX(N'[EAI_OWNER].[SF_PROC_REPLENISHMENT]',@Actual);
+IF @Pos=0 THROW 51963,'Declaracion no reconocida. No se modifico el procedimiento.',1;
+SET @Actual=LTRIM(RTRIM(REPLACE(SUBSTRING(@Actual,@Pos,LEN(@Actual)),CHAR(13),N'')));
+SET @Antes=REPLACE(@Antes,CHAR(13),N'');
+SET @Despues=REPLACE(@Despues,CHAR(13),N'');
+WHILE RIGHT(@Actual,1) IN (NCHAR(10),NCHAR(9),N' ')
+ SET @Actual=LEFT(@Actual,LEN(@Actual+N'#')-2);
+-- Comparacion binaria del cuerpo: evita sobrescribir cambios posteriores al respaldo.
+DECLARE @Objetivo nvarchar(max)=CASE WHEN @Revertir=1 THEN @Antes ELSE @Despues END;
+IF HASHBYTES('SHA2_256',@Actual)=HASHBYTES('SHA2_256',@Objetivo)
+BEGIN
+ SELECT @@SERVERNAME Servidor,DB_NAME() BaseActual,@Revertir Revertido,
+        0 BloquesModificados,N'Ya estaba en el estado solicitado' Resultado;
+ RETURN;
+END;
+IF HASHBYTES('SHA2_256',@Actual)<>HASHBYTES('SHA2_256',CASE WHEN @Revertir=1 THEN @Despues ELSE @Antes END)
+ THROW 51964,'La definicion cambio respecto del respaldo. No se aplico ningun cambio.',1;
+IF @Revertir=0
+BEGIN
+ IF (SELECT COUNT(*) FROM sys.columns
+     WHERE object_id IN (OBJECT_ID(N'EAI_OWNER.TMP_DOCUMENT_HEADER'),
+      OBJECT_ID(N'EAI_OWNER.TMP_DOCUMENT_DETAIL'),OBJECT_ID(N'EAI_OWNER.TMP_DOCUMENT_CONDITIONS'),
+      OBJECT_ID(N'EAI_OWNER.TMP_DOCUMENT_PARTNERS'))
+      AND name=N'REFERENCEID' AND TYPE_NAME(system_type_id)=N'varchar' AND max_length=50
+      AND collation_name COLLATE DATABASE_DEFAULT =
+          CONVERT(nvarchar(128),DATABASEPROPERTYEX(DB_NAME(),'Collation')) COLLATE DATABASE_DEFAULT)<>4
+  THROW 51965,'Se esperaban cuatro ReferenceID VARCHAR(50) con collation de la base.',1;
+END;
+DECLARE @DDL nvarchar(max)=N'ALTER PROCEDURE '+@Objetivo;
+EXEC sys.sp_executesql @DDL;
+SELECT @@SERVERNAME Servidor,DB_NAME() BaseActual,@Revertir Revertido,
+       7 BloquesModificados,N'Aplicado correctamente' Resultado;

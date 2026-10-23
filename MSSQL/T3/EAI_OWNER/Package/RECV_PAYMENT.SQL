@@ -62,6 +62,7 @@ BEGIN
             SELECT MAX(PID)
             FROM [T3].[RF_PROCESOS_LOG]
             WHERE PROCESO = @nComponent
+              AND PID IS NOT NULL -- Evita que MAX descarte entradas NULL.
         );
 
         IF @@ROWCOUNT = 0
