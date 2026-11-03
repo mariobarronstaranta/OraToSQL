@@ -164,7 +164,7 @@ IFC_FOLIOS_FE_DOCNUM(Var_1) ya esta definido en el repositorio; verificar despli
 y uso. La regla CreadoPor NULL no equivale necesariamente a NOT EXISTS: no cambiarla
 como supuesta optimizacion sin comprobar el comportamiento.
 
-[T3.DELIVERY_WA_OXXO](../../T3/Procedures/T3.DELIVERY_WA_OXXO.StoredProcedure.sql)
+[T3.DELIVERY_WA_OXXO](../../T3/Procedures/DELIVERY_WA_OXXO.sql)
 se invoca al final de preventa, pero su consulta filtra C005 y FN_EVAL_REMISION.
 Las facturas que no califican aun pagan el costo de esa consulta, pero no todo el
 recorrido de remisiones. Las que califican consultan datos fiscales, generan

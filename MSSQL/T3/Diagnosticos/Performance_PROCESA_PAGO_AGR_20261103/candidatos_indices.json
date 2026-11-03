@@ -1,0 +1,122 @@
+[
+  [
+    "T3.CFDI_COBRANZA",
+    "IX_PERF_COBRANZA_PENDIENTE_PROCESO",
+    [
+      "Fecha_Proceso"
+    ],
+    [
+      "Fecha_Envio",
+      "Asignacion_ID",
+      "Factura",
+      "Fecha_Pago",
+      "RFC",
+      "Via_Pago",
+      "Banco_Nombre",
+      "Banco_Num_Cuenta",
+      "Asignacion_Central",
+      "Importe",
+      "Accnt_ID",
+      "Cliente_SAP",
+      "Created_By",
+      "Status"
+    ],
+    "[Fecha_Envio] IS NULL",
+    "Agrupacion y marcado recientes. Pesar selectividad y costo de mantener/remover filas pendientes."
+  ],
+  [
+    "EAI_OWNER.TMP_ACCOUNT_HEADER",
+    "IX_PERF_ACCOUNT_CLEARING_YEAR",
+    [
+      "ClearingDocNumber",
+      "FiscalYear"
+    ],
+    [
+      "Assignment"
+    ],
+    "",
+    "Buscar compensacion/ejercicio desde cobranzas recientes; los IXDOC locales tienen otra columna inicial."
+  ],
+  [
+    "T3.WA_FACTORAJE",
+    "IX_PERF_FACTORAJE_FACTURA",
+    [
+      "Factura"
+    ],
+    [],
+    "",
+    "Anti join de factoraje repetido; revisar si ya hay clave inicial Factura."
+  ],
+  [
+    "T3.CFDI_AGRUPACION_PAGO",
+    "IX_PERF_AGRUPACION_ASIGNACION",
+    [
+      "Agrupacion",
+      "Asignacion_ID"
+    ],
+    [
+      "Fecha_Pago"
+    ],
+    "",
+    "CHECK, detalle de generacion y marcado: localizar asignaciones por grupo."
+  ],
+  [
+    "T3.CFDI_COBRANZA",
+    "IX_PERF_COBRANZA_ASIGNACION",
+    [
+      "Asignacion_ID"
+    ],
+    [
+      "Nota_Venta",
+      "UUID_Venta",
+      "Fecha_Asignacion",
+      "Fecha_Factura",
+      "Factura",
+      "Numero_Pago",
+      "Saldo_Anterior",
+      "Importe"
+    ],
+    "",
+    "CHECK y detalle del generador; conserva multiplicidad, no es UNIQUE."
+  ],
+  [
+    "T3.CFDI_DOCUMENTOS",
+    "IX_PERF_DOCUMENTO_METODO",
+    [
+      "Nota_Venta"
+    ],
+    [
+      "Metodo_Pago"
+    ],
+    "",
+    "Cruce del CHECK con documentos; comparar con indices mas amplios existentes."
+  ],
+  [
+    "T3.CFDI_AGRUPACION_CTRL",
+    "IX_PERF_CTRL_PENDIENTE_CENTRAL",
+    [
+      "Fecha_Pago",
+      "Agrupacion"
+    ],
+    [
+      "Fecha_Envio",
+      "Accnt_ID",
+      "RFC"
+    ],
+    "[Fecha_Envio] IS NULL AND [Accnt_ID] <> 'Contado'",
+    "Cursor de liberacion global: mismos filtros de pendientes y exclusion Contado/NULL."
+  ],
+  [
+    "T3.CFDI_RFC_SETTING",
+    "IX_PERF_RFC_SETTING_PARAMETRO",
+    [
+      "Parametro",
+      "RFC"
+    ],
+    [
+      "Valor"
+    ],
+    "",
+    "Configuracion por RFC/parametro, con MAX(Valor); medir costo real antes de agregar."
+  ]
+]

@@ -4,6 +4,474 @@ Usa este archivo como primer mensaje de contexto cuando pidas ayuda a una inteli
 
 ## Resumen del proyecto
 
+### Precondiciones LIBERACION_PAGO, 2026-10-28
+
+- Usuario reporta error468 en linea50 de06, comparacion C.name=A.Columna.
+  Corregida con COLLATE DATABASE_DEFAULT a AMBOS lados; era catalogo frente
+  a variable de tabla, no un JOIN de datos de negocio. No cambio collation
+  de la DB ni SP. Tests previos de columnas mixtas no cubrian metadatos.
+  Agregado en tests/Trace.ps1 caso09A que reproduce exactamente468 usando
+  la comparacion anterior y @Accesos.Columna con collation opuesta al catalogo;
+  caso09B ejecuta el diagnostico corregido completo con la misma diferencia
+  y verifica TRACE_ASSERTS_OK. Runner exit0, todos casos anterioresPASS,
+  CodexLibPagoDiag_c767cdc56b eliminada. Usar06actualizado completo enT3QA.
+
+- Segunda corrida real despues de cargar pagos: usuario entrega
+  Resultados_05_EJECUTAR_Y_REVISAR_CORRIDA.txt. Archivado en el paquete como
+  Corrida_093231_PID_26516975.txt; SHA256
+  19D857C0EA5FABB84663DFF546881B7876813229C629925C7FD15EDE5821ED7B.
+  AZCRNMXNEVTD06/T3QA/AT85233588/SPID90, 28Oct09:32:31.543-09:36:35.582,
+  244039ms. PID26516975/proceso613, INICIO09:32:32 FIN09:36:36, todos
+  contadores0, retorno0/errorNULL/Tran0/Xact0, componenteStatus1.
+  Consultas de errores sin filas. Cierre normal sin candidatos del cursor;
+  no llamadas al generador ni certificacion de layout/impuestos/timbrado.
+  Analisis RESULTADO_CORRIDA_26516975.md junto a la evidencia.
+- Usuario YA RESPONDIO ruta y fecha: carga mediante EXEC EAI_OWNER.RECV_PAYMENT
+  con pagos del 8 de octubre (2026-10-08 por contexto). No volver a pedirlas
+  ni asumir que fecha de pago = FECHA_PROC_BATMD. RECV_PAYMENT408 recibe
+  Payment pendientes de ultimos20dias por CREATED, no por fecha XML.
+  SF_PROC_CENTRAL_PAYMENT normal solo deposita TMP_ACCOUNT_HEADER y marca
+  recepcion; no inserta CFDI_COBRANZA. CENTRAL_EXECUTE agrupa S/H, aplica
+  CREATED<momento-90min salvo horas1/2 (margen0), y deriva ZV/PAYALLOC.
+  PROC_T3_EOD lo llama con2dias de CREATED; NO ejecutar EOD como atajo:
+  suspende jobs y tiene muchas otras operaciones. Los90min son una posible
+  condicion de codigo, NO causa confirmada de la corrida con0filas.
+- ZV/PAYALLOC pueden crear PAGO/ASIGNACION_PAGO con clave esperada
+  SUBSTRING(ClearingDate,3,2)+ClearingDocNumber. INSERT fuente omite BATMD;
+  no afirmar NULL real sin descartar defaults/triggers/otras fases instaladas.
+  Preparador PROC_CFDI_PROCESAR_PAGOS604 recibe BATMD obligatoria y crea
+  CFDI_COBRANZA desde asignaciones por ese dia; no reejecutarlo a ciegas
+  (puede duplicar). Liberador613 toma cobranzas elegibles sin parametros;
+  corte FechaPago20200921 no excluye por si solo el08Oct2026.
+- Siguiente entrega06_RASTREAR_PAGOS_20261008.sql SOLO LECTURA:
+  primeros200 mensajes Payment de ultimas48h ANTES de XML, filtra
+  ClearingDate O PostingDate=08Oct; IDoc->TMP_HEADER->clavesZV/PAYALLOC->
+  PAGO/AP->CFDI_COBRANZA->documentos/errores y flags exactos del cursor.
+  Ventanas/muestra no son universo global. Guardia de indices iniciales,
+  FORCESEEK/LOOP y cap2000 relaciones; detener y enviar salida si no hay
+  lote/indice o se alcanza limite. Claves heredan collation de tabla buscada,
+  COLLATE DATABASE_DEFAULT solo entre temporales pequenas. No SP negocio,
+  GETCONV, permisos, indices o estados modificados. No repetir01/05.
+- 06 validado TSql160Parser0 y LocalDB runner exit0, base temporal eliminada
+  CodexLibPagoDiag_5c31b7fa6e. Tests/Trace.ps1 incluido desde Run.ps1:
+  5msgs fechaXML,4headers,5keys,3pagos,3AP,2Cob; BATMDNULL/distinta,
+  margen, filtros PUE/RFC/bitacora, collations mezcladas sin468,
+  TOP200antesXML y guardia sinindice. Todos casos anteriores tambienPASS.
+  Prueba de diagnostico sintetica, no latencia ni generador real.
+
+- Usuario YAejecuto05/SPsinparametros; evidenciaattachment185a4742... guardada
+  Corrida_014400_PID_26516972.txt+RESULTADO_CORRIDA_26516972.md enpaquete.
+  AZCRNMXNEVTD06/T3QA/AT85233588/SPID76,28Oct01:44:00.936-01:47:24.844,
+  203908ms. PID26516972Proceso613,INICIO01:44:01FIN01:47:25,Proceso1=0,
+  otros0;retorno0/errorexternoNULL/Tran0/Xact0;comp613Status1LastRun01:44:01;
+  consultasdeerroresCoordyGeneradordevuelven0filas. Cierre normal sin filas
+  elegibles en cursor del SPreal, no solo muestra100. NOtabla vacia/no conteos
+  de razonesglobales. No llamadas al generador porquecontadorincrementaantes
+  delIFversion y0. VARCHAR4pendiente,fueNOejercitado/nocausademostrada0.
+  No pedir fecha/repetir01/reprocesarpara forzarcandidatos. Falta generacion
+  futura realcondataelegible para certificarsalidas/impuestos/timbrado.
+
+- Steering vigente: usuario confirma SPsinparametros y decide ejecutarlo tal
+  comoesta para verresultados. NOseguirpidiendofecha/IDs comorequisito ni
+  bloquearcorridaconprecondicionesanteriores. Entregado05_EJECUTAR_Y_REVISAR_CORRIDA.sql:
+  EXECreal sinparametros+inicio/fin/SPID/retorno/errorespropagados+bitacoras613,
+  componente,errorescoordyGENERAR_PAGOventana. BaseT3QA,guardiasintranexterna.
+  NoALTER/GETCONV/indicescambiados; VARCHAR4permanece, cierresindefinicionno
+  acreditaresultadocorrecto. AgenteNOconectoDBni ejecutonegocio; usuarioejecutara.
+  Seguirconresultadosdeesacorrida, no pedirrelanzar01ni tomarmuestra0comoglobal.
+
+- Resultado04REAL encontradoenDownloads/Resultados_04_Muestra_Ligera.txt
+  (mensajelink03sinactualizar,hashidénticoal03previo; se buscoarchivo04).
+  GuardadoCaptura_011021_MUESTRA.txt+ANALISIS_MUESTRA_011021.md enpaquete.
+  T3QA/AZCRNMXNEVTD06,01:10:21-01:11:41 (~79.48s),termina13/finalsinerror.
+  Muestra100, cursor0,version40calls0. Motivos SOLAPADOS95sinDocnoPUE,
+  31RFCretornonopositivo,5RefsError. No decir95sonPUE(no distingueausente/
+  PUE/MetodoNULL),ni cerocandidatosGLOBAL. Secciones08/09/10/12vacíaspor0keys,
+  no acreditan datosgenerador. Config7claves1mapeocadauna yTargetnoNULL,
+  Version4.0/601/626/CP01/G01/120000/PPD,marcasREVISARinformativas.
+  Indicesguardia disponibles salvoUSOCFDI116filas;NObloqueoindicesen04.
+  HashesSPiguales,VariableFactura4=1confirmada. Solicitadafecha/loteIDs/Factura
+  deseados porasync para acotardiagnostico(sololectura;SP realnoaceptafiltro).
+  NoejecutarSPaun/noforzardatosPUE/RFC/errores/norepetir01completo.
+
+- RESULTADO03real00:50:17 recibido Resultados_03_Diagnostico.txt, guardado
+  Captura_005017_ACTIVIDAD.txt+ANALISIS_ACTIVIDAD_005017.md. Sesion76 running
+  SELECTINTO#Base; solicitud989640ms/CPU867883ms/28669546logical/355104physical,
+  blocker0/waitNULL. No atribuir todo a bloqueo/E/S; el alcance01 eraexcesivo.
+  WaitsSH135575sonhistoricosdesesion,nodelta. Tran2porinstruccion/temps,
+  inicialTran0; cancelar01enSSMS,nokill/noreprocesonegocio.
+- Sustitucionlista04_VALIDAR_MUESTRA_LIGERA.sql: metadataaccesos/tamanos
+  bloqueasiindiceinicialausenteentablagrande; TOP100ANTESfunciones/joins;
+  cacheRFCdistintos+versiongeneral,documentosporNotas y refsErrunavez.
+  Contextocap1000/cabeceras2000 detieneconlimiteparaevitarfalsosnegativos.
+  Sinfasefiscalmasiva11,conhallazgoFactura4 ybaselineporalgunoscandidatos.
+  MensajesNOWAITM1-M5. EsMUESTRA,noautorizaSPrealTODOSni cerocandidatosglobal.
+  Pedir ejecutarSOLO04trascancelar01 y enviartodosresultados. NoGETCONV,
+  SPs oindicescambiados. BuildMuestra+fragmentos yREADMEdocumentados.
+  TestLocalDB CodexLibPagoDiag_00e842f88a exit0/eliminada;210rows->100preseleccion,
+  conservaPCRiesgo4ycasosprevios. Noprometertiemporealporunamicroprueba.
+
+- Usuario reporta01aunactivo>11min. Captura parcial00:33:47 guardada
+  Captura_003347_PARCIAL.txt +ANALISIS_PARCIAL_003347.md enpaquete. Termina05B,
+  sin06config/07candidatos/11fiscal. No inferir sentencia activa ni causa.
+  T3QA/AZCRNMXNEVTD06,AT85233588/dbo,Tran0,objetosvisiblesypermisos1.
+  Generadorinstalado09Sep13:46:09hashDFBA7B... DeclaraFacturaVarchar4=1
+  CONFIRMADOenDB. Coordinador28Oct00:11:24hash9E8219.... Secuencia26516971
+  cabe8digitos/noagotada. Comp613Status1LastRun13Ago/proceso1=0historiconoactual.
+  Creado03_VER_DIAGNOSTICO_EN_CURSO.sql soloDMV/sinWAITFOR enotra ventana:
+  solicitud/sentencia/espera/bloqueador. Tras captura cancelar01enSSMS si sigue;
+  noKILL/noSPfiscal/no relanzar01completo aun. MaxDetalle limita salidanoalcance,
+  01hacefunciones/correlacionadas sobre todopendientevia01. Testsfixturesnoescala.
+  Falta evidencia de actividad para separar bloqueo/E/S/CPU/funcion.
+
+- Usuario planea ejecutar T3.PROC_CFDI_LIBERACION_PAGO y pide scripts para
+  validar informacion necesaria. Paquete MSSQL/T3/Diagnosticos/Liberacion_Pago_20261028:
+  01_VALIDAR_PRECONDICIONES.sql sololectura (metadatos,config,candidatos exactos,
+  version4.0,JOINMOV_CLIENTE/DF/Soc,detallefiscal/denominador,duplicados,
+  baseline layout/documento/marcas). 02_VALIDAR_RESULTADO.sql posterior con
+  Desde/PID/listaJSONbaseline. README incluye EXECreal para despuesderevisar.
+  No ejecutar SP aun desde agente. Solicitar primero TODOSresultados01.
+- FN_VALIDA_RFC YA agregada en T3/Funciones (fuenteALTER27Oct5:13PM), ya no
+  faltaarchivo. Retorna0NULL,1si>=6digitos/>=3letras ylen12/13,-1si>=3X.
+  Diagnostico llama funcionrealinstalada, sin inventarcriteriosSAT.
+- Riesgo REAL en generadorfuente actual: @sFacturaPagadaVARCHAR(4) usada en
+  filtroRF.Factura; puede truncarfacturaydejarbasefiscalNULL. 01checa cuerpo
+  instaladonormalizado ycontrastaFacturaCompleta/Usada; no corregido ni asumido
+  instalado. Generadorarchivo ahoraexporta ALTER28Oct00:18:57; runneraceptaCREATE/ALTER.
+  No cambiarfiltros/GETCONV ni generador hasta resultados; scriptsnonegocio.
+- Preflight wrapper dinamico solo compila datos tras dependencias, evita
+  bindingfnsausentes ycollation468 conCOLLATEDATABASE_DEFAULT. MaxDetalle200
+  limita salida,nocandidatos/SPreal; nofechaIDparam,SPprocesaTODOSloscandidatos.
+  Postbaseline detecta altas frenteapreexistentes; layoutsnoFecha yconteoFin
+  noacreditaninsercion/timbrado. ErrorgeneradorRUTINAlegacyGENERAR_PAGO/FolioID.
+- TestsRun.ps1 LocalDB DDLreal+GETCONV/FNRFCreal+stubsformato(soloexistencia),
+  sinEXECnegocio. Detectafactura4/full,cero,clienteausente/dup;conteoexacto;
+  verificasinlayouts/marcas/log/consumoseq;postsinlista/sinaltas/conaltassim.
+  CodexLibPagoDiag_377fd452be exit0/eliminada; agrega saldoSTRoverflow detectado.
+  README/testresultadodocumentados.
+
+### Documentacion PROC_CFDI_PROCESA_PAGO_AGR, 2026-10-27
+
+- Mismo ejercicio pedido: comentarios Jr y analisis adjunto .md en
+  MSSQL/T3/T3/Procedures/PROC_CFDI_PROCESA_PAGO_AGR.sql. SOLOcomentarios,
+  ScriptDom0errores/tokensSQLidenticos; UTF16LE/BOM/CRLF,USE/GO/SET/ALTER
+  conservados. SinDBremota ni ejecucion negocio. Respaldo tmp/procesa_pago_agr_documentacion_20261027,
+  SHA22BEF2FD... Funciona porconjuntos proceso109, luegoEXECcentral614.
+- Directas: unicoSP PROC_CFDI_LIBERA_PAGO_CENTRAL sinparametros;secuencias
+  SEQ_CFD ySEQ_PAGO_CENTRAL_AGR sin esquema (catalogoesperaT3,CREATE no localizado).
+  Sinfuncionesusuariodirectas. NoLOG_START109. nDiasNUM18,0NULL->0filtro,
+  Proceso4conservaNULL;limiteFechaProceso>medianoche,no>=,negativossinvalidar.
+- Oracle recalculaImporte/Cantidadpor detalle yClienteSAPdesdeRF (MAX NVL
+  Clte_Factura_SAP,Cliente_SAP); SQLnoesospasos. DetalleomiteFechaProceso
+  igualOracle,peroSQLmarcadoreponeventana yusaAsignacionID vsROWIDoriginal.
+  Headerpuede diferirdetalle/marcas (ejemplo100reciente+50antiguo mismaskeys).
+  COUNTImporteignoraNULL;SQLgroupnormalizaNoBanco/NoCuenta/NoAsigna (Oraclegroupraw).
+  NOTEXISTSFactoraje vsNOTINOracle difiereconNULL. No corregir automaticamente.
+- Proceso1UPDATErowcount se sobrescribe congrupos;2detalles;3cero;4nDias.
+  RF_PROCESOS_LOG.Fin antesdelEXECcentral,liberadorconsultatodospendientes,no
+  soloIDsdelacorrida. Cobza.FechaEnvio marca agrupacion,no envio/timbrado;
+  CtrlFechaEnvio esotra marca delgenerador. XACT_ABORTONnoBEGINTRAN;
+  CATCHsinTHROW/ROLLBACK ystrIDnuncaasignado. Hallazgosdocumentados,nocambios.
+
+### Documentacion PROC_CFDI_LIBERA_PAGO_CENTRAL, 2026-10-27
+
+- Usuario pide mismo ejercicio que LIBERACION_PAGO: analisis+comentarios Jr+
+  dependencias. Fuente MSSQL/T3/T3/Procedures/PROC_CFDI_LIBERA_PAGO_CENTRAL.sql
+  documentado y .md adjunto. SOLOcomentarios; tokensSQLidenticosalrespaldo,
+  ScriptDom0erroresantes/despues,2variablesambosFETCH. UTF16LE/BOM/CRLF,
+  USET3QA/GO/SET/ALTER/PRINT conservados. SinDBremota,ni pruebas de negocio.
+- Componente614. Directas SP LOG_START,PROC_CFDI_LIBERA_PAGO_CHECK(agrupacion,
+  nItemsOUTPUT,nUUIDsOUTPUT),PROC_V20_GENERAR_PAGO_AGR(agrupacion,outputdefault0);
+  funcionGETCONV y secuenciaProcessID. IndirectasGETCONV,FN_TRIM_CFDI,
+  FN_NUM_TO_CHAR_CFDI,FN_CTRO_EDICOM_PAGO,SeparaDireccion. NoFN_VALIDA_RFCdirecta.
+- CHECK cuenta filasINNERJOIN AGRUPACION_PAGO/COBRANZA/DOCUMENTOS;no garantiza
+  todoslosrawitems. UUIDvalido porLEN>20solamente. SiUUIDspositivoigualacuenta
+  PUEconfechasDATEiguales marcaCTRLAccnt_IDContado ydevuelveUUIDs=-1.
+  No describir como prueba detodogrupocontado;noIFcontraRecordsahi.
+- SQLcentralexcluyeAccnt_IDContado yNULL; Oracle no tieneese filtro. SQLsolo4.0;
+  OracleELSEPROC_CFDI_GENERAR_PAGO_AGR/limite1000grupospasancondicion/COMMITcada10.
+  Noportarreglasautomaticamente. CATCH>=-1incluyecursorcerrado(CLOSEpuedefallar),
+  sinTHROW/Fin/estadoerror. HijosCATCHsinTHROW puedendejar salidasparciales;
+  nProceso1cuentagrupospasancheck,nogenerados. PID8vsseq10;contadores6vsOUTPUT18.
+  Respaldo tmp/libera_pago_central_documentacion_20261027, SHA48B565F5...
+  Sin cambios ahelperCHECK/generador/functions/jobs. CHECKOracle no localizado.
+
+### Documentacion PROC_CFDI_LIBERACION_PAGO, 2026-10-27
+
+- Usuario pide analizar/comentar para Jr y enumerar funciones/SP. Fuente
+  MSSQL/T3/T3/Procedures/PROC_CFDI_LIBERACION_PAGO.sql documentado; analisis
+  adjunto PROC_CFDI_LIBERACION_PAGO.md. No DB remota ni despliegue.
+- Reparacion sintactica unica: primer FETCH tenia @Do + salto + c_Status;
+  unido @Doc_Status. UTF16LE/BOM/CRLF conservados. ScriptDom ceroerrores,
+  tokensidenticosaloriginalnormalizado salvocomentarios/espacios; 17variables
+  enambosFETCH. Respaldo tmp/liberacion_pago_documentacion_20261027 (SHAACC64411...).
+- Directas: SP EAI_OWNER.LOG_START(613),T3.PROC_V20_GENERAR_PAGO(Asignacion_ID,
+  Cliente_SAP,0); funciones EAI_OWNER.GETCONV yT3.FN_VALIDA_RFC (>0,definicion
+  noestaenrepo,nopresumirausenteDB); secuencia EAI_OWNER.ProcessID.
+  Indirectasdelgenerador: GETCONV,FN_ADJUST_GMT,FN_TRIM_CFDI,FN_NUM_TO_CHAR_CFDI.
+- SQLsoloatiendeversion4.0; OracletieneELSEPROC_CFDI_GENERAR_PAGO y limite500,
+  COMMITcada50/final. Noportaresasreglas automaticamente; quedaronhallazgos.
+  Cursorimplicitoalcance/CATCHsinliberacion,niTHROW,niFin/estadoenfallo;
+  generadorCATCHsinTHROW ycontadorProceso_1solo cuenta recorridos,notimbrados.
+  PIDnumeric8frentesecuenciamax10digitos. RevisarReferrorFolio_ID vsAsignacionID.
+  FiltroFechaPago>=20200921nocomparacionigualdadDATETIME/BATMD; nologicaDATEcambiada.
+  No pruebas de negocio nuevas: documentacion+reparaciontoken validada estatica.
+
+### Lentitud RECV_INVOICE en produccion, 2026-10-26
+
+- Captura17:42:41 recibida (Resultados_Invoice_2026102611743.rpt), guardada
+  Captura_174241.rpt +ANALISIS_174241.md. T3QA: archivoG:datos21.416ms/lectura,
+  320lecturas/2.5MB en10s; logP:3.458ms/escritura/153ops. Historico datos525ms
+  no usar como latencia actual. Memoria disponible11460MB,flagsbaja=0;
+  no recomiendar masRAM/maxmem por esta foto. PAGEIOLATCHsesion1056989ms,
+  WRITELOG550ms. RevisarG:conDBA sin afirmar defecto fisico.
+- CLIENTE_PK deshabilitado,V3/FechaIni; sinotroaccesoV3activo. CLIENTE_IDX1
+  SAP/Ini/Fin SI activo. Inventario22OctconfirmaCLIENTE_PKunique=1,noconstraint.
+  Usuario responde 'No tengo ese dato' sobre razonDISABLE. No rehabilitarlo
+  suponiendo error ni habilitarotrosindicesenbloque. Preparado07_CREAR_ACCESO_CLIENTE_V3.sql:
+  NO UNIQUE IX_RECV_INVOICE_CLIENTE_V3_VIGENCIA(V3,Ini,Fin),estadoPKintacto,
+  duplicadospermitidos. ValidaDB/tipos y evita otroaccesoactivoV3. Ejecutar
+  tras cargas sin concurrenciaCLIENTE; necesitaIO/espacio/puedebloquear.
+  IndicesCreados=1 (o0siaccesoactivo). AplicacionDB sigue PENDIENTE.
+- Prueba RunClienteV3.ps1 LocalDB conDDLrealCLIENTE/deps+GET_REMISION_INFOreal,
+  50,008filas;11casos outputsiguales (V3/SAP/fechas/NULL/duplicadosidenticos/
+  CEDIS/distribuidor),seekscomprobados,repeticion/previoacceso/reversa; SPsin
+  alterar. CodexClienteV3_89647b0181eliminada,exit0. 40consultas209.358ms/1210
+  lecturas/call ->11ms/20lecturas (microprueba,no throughputreal). No testea
+  salida arbitraria de multiplesdomiciliosdistintos sinORDERBY. No tocarR044,
+  GETCONV/SPs/transacciones. Faltaaplicacionycargacomparable/meta20-25sigue.
+
+- Captura ACTIVA17:31:57 recibida (Resultados_Invoice_2026102611735rpt.rpt),
+  guardada Captura_173157.rpt +ANALISIS_173157.md. Sesion105SSMS suspendida
+  enFACTURA PAGEIOLATCH_EX390ms recurso8:1:37356512, blocking=-5(asincrono,
+  noKILL); finalPAGEIOLATCH_SH/blocking0. Ventana10s:SH5253ms/10tareas,
+  EX4932ms/9,WRITELOG31ms/12,SOSYIELD15ms. No%exacto por limites de espera.
+  FACTURA12calls819.354msmedia/CPU10.027/667lecturas; parser12calls829.932ms.
+  Otra ventana posterior al lote17:20,no extrapolar1.2/s a869/58s.
+- NUEVA mezcla entre16:15 y17:31 (cache/hashiguales): PREVENTA+10/21.891s,
+  OXXO+10/20.863s,GET_REMISION_INFO+12/20.790s (ANIDADOS,no sumar),
+  ultima17:20:57,~441692lecturas/remision. Antes no se llamaba GETREMISION
+  en lotes15:26/15:30; ahora SI candidato. RECV+1/58.732s, FACTURA+876/42.494s
+  pero incluye17calls adicionales tras17:24; no es trazaPIDunico.
+  Nuevo06_REVISAR_IO_Y_MEMORIA.sql listo:soloDMV/catalogos10s,deltasarchivo,
+  memoria/sesiones,cacheREMISION/OXXO e indicesbusqueda. Usar enotra ventana
+  mismaDB durante carga normal (@SesionObjetivo opcionalSPIDactual).
+  ParserScriptDom+ejecucionLocalDBcorrectos,sin carga no valida latencias.
+  NoSQLnegociocambiado; R044/GETCONV/formulas/transacciones permanecen.
+
+- Captura17:24:34 recibida (Resultados_Invoice_2026102611734rpt.rpt),
+  guardada Captura_172434.rpt y ANALISIS_172434.md. T3QA/AZCRNMXNEVTD06:
+  ParcheSku=1, parsermodificado17:01:22.327 antes del lote17:20, cache869calls.
+  QS31819/P8548 curSKU7,454exec/228.610ms/0.030669ms/2.5lecturas;
+  NO restar33.322s anteriores como ahorro de este lote (cargas distintas,
+  3,727lecturasXMLpartidas vs7,454contadorcursor). Mejora local no global:
+  869/58s=14.98/s sigue bajo meta20-25. Resta medir esperas de sesion/rutas.
+  QS FACTURA859calls, DetailBase13.805s(16.071ms,CPU7.576,558lecturas),
+  RF INSERT4.777s(5.561ms),FG INSERT1.897s(2.208ms). BufferIOrespectivos
+  6,782/4,686/1,767ms. No evidencia WRITELOG/bloqueos ni explicacion completa58s.
+  No hacer nuevo parche aun: pedir03_MEDIR_COSTO_ACTUAL durante carga activa
+  (otra ventana mismaDB; @SesionObjetivo opcionalSPID), resultados05/07/07B/08.
+  No confundir cachehijo5275historicas con859actuales; otras10rutas no clasificadas.
+  Sin cambios SQL en esta revision; preservar R044/GETCONV/transacciones.
+
+- Nueva corrida reportada 17:20:03-17:21:01:869registros/58s=14.98/s,
+  898.97/min,66.74ms/registro. Frente865/51s(16.96/s),tasa11.66%menor;
+  no prueba regresion causal ni instalacion SKU. No se recibieron RunId,
+  version/base/PID en ese mensaje. Meta20-25/s sigue pendiente.
+  Siguiente evidencia04_REVISAR_PARSER_Y_FACTURA.sql (ParcheSku y fechaALTER
+  vs inicio17:20; costos curSKU/FACTURA/esperas). No exigir otra carga.
+  Registrado RESULTADO_172003.md. ValidacionR044 sigue en INVOICE_TO_FACTURA.
+
+- Captura16:30:38 recibida, guardada Captura_163038.rpt. Query Store READ_WRITE,
+  AUTO, esperas ON, intervalos60min; datos posteriores correctos 21:26-21:31UTC
+  =15:26-15:31local. curSKU Query18175/Plan4179:6,714 ejecuciones,33.322s,
+  media4.963ms,CPU4.962ms,33lecturas. Repartido1,571registros ~21.21ms/registro.
+  Dominante CPU del parser; candidato principal para recuperar20-25/s.
+- Preparado05_CORREGIR_BUSQUEDA_SKU.sql: una declaracion curSKU en definicion
+  instalada. Rama VARCHAR18 con igualdadUnicode residual si ida/vuelta sin
+  perdida, ramaoriginal si no. Mantiene cursor/GETCONV/cantidades/duplicados y
+  tres RI_REF_SEEK. PreflightMATERIALvarchar18/colacionDB/indiceprimero habilitado,
+  formato/certificados/opcionesSET. Mismo respaldo PERF_BACKUP y nuevoRunId;
+  02_REVERTIR_REFERENCEID.sql con eseRunId revierte SKU manteniendoReferenceID.
+- Fuente SF_PROC_PREINVOICE_IFC.SQL actualizado solo en declaracion SKU.
+  GETCONV sin cambios (hash8B8B02C5... original). Tests Run+SkuCases pasan con
+  DDLMaterialreal/GETCONVreal, collationSQLLatin,20casos (duplicados/UM/cantidades/
+  NULL/vacios/acentos/NCHARUnicode/error8114), aplicacion/repeticion/permisos/
+  reversa y transacciones. Base CodexInvoiceRefSeek_a74263b873 eliminada.
+  Prototipo300busquedas/10kmateriales:897.788msantes/15.999despues, no es
+  throughput del lote. Aplicacion real SKU y medicion pendientes.
+- INVOICE_TO_FACTURA DetailBase Query30820/Plan8103:1,542exec,15.142ms,
+  CPU6.972ms,559.53lecturas; BufferIO12,601ms. RF INSERT4.432ms conBufferIO6,714ms.
+  Es otro frente posterior; no atribuirlo aWRITELOG/bloqueos ni tocarconfiguracion
+  sin mas. Dos scansMATERIAL enDetalle/MAX correlacionados; no se modificaron.
+  UPDATEPedidoV3=3calls/309.6ms no prioridad. AlertasXML/residualcastnoimplican
+  falloReferenceID. AnalisisANALISIS_163038.md y guia actualizados.
+
+- Captura 16:15:03 recibida, original guardado como Captura_161503.rpt y analisis
+  ANALISIS_161503.md. Parser instalado 15:24:27.020, tres RI_REF_SEEK=1,
+  hash 5F9024C4E8E1E4F379B8456D32DFDCB11BE58045EC1BAF4576A33D843A908DA7.
+  Cache nueva 15:26:31.703, 1,571 llamadas: 63.823 ms, CPU37.112 ms,
+  928.285 lecturas medias (98.55% menos frente al promedio previo, mezclas distintas).
+- Muestra diez segundos tomada sin actividad: todos los deltas cero, ultima
+  llamada 15:31:22.703 vs captura16:15. No demuestra ausencia de esperas en lote.
+  Comparacion de contadores con mismos cached_time/definiciones entre capturas:
+  FACTURA +1,542 llamadas a30.512ms, PREVENTA +26 a135.293ms, DEBITO +3 a2.231ms,
+  suman1,571. OXXO +26 a0.222ms/4lecturas; GET_REMISION_INFO/FOLIO sin nuevas.
+  NO atribuir costo residual a OXXO/remision por promedios historicos.
+- Totales aproximados nuevos: parser100.27s inclusivos, FACTURA47.05s,
+  PREVENTA3.52s, DEBITO0.007s; residual parser fuera de esas rutas49.69s.
+  Coordinador101.08s total, diferencia0.81s (~0.52ms/registro): conteo WHILE
+  no explica ahorrar8-16s en estas cargas. Deltas globales, no traza por PID;
+  salida inicial no incluia plan_handle en filas de promedios, usar con alcance.
+- Nuevo04_REVISAR_PARSER_Y_FACTURA.sql utiliza cache/Query Store existente
+  sin otra carga; sentencias/esperas/planes de esos dosSP, resumentes de
+  conversiones y scans de hashes con llamadas. ScriptDom y ejecucion LocalDB
+  satisfactorios; QS no habilitado en prueba. Runner ampliado mantiene pruebas
+  previas de parche/reversa/transacciones. No se hicieron cambios de negocio.
+
+- Usuario precisa marca previa/objetivo: 20-25 registros por segundo
+  (1,200-1,500/min), NO 100/min como criterio de cierre. Ambiente y mezcla
+  de la marca historica aun no indicados; no volver a pedir la tasa ya dada.
+  Ultima corrida 16.96/s, meta 40-50 ms/registro; para sus 865 registros,
+  34.60-43.25 s frente a 51 s: reducir 7.75-16.40 s (8.96-18.96 ms/registro).
+  Sigue pendiente la captura 03_MEDIR_COSTO_ACTUAL durante nueva carga.
+  No atribuir la brecha residual a OXXO/conteo/folios sin ese perfil posterior.
+
+- Correccion de objetivo del usuario: aun estamos por debajo de las mejores
+  metricas anteriores; NO considerar cerrado el trabajo por el factor 9.33x
+  contra la referencia degradada de 100/min. Se solicito mejor marca/ambiente
+  (registros y duracion o tasa); respuesta aun no recibida.
+- Revision de antecedentes: 23.807 ms del parser es una prueba sintetica
+  aislada, no flujo productivo completo; no usarla como marca historica global.
+  El COUNT_BIG repetido sigue en RECV_INVOICE, pero no atribuirle la brecha
+  actual por una microprueba ni modificar el coordinador sin preservar su
+  filtro de fechas desplegado (comentado en capturas previas).
+- Preparado RECV_INVOICE_20261026/03_MEDIR_COSTO_ACTUAL.sql: lectura de diez
+  segundos con baseline/delta de sentencias por sql_handle, plan/generacion,
+  procedimientos y esperas. Sintaxis validada con TSql160Parser, sin ejecucion
+  remota. Medir en nueva carga habitual y priorizar 02/07/07B/08; cache de hijos
+  anterior al parche no identifica por si sola el costo residual actual.
+  No se hicieron cambios adicionales de negocio/indices en esta continuacion.
+
+- Segunda corrida posterior reportada: 26/10 15:30:32-15:31:23, 865 procesados
+  en 51 s: 16.96/s, 1,017.65/min, media del lote 58.96 ms/registro.
+  Ambas corridas suman 1,571 registros/101 s de ejecucion, 933.27/min,
+  unas 9.33 veces la referencia inicial aproximada de 100/min. Se excluye el
+  intervalo entre lotes. Actualizados informe y guia. Mejora observada en dos
+  cargas, sin demostrar igual mezcla de documentos ni nuevas lecturas/planes.
+
+- Usuario confirma que el parche fue aplicado ANTES del lote del 26/10,
+  inicio 15:26:32, fin 15:27:22, 706 procesados: 50 s, 14.12/s, 847.2/min,
+  media del lote 70.82 ms/registro. Frente al reporte aproximado de 100/min,
+  tasa observada ~8.47 veces mayor. Aplicacion y medicion posterior confirmadas;
+  sustituye las pendientes historicas de aplicacion/primera medicion siguientes.
+  Evidencia documentada en RECV_INVOICE_20261026/RESULTADO_POSTERIOR_152632.md.
+  No se recibio RunId ni nuevo plan/lecturas/conciliacion. No convertir los
+  70.82 ms del lote en estadistica medida de DELETE ni afirmar timbrado.
+  Ultimo ambiente identificado AZCRNMXNEVTD06/T3QA; no acreditar otro destino
+  productivo solo por esta confirmacion sin encabezado de servidor/base.
+
+- Captura focalizada 14:31:54 (T3QA) confirma DELETE detalle 427.464 ms /
+  49,256.877 lecturas, DELETE cabecera 106.194 ms / 11,817.206, 976 llamadas
+  cada uno, DOP8. Suma 533.659 ms y 61,074.083 lecturas: ~78.47% y ~95.68%
+  frente a medias del parser en la captura anterior de las mismas 976 llamadas.
+  Los tres indices ReferenceID VARCHAR(50) existen, habilitados, sin filtro.
+  Predicados instalados originales, tres marcas RI_REF_SEEK=0. UPDATE PedidoV3
+  tambien costoso pero solo 3 llamadas; no ampliar primer parche por ese dato.
+- El ShowPlanXML.xml recibido es el plan DEL DIAGNOSTICO (12 StmtSimple), no
+  el del parser. No afirmar Index Scan/CONVERT_IMPLICIT observado en ese XML.
+  Evidencia dominante son las estadisticas por sentencia del RPT completo.
+- Preparada correccion RECV_INVOICE_20261026/01_CORREGIR_REFERENCEID.sql:
+  tres predicados sobre definicion instalada de T3QA, respaldo atomico en
+  EAI_OWNER.RECV_INVOICE_PERF_BACKUP, RunId/hashes, rechazo de formatos/tipos
+  y modulos firmados inesperados. 02_REVERTIR_REFERENCEID.sql restaura ese
+  respaldo solo si no hubo cambios posteriores. No cambia indices ni estados.
+- SF_PROC_PREINVOICE_IFC.SQL mantenido ahora SI integra los tres RI_REF_SEEK;
+  sustituye la nota anterior de ausencia en el fuente. Se conservan Unicode,
+  parametros, transacciones y resto del codigo. Doc del parser actualizada.
+- Pruebas nuevas tests/Run.ps1 satisfactorias en LocalDB: respaldo exacto,
+  repeticion sin nuevo respaldo, permisos, ocho referencias, seis transacciones,
+  reversion/repeticion y otros seis casos con el fuente completo actualizado.
+  Base CodexInvoiceRefSeek_fa77740bec eliminada. Dependencias de negocio no
+  cargadas: no es prueba integral ni benchmark productivo. Sintaxis ScriptDom OK.
+  Entrega/analisis/evidencia original conservados en Diagnosticos/RECV_INVOICE_20261026.
+  Pendiente aplicacion del usuario y medicion de siguiente lote comparable.
+
+- Captura recibida a las 14:22:38: AMBIENTE AZCRNMXNEVTD06/T3QA (no acreditar
+  otra base productiva). Original y analisis guardados en
+  MSSQL/T3/Diagnosticos/RECV_INVOICE_20261026. Parser SF_PROC_PREINVOICE_IFC:
+  976 llamadas, media 680.10 ms, 63,833.57 lecturas; tres marcas RI_REF_SEEK=0.
+  Version 23/10 22:12:56.923, hash
+  3BC62CB6FF66A66882CC1E573FE9F1326FCE40CCBD329F44ADFA5E3BC6F5F884.
+  RECV_INVOICE mantiene conteo dentro del WHILE; su variante OPTIMIZADO no visible.
+- Plan reciente OXXO: 2,069.33 ms / 670,025.44 lecturas, 259 llamadas;
+  GET_REMISION_INFO: 407.01 ms / 134,836.80 lecturas, 3,920 llamadas.
+  PREVENTA 4,648.60 ms (9 llamadas de otra ventana), FACTURA 36.74 ms,
+  FOLIO 17.20 ms, ENTREGA_PO 0.60 ms. Tiempos inclusivos y caches distintos:
+  no sumar ni inferir proporcion de rutas. Priorizar planes del parser y OXXO.
+- Archivo solo contiene 01-03 y 04 sin filas; no evidencia de actividad,
+  esperas o indices. Usuario aclara que copio todos los resultados. No asumir
+  ausencia de bloqueos ni indices faltantes ni ejecucion completa del script.
+  Preparado RECV_INVOICE_RENDIMIENTO_FOCALIZADO.sql (handles de tres SP,
+  sentencias, claves ReferenceID, fragmentos DELETE, planes XML y actividad).
+  Validado con TSql160Parser; pendiente lectura en servidor y planes .sqlplan.
+  No se aplico parche ni se cambio codigo de negocio/indices.
+
+- Usuario reporta ~100 registros/minuto (1.67/s, 600 ms/registro). Aun no se
+  conoce servidor/base productiva, SPID, mezcla de documentos, version exacta,
+  planes ni esperas; no atribuir la causa a un indice o al cursor sin captura.
+- Antecedente QA del paquete RECV_INVOICE_PERF (19/10): DELETE detalle
+  ~420 ms/48,277 lecturas por llamada, cabecera ~108 ms/11,583 lecturas;
+  relacion de folios ~88 ms. Promedios de cache, no la corrida productiva actual.
+  Revisar primero accesos y posible ausencia del parche RI_REF_SEEK.
+- El parser desplegado observado en QA tenia RI_REF_SEEK que el archivo base
+  local no incorpora. No reemplazar por el archivo local para resolver lentitud
+  sin comparar la definicion instalada y conservar los ajustes ya presentes.
+- Preparados en Diagnosticos RECV_INVOICE_RENDIMIENTO_PRODUCCION.sql/.md:
+  solo catalogos/DMVs, muestra de diez segundos, versiones/marcas, cache de
+  procedimientos/sentencias, deltas comparables, sesiones, bloqueos/esperas e
+  indices/tipos/collation de accesos relevantes. Sin USE T3QA ni ejecucion de
+  negocio. Usuario debe ejecutar en otra ventana durante su lote habitual.
+- No se modifica SP, no se crean indices ni se activan variantes OPTIMIZADO.
+  La optimizacion del conteo del WHILE ya existe como alternativa y su micro-
+  prueba no justifica atribuirle los 600 ms. Pendiente evidencia productiva.
+
+### Copia historica de PROC_CFDI_PROCESAR_DOCTOS, 2026-10-26
+
+- Por solicitud del usuario se creo
+  MSSQL/T3/T3/Procedures/Historico/PROC_CFDI_PROCESAR_DOCTOS.ANTES_CAMBIOS.sql,
+  con nota de procedencia adyacente. Se extrajo sin modificar bytes del snapshot
+  3cbf89d (padre del commit da70389 del 23 de octubre); es identica al archivo
+  introducido en c5a88c7, 17 de julio. Git no tiene revisiones intermedias de
+  este procedimiento entre julio y octubre. No es una copia de la version actual.
+- SHA256: 18D8F27479C3AD065FD60FAD8BE8CF47407E6542635224484F29A4526B73E330.
+  Verificacion byte por byte y blob Git satisfactoria. Conserva USE T3QA,
+  CREATE PROCEDURE y comparaciones DATETIME originales. La version vigente
+  PROC_CFDI_PROCESAR_DOCTOS.sql permanece intacta; no se ejecuto SQL ni se
+  revirtieron indices. No tratar el historico como un script nuevo de despliegue.
+
+### Nombres de archivos de procedimientos T3
+
+- Posteriormente, por solicitud del usuario, se retiro tambien el prefijo T3.
+  de 164 archivos bajo MSSQL/T3/T3/Procedures, incluidas subcarpetas y cuatro
+  documentos asociados. Se actualizaron referencias en 23 archivos.
+- Colision conservada sin sobrescrituras: PROC_T3_OT_GENERAL.sql es la version
+  antes prefijada, con USE T3QA; PROC_T3_OT_GENERAL.SinUSE.sql conserva la copia
+  anterior sin USE. Ambos cuerpos desde CREATE PROCEDURE eran identicos.
+- El renombrado conserva bytes/codificacion. Al actualizar referencias se
+  modificaron solo comentarios de rutas en dos SQL (PAGOS actual y baseline);
+  se verifico igualdad de todo el texto SQL fuera de lineas de comentario.
+  Los nombres de objetos y la logica en SQL Server no cambian.
+
+- Por solicitud del usuario se retiro el sufijo StoredProcedure de los nombres
+  de los scripts bajo MSSQL/T3/T3/Procedures: 152 archivos directos y uno en
+  tests/PROC_CFDI_PROCESAR_PAGOS/BaselineOracleParity, 153 en total.
+- Se conservaron los contenidos y codificaciones de los 153 SQL, verificados
+  mediante SHA256 antes y despues. Actualizadas referencias en doce archivos
+  de documentacion y runners; no cambia el nombre de ningun objeto SQL Server.
+- Ejemplo de nombre actual: WA_CFDI_COBZA_ASIG_CTRL.sql. No usar el sufijo
+  anterior en nuevos vinculos o scripts de carga.
+
 ### Diagnostico intercompany 50021, 2026-10-23
 
 - Usuario confirma aplicacion del permiso puntual de partners en
@@ -196,18 +664,18 @@ Antes de proponer cambios:
 - Muestra de ocho facturas/diez asignaciones con historial completo: cuatro excluidas por cliente con ultima vigencia 12/09/2026; seis elegibles. No hay encabezados REGISTRO_FISCAL ni cobranza existente para esas ocho. Hay diferencias de detalle fiscal/T3 en V0007-134295, V0008-125448, V0010-134061 y V2363-145780. CHD-33522 es cancelacion por 20723.95, sin detalle de venta.
 - El reproductor en servidor confirma captura de filtro NULL al declarar cursor antes de SET. LocalDB con datos y cinco definiciones instaladas reproduce 0 filas con parametro a medianoche, 6 con hora exacta; fuente DATE genera esas 6 desde medianoche pero todas conservan saldo/numero de pago NULL. CHD no recupera cancelacion. No tratar ausencia de excepciones como procesamiento correcto ni el exito del modo CapturaReal como aprobacion funcional. No se corrigieron cursores ni datos reales.
 
-- Correccion posterior autorizada por el usuario: `T3.PROC_CFDI_PROCESAR_PAGOS.sql` ahora declara los cinco cursores dependientes LOCAL despues de asignar sus filtros y los libera por recorrido; elimina los DEALLOCATE finales incondicionales. Marca PAGOS_CURSOR_BIND_V1. Consultas y otras instrucciones conservadas. Pasaron pruebas completas LOCAL/GLOBAL, error 8115 con cursor abierto y siguiente ejecucion, y captura real. CHD-33522 recupera Canc Pago/20723.95; seis saldos y parcialidades recuperados. V2363-145780 conserva total fiscal cero y segundo saldo -194.05. LastRun.txt/LastRealRun.txt son resultados vigentes; LastRealRun_AntesCursores.txt preserva baseline anterior. Pendiente aplicar el ALTER local completo en T3QA; no cambiar reglas de clasificacion, datos fiscales o transacciones bajo esta autorizacion de cursores.
+- Correccion posterior autorizada por el usuario: `PROC_CFDI_PROCESAR_PAGOS.sql` ahora declara los cinco cursores dependientes LOCAL despues de asignar sus filtros y los libera por recorrido; elimina los DEALLOCATE finales incondicionales. Marca PAGOS_CURSOR_BIND_V1. Consultas y otras instrucciones conservadas. Pasaron pruebas completas LOCAL/GLOBAL, error 8115 con cursor abierto y siguiente ejecucion, y captura real. CHD-33522 recupera Canc Pago/20723.95; seis saldos y parcialidades recuperados. V2363-145780 conserva total fiscal cero y segundo saldo -194.05. LastRun.txt/LastRealRun.txt son resultados vigentes; LastRealRun_AntesCursores.txt preserva baseline anterior. Pendiente aplicar el ALTER local completo en T3QA; no cambiar reglas de clasificacion, datos fiscales o transacciones bajo esta autorizacion de cursores.
 
 - El usuario reporto el 23/10 una ejecucion real de PROC_CFDI_PROCESAR_PAGOS con parametro 2026-10-14 terminada sin excepcion. No equivale aun a confirmar inserciones/resultado funcional ni version instalada. Se entrego `MSSQL/T3/Diagnosticos/PROC_CFDI_PROCESAR_PAGOS_VALIDAR_RESULTADO.sql` (solo lectura, PID 604 mas reciente o explicito) para conciliar elegibles, ventana de CFDI_COBRANZA, faltantes/excedentes, calidad y control 889. Validado en LocalDB: positivo y negativos faltante/duplicado/NULL, evidencia LastValidation.txt. La cobranza no guarda PID en ese INSERT: atribucion temporal limitada ante concurrencia/repeticiones. Pendiente recibir resultados reales.
 
 - Validacion real recibida despues: `MSSQL/T3/Diagnosticos/Pagos_20261014/VALIDACION_REAL_20261023.md`, RPT original conservado. AZCRNMXNEVTD06/T3QA, captura 23/10 12:05:33. Marca de cursores/filtro DATE presentes; modify_date 23/10 00:21:15.327. PID 26515865 (604), 10:55:45-10:56:14, 326 esperadas/insertadas/contador; faltantes/excedentes/no esperadas/errores/NULL de saldo-parcialidad cero. 144 excluidas por vigencia; muestra de 20 calculos sin diferencias. Instalacion y corrida validadas en T3QA, no en produccion. Pendientes distintos: 324 facturas sin REGISTRO_FISCAL, 264 filas con base cero (263 alertas de base + una negativa), 325 estados INCOBRABLE por fallback y una Canc Pago; ningun UUID informado. Control 889 candidato PID26515866 cerrado, sin errores de ventana; asociacion temporal. No volver a aplicar ALTER ni reprocesar para validar, ni presentar la conciliacion tecnica como correccion fiscal completa.
 
-- Revision Oracle posterior, solicitada antes de nuevos cambios: ya existe `ORA/T3/T3/Procedures/PROC_CFDI_PROCESAR_PAGOS.SQL`. Comparacion completa en `MSSQL/T3/T3/Procedures/T3.PROC_CFDI_PROCESAR_PAGOS.PARIDAD_ORACLE.md`. Falta en SQL el JOIN de ScrPagos a CFDI_DOCUMENTOS por AP.Factura y la regla SAT Amount Invoice por RFC (Oracle lineas 100-111,254,321-329): RFC no generico/no vacio, MAX(NVL(Target,'0')) asignado a NUMBER(4)>1 e importe CFDI subtotal+IVA>0 sustituyen nTtl_Invc_Amt antes del saldo. No exige UUID/CONFIRMADO, aplica despues de ambas ramas. Impacto en datos no medido: capturas previas no incluyen ese catalogo ni importes CFDI. No certificar paridad ni atribuir todas las bases cero solo a carga sin revisar esta omision.
+- Revision Oracle posterior, solicitada antes de nuevos cambios: ya existe `ORA/T3/T3/Procedures/PROC_CFDI_PROCESAR_PAGOS.SQL`. Comparacion completa en `MSSQL/T3/T3/Procedures/PROC_CFDI_PROCESAR_PAGOS.PARIDAD_ORACLE.md`. Falta en SQL el JOIN de ScrPagos a CFDI_DOCUMENTOS por AP.Factura y la regla SAT Amount Invoice por RFC (Oracle lineas 100-111,254,321-329): RFC no generico/no vacio, MAX(NVL(Target,'0')) asignado a NUMBER(4)>1 e importe CFDI subtotal+IVA>0 sustituyen nTtl_Invc_Amt antes del saldo. No exige UUID/CONFIRMADO, aplica despues de ambas ramas. Impacto en datos no medido: capturas previas no incluyen ese catalogo ni importes CFDI. No certificar paridad ni atribuir todas las bases cero solo a carga sin revisar esta omision.
 - Oracle LOG_START confirma al inicio; el procedimiento confirma lote antes del control y al terminarlo, y hace rollback antes de loguear errores. SQL tiene esas sentencias comentadas y no abre transaccion: diferencia de atomicidad. Ambos no relanzan excepcion. Vacio=NULL Oracle afecta Nota_Credito/Origen y salidas, no normalizar automaticamente. DATE diario es diferencia autorizada (Oracle DATE incluye hora). La correccion LOCAL/declaracion posterior a SET conserva intencion Oracle; no revertirla. Fallback INCOBRABLE, exclusiones, duplicados potenciales y saldos negativos ya existen en el original. 40 columnas/expresiones finales comparadas iguales; faltan fuentes Oracle de FN_TOTAL_FACT, GETCONV y WA_CFDI_COBZA_ASIG_CTRL. No se cambio codigo SQL ni datos durante esta revision.
 
 ## Ampliacion de paridad PAGOS: tres auxiliares Oracle recibidos (23/10/2026)
 
-- Sustituye la pendiente anterior de fuentes faltantes: ya se revisaron ORA/T3/T3/Funciones/FN_TOTAL_FACT.SQL, ORA/T3/EAI_OWNER/Functions/GETCONV.SQL y ORA/T3/T3/Procedures/WA_CFDI_COBZA_ASIG_CTRL.SQL. Informe vigente: MSSQL/T3/T3/Procedures/T3.PROC_CFDI_PROCESAR_PAGOS.PARIDAD_ORACLE.md. Esta entrega es analisis/documentacion/pruebas; no cambia codigo SQL de negocio ni despliega.
+- Sustituye la pendiente anterior de fuentes faltantes: ya se revisaron ORA/T3/T3/Funciones/FN_TOTAL_FACT.SQL, ORA/T3/EAI_OWNER/Functions/GETCONV.SQL y ORA/T3/T3/Procedures/WA_CFDI_COBZA_ASIG_CTRL.SQL. Informe vigente: MSSQL/T3/T3/Procedures/PROC_CFDI_PROCESAR_PAGOS.PARIDAD_ORACLE.md. Esta entrega es analisis/documentacion/pruebas; no cambia codigo SQL de negocio ni despliega.
 - FN_TOTAL_FACT Oracle devuelve NULL sin detalle: SUM sin GROUP BY genera una fila NULL y no activa NO_DATA_FOUND. SQL tiene retorno explicito 0. Los ceros esperados por pruebas/capturas anteriores describen SQL, no una regla Oracle ya validada. Con una fila cuyos componentes son NULL ambos retornan 0. La paridad literal puede producir saldos/Importe_Factura NULL sin total alternativo; no implica resolver datos fiscales. Revisar todos los consumidores antes de cambiar funcion compartida.
 - GETCONV sin match conserva Source y con match unico retorna Target incluso NULL en ambos. Oracle conserva ultimo registro recuperado, SQL TOP(1); sin ORDER BY no hay seleccion de negocio determinada con duplicados distintos. El comentario historico SQL no acredita paridad. Revisar catalogo (Type,Source)/Targets/NULL/collation antes de elegir regla o imponer unicidad.
 - Control 889: ScrPagos SQL aun se declara antes de asignar RFC/central y captura NULL; el arreglo previo de cinco cursores principales no lo incluia. Diagnostico completo actual con 2 pagos via01 y 1 via03: Proceso_1=2, Proceso_2=1, Proceso_3=0, ningun Fecha_Envio marcado, ningun error. Oracle abriria con filtros asignados y marcaria el minoritario. La corrida real anterior del control tenia cero grupos: no validaba esta rama.
@@ -217,13 +685,13 @@ Antes de proponer cambios:
 
 ## PAGOS: correccion de reglas Oracle autorizada (23/10/2026)
 
-- El usuario pidio mantener GETCONV MSSQL sin cambios y proceder con los pendientes de PROC_CFDI_PROCESAR_PAGOS. Entrega local completa y probada; pendiente aplicar en T3QA. La corrida real anterior de 326 filas solo validaba DATE/cursores, no esta nueva logica. Informe vigente y orden de scripts: MSSQL/T3/T3/Procedures/T3.PROC_CFDI_PROCESAR_PAGOS.CAMBIOS_ORACLE.md. PARIDAD_ORACLE.md se conserva como informe historico previo.
+- El usuario pidio mantener GETCONV MSSQL sin cambios y proceder con los pendientes de PROC_CFDI_PROCESAR_PAGOS. Entrega local completa y probada; pendiente aplicar en T3QA. La corrida real anterior de 326 filas solo validaba DATE/cursores, no esta nueva logica. Informe vigente y orden de scripts: MSSQL/T3/T3/Procedures/PROC_CFDI_PROCESAR_PAGOS.CAMBIOS_ORACLE.md. PARIDAD_ORACLE.md se conserva como informe historico previo.
 - GETCONV.SQL y FN_TOTAL_FACT.SQL compartidas conservan hashes 8B8B02C5FB7944E0DE033EAF5D76356E37BC13D07AF7E70E0CF2E206CC5D982B y 8F600C01D0A445C15501DE887FCAD110343DAD4CD94A5A9D7D4839733EF406CE. Para no cambiar otros consumidores de FN_TOTAL_FACT, PAGOS ahora calcula localmente los seis componentes fiscales con OUTER APPLY, decimal(18,2), SUM NULL sin detalle. Una fila de componentes NULL sigue retornando cero. No crear datos fiscales ficticios ni interpretar NULL como fallo de cursores si hay parcialidad calculada.
 - Marcadores PAGOS_ORACLE_PARITY_V1/PAGOS_SAT_AMOUNT_V1: ScrPagos LEFT JOIN directo a CFDI_DOCUMENTOS por AP.Factura, importe subtotal+IVA con destino NUMERIC(13,3); luego de ambas ramas, RFC no vacio/no generico, MAX textual NVL(Target,0) de SAT Amount Invoice por RFC convertido NUMERIC(4,0)>1 y SAT>0 sustituyen base antes del saldo. No requiere UUID/CONFIRMADO; mantiene multiplicidad. Configuracion invalida/overflow causa rollback del lote, no fallback cero. Se adaptan vacios exactos a NULL en Origen/Nota_Credito/salidas sin eliminar espacios; GETCONV no cambia.
 - Control 889 corregido conjuntamente: ScrPagos LOCAL FORWARD_ONLY DYNAMIC SCROLL_LOCKS declarado tras filtros; UPDATE WHERE CURRENT OF identifica una sola fila aun con ID repetido/NULL en heap sin PK. Cierre/liberacion por uso. Longitud incluye espacios finales. Conserva CM/enviados del cursor interno original, empate estricto y ventana movil; no homologa ese filtro a DATE ni agrega DDL/indices. Cursor dinamico/concurrencia y collation/NLS no se certifican equivalentes al motor Oracle.
 - Transacciones activas: principal abre unidad tras LOG_START y confirma antes del control; error revierte lote/RF log, registra afuera, Status2 puede persistir. Control confirma por iteracion y al final; un error tardio conserva grupos anteriores. Con TRAN externa local usan savepoint sin commit ni rollback global ajeno; con XACT_STATE=-1 relanzan error original sin escribir logs para que propietario revierta. Es adaptacion deliberada frente al COMMIT Oracle del trabajo previo del llamador. IMPLICIT_TRANSACTIONS OFF local y CURSOR_CLOSE_ON_COMMIT OFF del control se restauran al retornar, verificado. No se certifica transaccion distribuida.
 - Pruebas finales LocalDB: Run.ps1 default (LOCAL/GLOBAL, 8115 y recuperacion), -ParidadOracle (20 escenarios SAT/fiscales, 3 ramas, 2 CFDI por asignacion, errores 8114/8115, savepoint/TRAN condenada, 8 grupos control/3 inconsistencias/6 revisados/5 nuevas marcas, error tardio y recuperacion, validacion NULL/multiplicidad) y -ValidarResultado positivas/negativas pasan. -CapturaReal tambien pasa con las lecturas del 14/10: seis filas y CHD20723.95; V2363-145780 ahora base/saldo NULL conforme Oracle, no cero/-194.05. La captura no exporto SAT/importes CFDI; no atribuirles impacto real. Evidencias LastRun/LastOracleParity/LastValidation/LastRealRun en tests/PROC_CFDI_PROCESAR_PAGOS; bases eliminadas, sin tocar T3QA/produccion ni ejecutar Oracle.
-- BaselineOracleParity y LastRealRun_AntesParidadOracle.txt conservan la etapa anterior. AnalizarDependencias usa esos fuentes historicos para reproducir el defecto, no los corregidos. Validador de lectura actualizado para outer join CFDI segun marcador instalado, nota vacia no CM, NULL base distinto de parcialidad faltante y rechazo de certificar corrida anterior al ultimo ALTER. Scripts aplicar: primero T3.WA_CFDI_COBZA_ASIG_CTRL.StoredProcedure.sql y despues T3.PROC_CFDI_PROCESAR_PAGOS.sql; no reprocesar 14/10 automaticamente, no hay idempotencia agregada.
+- BaselineOracleParity y LastRealRun_AntesParidadOracle.txt conservan la etapa anterior. AnalizarDependencias usa esos fuentes historicos para reproducir el defecto, no los corregidos. Validador de lectura actualizado para outer join CFDI segun marcador instalado, nota vacia no CM, NULL base distinto de parcialidad faltante y rechazo de certificar corrida anterior al ultimo ALTER. Scripts aplicar: primero WA_CFDI_COBZA_ASIG_CTRL.sql y despues PROC_CFDI_PROCESAR_PAGOS.sql; no reprocesar 14/10 automaticamente, no hay idempotencia agregada.
 
 ## PAGOS: confirmacion de aplicacion por el usuario (23/10/2026)
 

@@ -138,14 +138,53 @@ BEGIN
 
             IF @sProcesar = N'SI'
             BEGIN
-                DELETE FROM [EAI_OWNER].[TMP_DOCUMENT_HEADER]
-                WHERE ReferenceID = @sReferenceID;
+                /* RI_REF_SEEK_TMP_DOCUMENT_HEADER */
+                -- Igualdad VARCHAR para buscar por indice; se conserva la comparacion
+                -- Unicode y el predicado original si convertir la referencia pierde datos.
+                IF CONVERT(varbinary(max),CONVERT(nvarchar(50),CONVERT(varchar(50),@sReferenceID)))
+                   = CONVERT(varbinary(max),@sReferenceID)
+                BEGIN
+                    DELETE FROM [EAI_OWNER].[TMP_DOCUMENT_HEADER]
+                    WHERE ReferenceID = CONVERT(varchar(50),@sReferenceID)
+                      AND CONVERT(nvarchar(50),ReferenceID) = @sReferenceID;
+                END
+                ELSE
+                BEGIN
+                    DELETE FROM [EAI_OWNER].[TMP_DOCUMENT_HEADER] WHERE ReferenceID = @sReferenceID;
+                END;
+                /* RI_REF_END_TMP_DOCUMENT_HEADER */
 
-                DELETE FROM [EAI_OWNER].[TMP_DOCUMENT_DETAIL]
-                WHERE ReferenceID = @sReferenceID;
+                /* RI_REF_SEEK_TMP_DOCUMENT_DETAIL */
+                -- Igualdad VARCHAR para buscar por indice; se conserva la comparacion
+                -- Unicode y el predicado original si convertir la referencia pierde datos.
+                IF CONVERT(varbinary(max),CONVERT(nvarchar(50),CONVERT(varchar(50),@sReferenceID)))
+                   = CONVERT(varbinary(max),@sReferenceID)
+                BEGIN
+                    DELETE FROM [EAI_OWNER].[TMP_DOCUMENT_DETAIL]
+                    WHERE ReferenceID = CONVERT(varchar(50),@sReferenceID)
+                      AND CONVERT(nvarchar(50),ReferenceID) = @sReferenceID;
+                END
+                ELSE
+                BEGIN
+                    DELETE FROM [EAI_OWNER].[TMP_DOCUMENT_DETAIL] WHERE ReferenceID = @sReferenceID;
+                END;
+                /* RI_REF_END_TMP_DOCUMENT_DETAIL */
 
-                DELETE FROM [EAI_OWNER].[TMP_DOCUMENT_CONDITIONS]
-                WHERE ReferenceID = @sReferenceID;
+                /* RI_REF_SEEK_TMP_DOCUMENT_CONDITIONS */
+                -- Igualdad VARCHAR para buscar por indice; se conserva la comparacion
+                -- Unicode y el predicado original si convertir la referencia pierde datos.
+                IF CONVERT(varbinary(max),CONVERT(nvarchar(50),CONVERT(varchar(50),@sReferenceID)))
+                   = CONVERT(varbinary(max),@sReferenceID)
+                BEGIN
+                    DELETE FROM [EAI_OWNER].[TMP_DOCUMENT_CONDITIONS]
+                    WHERE ReferenceID = CONVERT(varchar(50),@sReferenceID)
+                      AND CONVERT(nvarchar(50),ReferenceID) = @sReferenceID;
+                END
+                ELSE
+                BEGIN
+                    DELETE FROM [EAI_OWNER].[TMP_DOCUMENT_CONDITIONS] WHERE ReferenceID = @sReferenceID;
+                END;
+                /* RI_REF_END_TMP_DOCUMENT_CONDITIONS */
 
                 /* Agregaciones sin entradas NULL: el indicador conserva NULL cuando
                    no hay valores aplicables; el MAX de texto conserva vacios y
@@ -502,7 +541,34 @@ BEGIN
                         @MASTER_CASE DECIMAL(18,6),
                         @CantidadDecimal DECIMAL(18,6);
 
-                    DECLARE curSKU CURSOR LOCAL FAST_FORWARD FOR
+                    /* RI_SKU_SEEK_V1 */
+                    -- Buscar con la clave VARCHAR sin perder la comparacion Unicode.
+                    -- Se conserva el cursor y GETCONV por cada coincidencia de material.
+                    IF CONVERT(varbinary(max),CONVERT(nvarchar(50),CONVERT(varchar(18),@sMaterialUOM)))
+                       = CONVERT(varbinary(max),@sMaterialUOM)
+                    BEGIN
+DECLARE curSKU CURSOR LOCAL FAST_FORWARD FOR
+                        SELECT
+                            [EAI_OWNER].[GETCONV](N'ECC_V3 UOM', @sUnidadMedVta),
+                            SKU.UM,
+                            COALESCE(SKU.CIG_X_CLL, 0),
+                            CASE
+                                WHEN COALESCE(SKU.CIG_X_CLL, 0) = 0 THEN 1
+                                ELSE CONVERT(DECIMAL(18,6), SKU.CIG_X_PAQ) /
+                                     CONVERT(DECIMAL(18,6), SKU.CIG_X_CLL)
+                            END,
+                            CASE
+                                WHEN COALESCE(SKU.CIG_X_CLL, 0) = 0 THEN 1
+                                ELSE CONVERT(DECIMAL(18,6), SKU.CIG_X_CT) /
+                                     CONVERT(DECIMAL(18,6), SKU.CIG_X_CLL)
+                            END
+                        FROM [T3].[MATERIAL] SKU
+                        WHERE SKU.MATERIAL = CONVERT(varchar(18),@sMaterialUOM)
+                          AND CONVERT(nvarchar(50),SKU.MATERIAL) = @sMaterialUOM;
+                    END
+                    ELSE
+                    BEGIN
+DECLARE curSKU CURSOR LOCAL FAST_FORWARD FOR
                         SELECT
                             [EAI_OWNER].[GETCONV](N'ECC_V3 UOM', @sUnidadMedVta),
                             SKU.UM,
@@ -519,6 +585,8 @@ BEGIN
                             END
                         FROM [T3].[MATERIAL] SKU
                         WHERE SKU.MATERIAL = @sMaterialUOM;
+                    END;
+                    /* RI_SKU_SEEK_END_V1 */
 
                     OPEN curSKU;
                     FETCH NEXT FROM curSKU

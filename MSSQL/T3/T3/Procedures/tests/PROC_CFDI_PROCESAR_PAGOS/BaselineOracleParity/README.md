@@ -9,4 +9,4 @@ ni respaldos de la definicion actualmente instalada en una base real.
 - Control: SHA256 4D727CBC3C60771CB855022F44D806D444DBDAE4EF7C7E2ED31FD42817B41184.
 
 Los fuentes vigentes estan tres niveles arriba, en Procedures, y el orden
-de aplicacion figura en T3.PROC_CFDI_PROCESAR_PAGOS.CAMBIOS_ORACLE.md.
+de aplicacion figura en PROC_CFDI_PROCESAR_PAGOS.CAMBIOS_ORACLE.md.

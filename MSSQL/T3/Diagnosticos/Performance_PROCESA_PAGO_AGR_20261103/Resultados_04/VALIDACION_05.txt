@@ -1,0 +1,15 @@
+﻿Script: 05_LEER_PLAN_UPDATE.sql
+SHA256: 65ECB044D27020C53E8803A2DC9970D58B0298F5BC4FE9E66559978728D54846
+Validacion en LocalDB, base temporal propia con tablas y SP ficticios.
+Cuatro comprobaciones aprobadas:
+lee_operadores_aristas_y_predicados_del_plan_real_de_prueba
+reconstruye_xml_completo_sin_perdida_con_columnas_limitadas_a_256
+no_ejecuta_sp_ni_modifica_datos_de_negocio
+informa_plan_no_disponible_sin_ejecutar_negocio
+Evidencia: C:\Users\85233588\Documents\MigracionORA\OraToSQL\tmp\CodexAGRLeerPlan_37e5dbc7
+XML reconstruido a partir de columnas de 180 caracteres: SHA256 UTF-16LE igual al XML original de Query Store.
+La consulta del diagnostico termino en 2.20 segundos en la prueba final; no predice tiempo en T3QA.
+Una prueba local anterior tuvo timeout; la repeticion final termino correctamente.
+Bases temporales de las pruebas finalizadas eliminadas. Base interrumpida CodexAGRLeerPlan_b38db7ae eliminada por separado.
+No hubo conexion ni escrituras a T3QA.
+git diff --check del directorio: sin errores.

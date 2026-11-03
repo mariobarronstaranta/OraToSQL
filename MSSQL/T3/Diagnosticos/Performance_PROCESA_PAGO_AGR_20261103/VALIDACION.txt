@@ -1,0 +1,15 @@
+﻿Revision: 2026-11-03
+Pruebas locales: seis casos aprobados con DDL real y datos ficticios.
+Los cuatro SP de negocio se sustituyeron por stubs de SELECT solo en la base temporal.
+No se ejecuto ningun SP real, no se accedio a T3QA ni se crearon indices alli.
+Base temporal CodexAGRPerf_8ff67d44 eliminada al terminar.
+
+metadatos_cache_planes_y_estadisticas_sin_ejecutar_sp_reales
+propuestas_solo_texto_reconocen_prefijos_y_colision_de_nombre
+modelo_conserva_antiguas_fecha_null_importe_null_y_na_03
+lecturas_opcionales_del_check_y_asignacion_no_modifican_datos
+modelo_de_volumenes_reejecutable_sin_temporales_residuales
+fuentes_de_los_cuatro_sp_sin_modificaciones
+PARSE_OK 01_METADATOS_Y_TIEMPOS.sql
+PARSE_OK 02_VOLUMENES_Y_SELECTIVIDAD.sql
+PARSE_OK 03_PROPUESTAS_INDICES_SOLO_TEXTO.sql

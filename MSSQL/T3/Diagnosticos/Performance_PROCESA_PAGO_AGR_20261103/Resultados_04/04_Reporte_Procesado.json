@@ -1,0 +1,340 @@
+{
+  "source_sha256": "0c93ebebeb9aa0608acfd606e3fa914d397294421f7b33e5c403e83732fbafc1",
+  "rows": [
+    {
+      "Seccion": "00_CONTEXTO_UPDATE",
+      "Servidor": "AZCRNMXNEVTD06",
+      "BaseDatos": "T3QA",
+      "CapturaConOffset": "2026-11-03 13:20:36.1496076 -06:00",
+      "FechaReferenciaDelServidor": "2026-10-29 00:00:00.000",
+      "nDias": "30",
+      "LimiteExclusivo": "2026-09-29",
+      "DesdeQueryStoreUTC": "2026-10-28 00:00:00.0000000 +00:00",
+      "HastaQueryStoreUTC": "2026-10-31 00:00:00.0000000 +00:00"
+    },
+    {
+      "Seccion": "01_DEFINICIONES_INSTALADAS",
+      "name": "PROC_CFDI_LIBERA_PAGO_CHECK",
+      "modify_date": "2026-10-22 16:29:55.570",
+      "DefinicionXML": "<Definicion>CREATE   PROCEDURE [T3].[PROC_CFDI_LIBERA_PAGO_CHECK]",
+      "_continuacion": [
+        "   ( @pReference  NUMERIC(18,0),",
+        "     @pRecords    NUMERIC(18,0) OUTPUT,",
+        "     @pUUIDs      NUMERIC(18,0) OUTPUT  )",
+        "AS",
+        "BEGIN",
+        "    SET NOCOUNT ON;",
+        "\tprint 'PROC_CFDI_LIBERA_PAGO_CHECK---"
+      ]
+    },
+    {
+      "Seccion": "01_DEFINICIONES_INSTALADAS",
+      "name": "PROC_CFDI_PROCESA_PAGO_AGR",
+      "modify_date": "2026-10-28 21:19:59.407",
+      "DefinicionXML": "<Definicion>CREATE PROCEDURE [T3].[PROC_CFDI_PROCESA_PAGO_AGR]",
+      "_continuacion": [
+        "    -- NUMERIC sin precision/escala explicitas usa NUMERIC(18,0) en SQL Server.",
+        "    -- Por ejemplo, 4 toma como limite la medianoche de cuatro dias atras.",
+        "    @nDias NUMERIC = NULL",
+        "AS",
+        "BEGI"
+      ]
+    },
+    {
+      "Seccion": "02_METRICAS_UPDATE_EN_CACHE",
+      "UltimaEjecucion": "2026-10-29 00:17:07.210",
+      "Ejecuciones": "1",
+      "Duracion_ms": "107029.831",
+      "CPU_ms": "16456.611",
+      "LecturasLogicas": "2701949",
+      "LecturasFisicas": "1314995",
+      "EscriturasLogicas": "0",
+      "QueryHash": "0xFCE94AEBA309D33F",
+      "SentenciaCompletaXML": "<Sentencia>UPDATE Cobza",
+      "_continuacion": [
+        "        SET Asignacion_Central = Acc.Assignment",
+        "        FROM T3.CFDI_Cobranza AS Cobza",
+        "        INNER JOIN EAI_Owner.tmp_Account_Header AS Acc",
+        "            ON SUBSTRING(Cobza.Asignacion_ID, 3, 10)",
+        "             = Acc.ClearingDocNu"
+      ]
+    },
+    {
+      "Seccion": "03_PLAN_UPDATE_EN_CACHE_NO_REAL",
+      "PlanXML": "<ShowPlanXML xmlns=\"http://schemas.microsoft.com/sqlserver/2004/07/showplan\" Version=\"1.564\" Build=\"16.0.4305.5\"><BatchSequence><Batch><Statements><StmtSimple StatementText=\"UPDATE Cobza&#xD;&#xA;        SET Asignacion_Central = Acc.Assignment&#xD;&#xA;"
+    },
+    {
+      "Seccion": "04_ESTADO_QUERY_STORE",
+      "actual_state_desc": "READ_WRITE",
+      "desired_state_desc": "READ_WRITE",
+      "wait_stats_capture_mode_desc": "ON"
+    },
+    {
+      "Seccion": "04_QUERY_IDS_UPDATE",
+      "QueryId": "28113",
+      "QueryHash": "0xFCE94AEBA309D33F",
+      "SentenciaCompletaXML": "<Sentencia>(@nDias numeric(18,0))UPDATE Cobza",
+      "_continuacion": [
+        "        SET Asignacion_Central = Acc.Assignment",
+        "        FROM T3.CFDI_Cobranza AS Cobza",
+        "        INNER JOIN EAI_Owner.tmp_Account_Header AS Acc",
+        "            ON SUBSTRING(Cobza.Asignacion_ID, 3, 10)"
+      ]
+    },
+    {
+      "Seccion": "04_QUERY_IDS_UPDATE",
+      "QueryId": "32735",
+      "QueryHash": "0xFCE94AEBA309D33F",
+      "SentenciaCompletaXML": "<Sentencia>(@nDias numeric(18,0))UPDATE Cobza",
+      "_continuacion": [
+        "        SET Asignacion_Central = Acc.Assignment",
+        "        FROM T3.CFDI_Cobranza AS Cobza",
+        "        INNER JOIN EAI_Owner.tmp_Account_Header AS Acc",
+        "            ON SUBSTRING(Cobza.Asignacion_ID, 3, 10)"
+      ]
+    },
+    {
+      "Seccion": "05_HISTORIA_UPDATE_QUERY_STORE",
+      "QueryId": "32735",
+      "plan_id": "8889",
+      "execution_type_desc": "Regular",
+      "EjecucionesEnIntervalos": "1",
+      "UltimaFinalizacion": "2026-10-29 06:18:54.2470000 +00:00",
+      "TiempoTotal_ms": "107029.831",
+      "Media_ms": "107029.831",
+      "CPU_media_ms": "16456.611",
+      "LecturasLogicasMedias": "2701949"
+    },
+    {
+      "Seccion": "06_ESPERAS_UPDATE_QUERY_STORE",
+      "QueryId": "32735",
+      "plan_id": "8889",
+      "execution_type_desc": "Regular",
+      "wait_category_desc": "Buffer IO",
+      "EsperasAcumuladas_ms": "837576"
+    },
+    {
+      "Seccion": "06_ESPERAS_UPDATE_QUERY_STORE",
+      "QueryId": "32735",
+      "plan_id": "8889",
+      "execution_type_desc": "Regular",
+      "wait_category_desc": "Parallelism",
+      "EsperasAcumuladas_ms": "109011"
+    },
+    {
+      "Seccion": "06_ESPERAS_UPDATE_QUERY_STORE",
+      "QueryId": "32735",
+      "plan_id": "8889",
+      "execution_type_desc": "Regular",
+      "wait_category_desc": "Idle",
+      "EsperasAcumuladas_ms": "2041"
+    },
+    {
+      "Seccion": "06_ESPERAS_UPDATE_QUERY_STORE",
+      "QueryId": "32735",
+      "plan_id": "8889",
+      "execution_type_desc": "Regular",
+      "wait_category_desc": "Memory",
+      "EsperasAcumuladas_ms": "619"
+    },
+    {
+      "Seccion": "06_ESPERAS_UPDATE_QUERY_STORE",
+      "QueryId": "32735",
+      "plan_id": "8889",
+      "execution_type_desc": "Regular",
+      "wait_category_desc": "CPU",
+      "EsperasAcumuladas_ms": "138"
+    },
+    {
+      "Seccion": "06_ESPERAS_UPDATE_QUERY_STORE",
+      "QueryId": "32735",
+      "plan_id": "8889",
+      "execution_type_desc": "Regular",
+      "wait_category_desc": "Latch",
+      "EsperasAcumuladas_ms": "41"
+    },
+    {
+      "Seccion": "06_ESPERAS_UPDATE_QUERY_STORE",
+      "QueryId": "32735",
+      "plan_id": "8889",
+      "execution_type_desc": "Regular",
+      "wait_category_desc": "Unknown",
+      "EsperasAcumuladas_ms": "18"
+    },
+    {
+      "Seccion": "07_PLANES_HISTORICOS_QUERY_STORE",
+      "QueryId": "32735",
+      "plan_id": "8889",
+      "is_forced_plan": "0",
+      "last_compile_start_time": "2026-10-29 06:17:07.1370000 +00:00",
+      "PlanXML": "<ShowPlanXML xmlns=\"http://schemas.microsoft.com/sqlserver/2004/07/showplan\" Version=\"1.564\" Build=\"16.0.4305.5\"><BatchSequence><Batch><Statements><StmtSimple StatementText=\"UPDATE Cobza&#xD;&#xA;        SET Asignacion_Central = Acc.Assignment&#xD;&#xA;"
+    },
+    {
+      "Seccion": "08_ORGANIZACION_TABLAS",
+      "Esquema": "T3",
+      "Tabla": "CFDI_COBRANZA",
+      "Organizacion": "HEAP",
+      "IndiceBase": "NULL",
+      "FilasAproximadas": "56115146"
+    },
+    {
+      "Seccion": "08_ORGANIZACION_TABLAS",
+      "Esquema": "EAI_OWNER",
+      "Tabla": "TMP_ACCOUNT_HEADER",
+      "Organizacion": "HEAP",
+      "IndiceBase": "NULL",
+      "FilasAproximadas": "1096194"
+    },
+    {
+      "Seccion": "08_ORGANIZACION_TABLAS",
+      "Esquema": "T3",
+      "Tabla": "REGISTRO_FISCAL",
+      "Organizacion": "HEAP",
+      "IndiceBase": "NULL",
+      "FilasAproximadas": "154792173"
+    },
+    {
+      "Seccion": "09_ESTADISTICAS_RELEVANTES",
+      "Esquema": "T3",
+      "Tabla": "CFDI_COBRANZA",
+      "Estadistica": "_WA_Sys_00000002_0D7A0286",
+      "PrimeraColumna": "ASIGNACION_ID",
+      "last_updated": "2026-07-28 13:30:36.5666667",
+      "rows": "55447723",
+      "rows_sampled": "294242",
+      "modification_counter": "112040853"
+    },
+    {
+      "Seccion": "09_ESTADISTICAS_RELEVANTES",
+      "Esquema": "T3",
+      "Tabla": "CFDI_COBRANZA",
+      "Estadistica": "CFDI_COBRANZA_IDX8",
+      "PrimeraColumna": "FECHA_PROCESO",
+      "last_updated": "2026-10-21 15:38:37.6500000",
+      "rows": "56108722",
+      "rows_sampled": "296143",
+      "modification_counter": "11440"
+    },
+    {
+      "Seccion": "09_ESTADISTICAS_RELEVANTES",
+      "Esquema": "T3",
+      "Tabla": "CFDI_COBRANZA",
+      "Estadistica": "CFDI_COBRANZA_IDX",
+      "PrimeraColumna": "ASIGNACION_ID",
+      "last_updated": "2026-10-21 15:33:45.3033333",
+      "rows": "56108722",
+      "rows_sampled": "296143",
+      "modification_counter": "11440"
+    },
+    {
+      "Seccion": "09_ESTADISTICAS_RELEVANTES",
+      "Esquema": "T3",
+      "Tabla": "CFDI_COBRANZA",
+      "Estadistica": "_WA_Sys_00000029_0D7A0286",
+      "PrimeraColumna": "ASIGNACION_CENTRAL",
+      "last_updated": "2026-10-21 15:38:36.6833333",
+      "rows": "56108722",
+      "rows_sampled": "296143",
+      "modification_counter": "11440"
+    },
+    {
+      "Seccion": "09_ESTADISTICAS_RELEVANTES",
+      "Esquema": "EAI_OWNER",
+      "Tabla": "TMP_ACCOUNT_HEADER",
+      "Estadistica": "TMP_ACCOUNT_HEADER_IX_ACCNT",
+      "PrimeraColumna": "CLEARINGDOCNUMBER",
+      "last_updated": "2026-10-27 13:01:05.7766667",
+      "rows": "1095016",
+      "rows_sampled": "65634",
+      "modification_counter": "1178"
+    },
+    {
+      "Seccion": "09_ESTADISTICAS_RELEVANTES",
+      "Esquema": "EAI_OWNER",
+      "Tabla": "TMP_ACCOUNT_HEADER",
+      "Estadistica": "IX_TMP_ACCOUNT_HEADER_INCO_PROCESS",
+      "PrimeraColumna": "CLEARINGDOCNUMBER",
+      "last_updated": "2026-10-27 13:01:05.6900000",
+      "rows": "1095016",
+      "rows_sampled": "65634",
+      "modification_counter": "1178"
+    },
+    {
+      "Seccion": "09_ESTADISTICAS_RELEVANTES",
+      "Esquema": "EAI_OWNER",
+      "Tabla": "TMP_ACCOUNT_HEADER",
+      "Estadistica": "IX_TMP_ACCOUNT_HEADER_INCO_DUPLICATE",
+      "PrimeraColumna": "CLEARINGDOCNUMBER",
+      "last_updated": "2026-10-27 13:01:07.2666667",
+      "rows": "1095016",
+      "rows_sampled": "65634",
+      "modification_counter": "1178"
+    },
+    {
+      "Seccion": "09_ESTADISTICAS_RELEVANTES",
+      "Esquema": "T3",
+      "Tabla": "REGISTRO_FISCAL",
+      "Estadistica": "REGFIS_PK",
+      "PrimeraColumna": "FACTURA",
+      "last_updated": "2026-10-21 12:07:50.4300000",
+      "rows": "154782596",
+      "rows_sampled": "519991",
+      "modification_counter": "9587"
+    },
+    {
+      "Seccion": "11_ALCANCE",
+      "Mensaje": "Planes compilados e intervalos historicos; no son un plan real ni una medicion de una nueva corrida. Las esperas pueden solaparse."
+    }
+  ],
+  "integridad_xml": [
+    {
+      "seccion": "01_DEFINICIONES_INSTALADAS",
+      "campo": "DefinicionXML",
+      "caracteres_reportados": 65,
+      "xml_completo": false,
+      "error": "no element found: line 8, column 38"
+    },
+    {
+      "seccion": "01_DEFINICIONES_INSTALADAS",
+      "campo": "DefinicionXML",
+      "caracteres_reportados": 62,
+      "xml_completo": false,
+      "error": "no element found: line 6, column 4"
+    },
+    {
+      "seccion": "02_METRICAS_UPDATE_EN_CACHE",
+      "campo": "SentenciaCompletaXML",
+      "caracteres_reportados": 23,
+      "xml_completo": false,
+      "error": "no element found: line 6, column 32"
+    },
+    {
+      "seccion": "03_PLAN_UPDATE_EN_CACHE_NO_REAL",
+      "campo": "PlanXML",
+      "caracteres_reportados": 253,
+      "xml_completo": false,
+      "error": "unclosed token: line 1, column 147"
+    },
+    {
+      "seccion": "04_QUERY_IDS_UPDATE",
+      "campo": "SentenciaCompletaXML",
+      "caracteres_reportados": 45,
+      "xml_completo": false,
+      "error": "no element found: line 5, column 52"
+    },
+    {
+      "seccion": "04_QUERY_IDS_UPDATE",
+      "campo": "SentenciaCompletaXML",
+      "caracteres_reportados": 45,
+      "xml_completo": false,
+      "error": "no element found: line 5, column 52"
+    },
+    {
+      "seccion": "07_PLANES_HISTORICOS_QUERY_STORE",
+      "campo": "PlanXML",
+      "caracteres_reportados": 253,
+      "xml_completo": false,
+      "error": "unclosed token: line 1, column 147"
+    }
+  ]
+}

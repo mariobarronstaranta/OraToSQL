@@ -1,0 +1,12 @@
+﻿Validacion local: 2026-11-03
+ScriptDom TSql160Parser: cero errores.
+Pruebas con DDL real y datos ficticios en LocalDB; getConv simulado.
+6 casos aprobados. Base temporal CodexDeliveryCheck_32d27c08 eliminada.
+No se ejecuto DELIVERY_TO_REMISION ni se accedio a T3QA.
+
+historia_fuera_del_filtro_de_hoy_y_sin_reprocesar
+cabecera_sin_detalle_unidad_numerica_detalle_huerfano_y_sin_sociedad
+folios_logs_por_id_y_helpers_por_referencia
+detalle_cuenta_historial_completo_y_filtro_excluye_medianoche_admite_futuro
+consulta_completa_no_modifica_datos_permanentes
+detecta_cabeceras_y_numeros_de_linea_duplicados

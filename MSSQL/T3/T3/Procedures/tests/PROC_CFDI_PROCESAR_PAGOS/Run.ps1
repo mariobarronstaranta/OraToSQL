@@ -55,8 +55,8 @@ GO
     Load 'MSSQL/T3/T3/Funciones/FN_TOTAL_FACT.SQL'
     Load 'MSSQL/T3/EAI_OWNER/Functions/GETCONV.SQL'
     Load 'MSSQL/T3/EAI_OWNER/Procedures/LOG_START.SQL'
-    Load 'MSSQL/T3/T3/Procedures/T3.WA_CFDI_COBZA_ASIG_CTRL.StoredProcedure.sql'
-    Load 'MSSQL/T3/T3/Procedures/T3.PROC_CFDI_PROCESAR_PAGOS.sql'
+    Load 'MSSQL/T3/T3/Procedures/WA_CFDI_COBZA_ASIG_CTRL.sql'
+    Load 'MSSQL/T3/T3/Procedures/PROC_CFDI_PROCESAR_PAGOS.sql'
     Sql "PRINT 'PASS compilacion del procedimiento completo y dependencias disponibles';"
     if ($ValidarCero) {
         if ($CapturaReal -or $SoloLectura -or $ValidarResultado -or $AnalizarDependencias -or $ParidadOracle) {
@@ -85,8 +85,8 @@ GO
             throw 'AnalizarDependencias se ejecuta sin otros modos.'
         }
         # Reproduccion historica: estos asserts esperan deliberadamente el defecto anterior.
-        Load 'MSSQL/T3/T3/Procedures/tests/PROC_CFDI_PROCESAR_PAGOS/BaselineOracleParity/T3.WA_CFDI_COBZA_ASIG_CTRL.StoredProcedure.sql'
-        Load 'MSSQL/T3/T3/Procedures/tests/PROC_CFDI_PROCESAR_PAGOS/BaselineOracleParity/T3.PROC_CFDI_PROCESAR_PAGOS.sql'
+        Load 'MSSQL/T3/T3/Procedures/tests/PROC_CFDI_PROCESAR_PAGOS/BaselineOracleParity/WA_CFDI_COBZA_ASIG_CTRL.sql'
+        Load 'MSSQL/T3/T3/Procedures/tests/PROC_CFDI_PROCESAR_PAGOS/BaselineOracleParity/PROC_CFDI_PROCESAR_PAGOS.sql'
         Sql ([IO.File]::ReadAllText((Join-Path $PSScriptRoot 'DependencyParity.sql')))
         return
     }
@@ -100,8 +100,8 @@ GO
             Sql (Get-CapturedModule $data $module)
         }
         Sql (Get-Content -Raw (Join-Path $PSScriptRoot 'RealAssertions.sql'))
-        Load 'MSSQL/T3/T3/Procedures/T3.WA_CFDI_COBZA_ASIG_CTRL.StoredProcedure.sql'
-        Load 'MSSQL/T3/T3/Procedures/T3.PROC_CFDI_PROCESAR_PAGOS.sql'
+        Load 'MSSQL/T3/T3/Procedures/WA_CFDI_COBZA_ASIG_CTRL.sql'
+        Load 'MSSQL/T3/T3/Procedures/PROC_CFDI_PROCESAR_PAGOS.sql'
         Sql (Get-Content -Raw (Join-Path $PSScriptRoot 'RealDateAssertions.sql'))
         return
     }

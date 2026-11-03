@@ -1,0 +1,1440 @@
+{
+  "schema": "T3",
+  "source_sha256": "be0a91e3d822d6c7b71092719f8294d87e10aad410f5a6c36b8a9bbaf0e9fa34",
+  "keys": [
+    {
+      "table": "ASIGNACION_PAGO",
+      "name": "ASPAGO_PK",
+      "columns": [
+        "PAGO_ID",
+        "ASIGNACION_ID",
+        "FECHA_TRN",
+        "FACTURA"
+      ],
+      "local_columns": {
+        "PAGO_ID": [
+          "varchar",
+          "(50)",
+          "NULL"
+        ],
+        "ASIGNACION_ID": [
+          "varchar",
+          "(50)",
+          "NULL"
+        ],
+        "FECHA_TRN": [
+          "datetime2",
+          "(0)",
+          "NULL"
+        ],
+        "FACTURA": [
+          "varchar",
+          "(30)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "ASIGNA_AGR_T3",
+      "name": "ASIGRT3_PK",
+      "columns": [
+        "NUM_ID"
+      ],
+      "local_columns": {
+        "NUM_ID": [
+          "decimal",
+          "(12, 0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "ASIGNA_T3",
+      "name": "ASIGT3_PK",
+      "columns": [
+        "NUM_ID"
+      ],
+      "local_columns": {
+        "NUM_ID": [
+          "decimal",
+          "(12, 0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "BITACORA_CARGA_T3",
+      "name": "BIT_CARGA_PK",
+      "columns": [
+        "SEC_BIT"
+      ],
+      "local_columns": {
+        "SEC_BIT": [
+          "decimal",
+          "(10, 0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "BITACORA_EDI",
+      "name": "PK_BITACORA_EDI",
+      "columns": [
+        "DISTRIBUIDOR",
+        "FECHA"
+      ],
+      "local_columns": {
+        "DISTRIBUIDOR": [
+          "decimal",
+          "(4, 0)",
+          "NULL"
+        ],
+        "FECHA": [
+          "datetime2",
+          "(0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "BITACORA_PROCESO",
+      "name": "BIT_PROC_PK",
+      "columns": [
+        "SECUENCIA"
+      ],
+      "local_columns": {
+        "SECUENCIA": [
+          "decimal",
+          "(5, 0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "CADENAS_SAP_PASO",
+      "name": "CADENAS_SAP_PASO_PK",
+      "columns": [
+        "CADENA"
+      ],
+      "local_columns": {
+        "CADENA": [
+          "varchar",
+          "(20)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "CADENA_CLIENTE",
+      "name": "PK_CADENA_CLIENTE",
+      "columns": [
+        "CADENA",
+        "CLIENTE"
+      ],
+      "local_columns": {
+        "CADENA": [
+          "varchar",
+          "(10)",
+          "NULL"
+        ],
+        "CLIENTE": [
+          "varchar",
+          "(15)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "CADENA_UPC",
+      "name": "PK_CADENA_UPC",
+      "columns": [
+        "CADENA",
+        "UPC_CTE",
+        "UPC_SAP"
+      ],
+      "local_columns": {
+        "CADENA": [
+          "varchar",
+          "(10)",
+          "NULL"
+        ],
+        "UPC_CTE": [
+          "varchar",
+          "(15)",
+          "NULL"
+        ],
+        "UPC_SAP": [
+          "varchar",
+          "(15)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "CARTERA_T3",
+      "name": "CART3_PK",
+      "columns": [
+        "NUM_ID"
+      ],
+      "local_columns": {
+        "NUM_ID": [
+          "decimal",
+          "(12, 0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "CC_PANTALLA",
+      "name": "CC_PANTALLA_PK",
+      "columns": [
+        "PANTALLA"
+      ],
+      "local_columns": {
+        "PANTALLA": [
+          "decimal",
+          "(2, 0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "CFDI_CATALOGOS_SAT",
+      "name": "CFDI_CATALOGOS_SAT_PK",
+      "columns": [
+        "ID"
+      ],
+      "local_columns": {
+        "ID": [
+          "decimal",
+          "(38, 10)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "CLASE_CLIENTE",
+      "name": "CLACLI_PK",
+      "columns": [
+        "CLASE_CLIENTE"
+      ],
+      "local_columns": {
+        "CLASE_CLIENTE": [
+          "varchar",
+          "(10)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "CLIENTE",
+      "name": "CLIENTE_PK",
+      "columns": [
+        "CLIENTE_V3",
+        "FECHA_INI_VIG"
+      ],
+      "local_columns": {
+        "CLIENTE_V3": [
+          "varchar",
+          "(20)",
+          "NULL"
+        ],
+        "FECHA_INI_VIG": [
+          "datetime2",
+          "(0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "COMPRA_T3",
+      "name": "COMPT_T3",
+      "columns": [
+        "NUM_MOVTO",
+        "DISTRIBUIDOR"
+      ],
+      "local_columns": {
+        "NUM_MOVTO": [
+          "decimal",
+          "(8, 0)",
+          "NULL"
+        ],
+        "DISTRIBUIDOR": [
+          "decimal",
+          "(4, 0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "CONFIG_EMPRESA",
+      "name": "EMPRESA_PK",
+      "columns": [
+        "EMPRESA"
+      ],
+      "local_columns": {
+        "EMPRESA": [
+          "decimal",
+          "(3, 0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "CREDITO_EXPRESS",
+      "name": "PK_CE",
+      "columns": [
+        "DISTRIBUIDOR",
+        "INICIO",
+        "FIN"
+      ],
+      "local_columns": {
+        "DISTRIBUIDOR": [
+          "decimal",
+          "(4, 0)",
+          "NULL"
+        ],
+        "INICIO": [
+          "datetime2",
+          "(0)",
+          "NULL"
+        ],
+        "FIN": [
+          "datetime2",
+          "(0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "DEVCOMPRA_T3",
+      "name": "DEVCOMPT3",
+      "columns": [
+        "NUM_MOVTO",
+        "DISTRIBUIDOR"
+      ],
+      "local_columns": {
+        "NUM_MOVTO": [
+          "decimal",
+          "(8, 0)",
+          "NULL"
+        ],
+        "DISTRIBUIDOR": [
+          "decimal",
+          "(4, 0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "DISTRIBUIDOR_FISCAL",
+      "name": "DISTRIBUIDOR_PK",
+      "columns": [
+        "DISTRIBUIDOR"
+      ],
+      "local_columns": {
+        "DISTRIBUIDOR": [
+          "decimal",
+          "(4, 0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "ECV_DOCS_SUM_WEEK",
+      "name": "ECV_DOCS_SUM_WEEK_PK",
+      "columns": [
+        "REP",
+        "WEEK_ID"
+      ],
+      "local_columns": {
+        "REP": null,
+        "WEEK_ID": null
+      }
+    },
+    {
+      "table": "ECV_DOCS_SUM_WEEK_NEW",
+      "name": "ECV_DOCS_SUM_WEEK_NEW_PK",
+      "columns": [
+        "REP",
+        "WEEK_ID"
+      ],
+      "local_columns": {
+        "REP": null,
+        "WEEK_ID": null
+      }
+    },
+    {
+      "table": "ENTREGA",
+      "name": "ENT_PK",
+      "columns": [
+        "FACTURA",
+        "FECHA_TRN"
+      ],
+      "local_columns": {
+        "FACTURA": [
+          "varchar",
+          "(30)",
+          "NULL"
+        ],
+        "FECHA_TRN": [
+          "datetime2",
+          "(0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "ENTREGA_T3",
+      "name": "ENTT3_PK",
+      "columns": [
+        "ENTREGA"
+      ],
+      "local_columns": {
+        "ENTREGA": [
+          "varchar",
+          "(10)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "ESTADO_FISCAL",
+      "name": "ESTADO_PK",
+      "columns": [
+        "ESTADO"
+      ],
+      "local_columns": {
+        "ESTADO": [
+          "decimal",
+          "(3, 0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "FACTC_AGR_T3",
+      "name": "FAGRCT3_PK",
+      "columns": [
+        "FACTURA",
+        "NUM_LINEA",
+        "CLASE_COND"
+      ],
+      "local_columns": {
+        "FACTURA": null,
+        "NUM_LINEA": null,
+        "CLASE_COND": null
+      }
+    },
+    {
+      "table": "FACTC_T3",
+      "name": "FACCT3_PK",
+      "columns": [
+        "FACTURA",
+        "NUM_LINEA",
+        "CLASE_COND"
+      ],
+      "local_columns": {
+        "FACTURA": null,
+        "NUM_LINEA": null,
+        "CLASE_COND": null
+      }
+    },
+    {
+      "table": "FACTD_AGR_T3",
+      "name": "FAGRDT3_PK",
+      "columns": [
+        "FACTURA",
+        "NUM_LINEA"
+      ],
+      "local_columns": {
+        "FACTURA": [
+          "varchar",
+          "(12)",
+          "NULL"
+        ],
+        "NUM_LINEA": [
+          "decimal",
+          "(10, 0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "FACTD_T3",
+      "name": "FACDT3_PK",
+      "columns": [
+        "FACTURA",
+        "NUM_LINEA"
+      ],
+      "local_columns": {
+        "FACTURA": [
+          "varchar",
+          "(12)",
+          "NULL"
+        ],
+        "NUM_LINEA": [
+          "decimal",
+          "(10, 0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "FACTURA_DETALLE",
+      "name": "FACTDET_PK",
+      "columns": [
+        "FACTURA",
+        "NUM_LINEA"
+      ],
+      "local_columns": {
+        "FACTURA": [
+          "varchar",
+          "(30)",
+          "NULL"
+        ],
+        "NUM_LINEA": [
+          "decimal",
+          "(4, 0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "FACTURA_GENERAL",
+      "name": "FACTURA_PK",
+      "columns": [
+        "FACTURA"
+      ],
+      "local_columns": {
+        "FACTURA": null
+      }
+    },
+    {
+      "table": "FACT_AGR_T3",
+      "name": "FAGRT3_PK",
+      "columns": [
+        "FACTURA"
+      ],
+      "local_columns": {
+        "FACTURA": null
+      }
+    },
+    {
+      "table": "FACT_T3",
+      "name": "FACT3_PK",
+      "columns": [
+        "FACTURA"
+      ],
+      "local_columns": {
+        "FACTURA": null
+      }
+    },
+    {
+      "table": "IFC_CONFIG",
+      "name": "PK_CONFIG",
+      "columns": [
+        "NUM_CONFIG"
+      ],
+      "local_columns": {
+        "NUM_CONFIG": [
+          "decimal",
+          "(5, 0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "IFC_FORMATOS",
+      "name": "PK_FORMATO",
+      "columns": [
+        "NUM_FORMA"
+      ],
+      "local_columns": {
+        "NUM_FORMA": [
+          "decimal",
+          "(3, 0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "IFC_FORMATO_HIST",
+      "name": "PK_FORMATO_HIST",
+      "columns": [
+        "DISTRIBUIDOR",
+        "TIPO_VENTA",
+        "TIPO_FORMA",
+        "FECHA_INI"
+      ],
+      "local_columns": {
+        "DISTRIBUIDOR": [
+          "decimal",
+          "(4, 0)",
+          "NULL"
+        ],
+        "TIPO_VENTA": [
+          "varchar",
+          "(2)",
+          "NULL"
+        ],
+        "TIPO_FORMA": [
+          "varchar",
+          "(2)",
+          "NULL"
+        ],
+        "FECHA_INI": [
+          "datetime2",
+          "(0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "IMPRESORAS",
+      "name": "IMPRESORAS_PK",
+      "columns": [
+        "NUMERO_IMPRESORA"
+      ],
+      "local_columns": {
+        "NUMERO_IMPRESORA": [
+          "decimal",
+          "(4, 0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "MATERIAL",
+      "name": "PRODUCTO_PK",
+      "columns": [
+        "MATERIAL"
+      ],
+      "local_columns": {
+        "MATERIAL": [
+          "varchar",
+          "(18)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "MONITOR_CHART_CATALOG",
+      "name": "MONITOR_CHART_CATALOG_PK",
+      "columns": [
+        "ID"
+      ],
+      "local_columns": {
+        "ID": [
+          "decimal",
+          "(38, 10)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "MOV_CLIENTE",
+      "name": "MCLTE_PK",
+      "columns": [
+        "CLIENTE_V3"
+      ],
+      "local_columns": {
+        "CLIENTE_V3": [
+          "varchar",
+          "(20)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "MOV_CLIENTE_TERR",
+      "name": "MCLTETERR_PK",
+      "columns": [
+        "CLIENTE_V3"
+      ],
+      "local_columns": {
+        "CLIENTE_V3": [
+          "varchar",
+          "(15)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "NOTAC_AGR_T3",
+      "name": "NAGRCT3_PK",
+      "columns": [
+        "FACTURA",
+        "NUM_LINEA",
+        "CLASE_COND"
+      ],
+      "local_columns": {
+        "FACTURA": null,
+        "NUM_LINEA": null,
+        "CLASE_COND": null
+      }
+    },
+    {
+      "table": "NOTAC_T3",
+      "name": "NOTACT3_PK",
+      "columns": [
+        "FACTURA",
+        "NUM_LINEA",
+        "CLASE_COND"
+      ],
+      "local_columns": {
+        "FACTURA": null,
+        "NUM_LINEA": null,
+        "CLASE_COND": null
+      }
+    },
+    {
+      "table": "NOTAD_AGR_T3",
+      "name": "NAGRDT3_PK",
+      "columns": [
+        "FACTURA",
+        "NUM_LINEA"
+      ],
+      "local_columns": {
+        "FACTURA": [
+          "varchar",
+          "(12)",
+          "NULL"
+        ],
+        "NUM_LINEA": [
+          "decimal",
+          "(10, 0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "NOTAD_T3",
+      "name": "NOTADT3_PK",
+      "columns": [
+        "FACTURA",
+        "NUM_LINEA"
+      ],
+      "local_columns": {
+        "FACTURA": [
+          "varchar",
+          "(12)",
+          "NULL"
+        ],
+        "NUM_LINEA": [
+          "decimal",
+          "(10, 0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "NOTA_AGR_T3",
+      "name": "NAGRT3_PK",
+      "columns": [
+        "FACTURA"
+      ],
+      "local_columns": {
+        "FACTURA": [
+          "varchar",
+          "(12)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "NOTA_POR_APLICAR",
+      "name": "NOTA_POR_APL_PK",
+      "columns": [
+        "SECUENCIA_ADC"
+      ],
+      "local_columns": {
+        "SECUENCIA_ADC": [
+          "decimal",
+          "(8, 0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "NOTA_T3",
+      "name": "NOTAT3_PK",
+      "columns": [
+        "FACTURA"
+      ],
+      "local_columns": {
+        "FACTURA": null
+      }
+    },
+    {
+      "table": "PAGO",
+      "name": "PAGO_PK",
+      "columns": [
+        "PAGO_ID",
+        "FECHA_TRN"
+      ],
+      "local_columns": {
+        "PAGO_ID": [
+          "varchar",
+          "(50)",
+          "NULL"
+        ],
+        "FECHA_TRN": [
+          "datetime2",
+          "(0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "PAGO_T3",
+      "name": "PAGOT3_PK",
+      "columns": [
+        "REFERENCIA"
+      ],
+      "local_columns": {
+        "REFERENCIA": [
+          "varchar",
+          "(16)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "PASO_MATERIALES",
+      "name": "PASO_MATERIALES_PK",
+      "columns": [
+        "FAMILIA",
+        "MATERIAL"
+      ],
+      "local_columns": {
+        "FAMILIA": [
+          "decimal",
+          "(10, 0)",
+          "NULL"
+        ],
+        "MATERIAL": [
+          "varchar",
+          "(18)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "PASO_MATERIALES_FAM",
+      "name": "PASO_MATERIALES_FAM_PK",
+      "columns": [
+        "FAMILIA"
+      ],
+      "local_columns": {
+        "FAMILIA": [
+          "decimal",
+          "(10, 0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "PEDC_T3",
+      "name": "PEDCT3_PK",
+      "columns": [
+        "DISTRIBUIDOR",
+        "NUM_LINEA",
+        "PEDIDO",
+        "MATERIAL",
+        "CLASE_COND"
+      ],
+      "local_columns": {
+        "DISTRIBUIDOR": null,
+        "NUM_LINEA": null,
+        "PEDIDO": null,
+        "MATERIAL": null,
+        "CLASE_COND": null
+      }
+    },
+    {
+      "table": "PEDD_T3",
+      "name": "PEDDT3_PK",
+      "columns": [
+        "DISTRIBUIDOR",
+        "NUM_LINEA",
+        "PEDIDO",
+        "MATERIAL"
+      ],
+      "local_columns": {
+        "DISTRIBUIDOR": [
+          "decimal",
+          "(4, 0)",
+          "NULL"
+        ],
+        "NUM_LINEA": [
+          "decimal",
+          "(10, 0)",
+          "NULL"
+        ],
+        "PEDIDO": [
+          "varchar",
+          "(8)",
+          "NULL"
+        ],
+        "MATERIAL": [
+          "varchar",
+          "(18)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "PED_T3",
+      "name": "PEDT3_PK",
+      "columns": [
+        "DISTRIBUIDOR",
+        "PEDIDO"
+      ],
+      "local_columns": {
+        "DISTRIBUIDOR": null,
+        "PEDIDO": null
+      }
+    },
+    {
+      "table": "PREVENTA_GENERAL",
+      "name": "PREVG_PK",
+      "columns": [
+        "FACTURA"
+      ],
+      "local_columns": {
+        "FACTURA": [
+          "varchar",
+          "(30)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "REGISTRO_FISCAL",
+      "name": "REGFIS_PK",
+      "columns": [
+        "FACTURA"
+      ],
+      "local_columns": {
+        "FACTURA": [
+          "varchar",
+          "(30)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "REGISTRO_FISCAL_DETALLE",
+      "name": "REGFEDDET_PK",
+      "columns": [
+        "FACTURA",
+        "NUM_LINEA"
+      ],
+      "local_columns": {
+        "FACTURA": [
+          "varchar",
+          "(30)",
+          "NULL"
+        ],
+        "NUM_LINEA": [
+          "decimal",
+          "(4, 0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "REGISTRO_FISCAL_DETALLE_HIST",
+      "name": "REGFEDDETHIST_PK",
+      "columns": [
+        "FACTURA",
+        "NUM_LINEA"
+      ],
+      "local_columns": {
+        "FACTURA": [
+          "varchar",
+          "(30)",
+          "NULL"
+        ],
+        "NUM_LINEA": [
+          "decimal",
+          "(4, 0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "REGISTRO_FISCAL_HIST",
+      "name": "REGFISHIST_PK",
+      "columns": [
+        "FACTURA"
+      ],
+      "local_columns": {
+        "FACTURA": [
+          "varchar",
+          "(30)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "REPC_CLIENTE_VENTA",
+      "name": "PK_REPC_CLIENTE_VENTA",
+      "columns": [
+        "CLIENTE_SAP",
+        "FACTURA",
+        "MATERIAL"
+      ],
+      "local_columns": {
+        "CLIENTE_SAP": [
+          "varchar",
+          "(10)",
+          "NULL"
+        ],
+        "FACTURA": [
+          "varchar",
+          "(30)",
+          "NULL"
+        ],
+        "MATERIAL": [
+          "varchar",
+          "(18)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "REPC_CLIENTE_VENTA_HIST",
+      "name": "REPC_CLIENTE_VENTA_HIST_PK",
+      "columns": [
+        "CLIENTE_SAP",
+        "FACTURA",
+        "NOMBRE"
+      ],
+      "local_columns": {
+        "CLIENTE_SAP": [
+          "varchar",
+          "(10)",
+          "NULL"
+        ],
+        "FACTURA": [
+          "varchar",
+          "(30)",
+          "NULL"
+        ],
+        "NOMBRE": [
+          "varchar",
+          "(20)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "REPC_FAMILIA",
+      "name": "REPC_FAMILIA_PK",
+      "columns": [
+        "FAMILIA"
+      ],
+      "local_columns": {
+        "FAMILIA": [
+          "varchar",
+          "(18)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "REPC_MATERIAL_FAMILIA",
+      "name": "REPC_MATERIAL_FAMILIA_PK",
+      "columns": [
+        "MATERIAL"
+      ],
+      "local_columns": {
+        "MATERIAL": [
+          "varchar",
+          "(18)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "RMAC_T3",
+      "name": "RMACT3_PK",
+      "columns": [
+        "DISTRIBUIDOR",
+        "NUM_LINEA",
+        "PEDIDO",
+        "MATERIAL",
+        "CLASE_COND"
+      ],
+      "local_columns": {
+        "DISTRIBUIDOR": null,
+        "NUM_LINEA": null,
+        "PEDIDO": null,
+        "MATERIAL": null,
+        "CLASE_COND": null
+      }
+    },
+    {
+      "table": "RMAD_T3",
+      "name": "RMADT3_PK",
+      "columns": [
+        "DISTRIBUIDOR",
+        "NUM_LINEA",
+        "PEDIDO",
+        "MATERIAL"
+      ],
+      "local_columns": {
+        "DISTRIBUIDOR": null,
+        "NUM_LINEA": null,
+        "PEDIDO": null,
+        "MATERIAL": null
+      }
+    },
+    {
+      "table": "RMA_T3",
+      "name": "RMAT3_PK",
+      "columns": [
+        "DISTRIBUIDOR",
+        "PEDIDO"
+      ],
+      "local_columns": {
+        "DISTRIBUIDOR": null,
+        "PEDIDO": null
+      }
+    },
+    {
+      "table": "TIPO_DOCUMENTO",
+      "name": "TIPODOC_PK",
+      "columns": [
+        "TIPO_DOCUMENTO"
+      ],
+      "local_columns": {
+        "TIPO_DOCUMENTO": [
+          "varchar",
+          "(4)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "USUARIOS",
+      "name": "USUARIO_PK",
+      "columns": [
+        "USUARIO"
+      ],
+      "local_columns": {
+        "USUARIO": [
+          "varchar",
+          "(20)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "VAN_T3",
+      "name": "VANT3_PK",
+      "columns": [
+        "NUM_MOVTO"
+      ],
+      "local_columns": {
+        "NUM_MOVTO": null
+      }
+    },
+    {
+      "table": "VENTA_PLANEADA",
+      "name": "PK_VP",
+      "columns": [
+        "DISTRIBUIDOR",
+        "INICIO",
+        "FIN"
+      ],
+      "local_columns": {
+        "DISTRIBUIDOR": [
+          "decimal",
+          "(4, 0)",
+          "NULL"
+        ],
+        "INICIO": [
+          "datetime2",
+          "(0)",
+          "NULL"
+        ],
+        "FIN": [
+          "datetime2",
+          "(0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "WH_PEDIDO_DETALLE",
+      "name": "WH_PED_DET_IDX",
+      "columns": [
+        "COMPANIA",
+        "UNIDAD_ORG",
+        "FOLIO_PED",
+        "FECHA_PED",
+        "PRODUCTO"
+      ],
+      "local_columns": {
+        "COMPANIA": [
+          "decimal",
+          "(3, 0)",
+          "NULL"
+        ],
+        "UNIDAD_ORG": [
+          "decimal",
+          "(5, 0)",
+          "NULL"
+        ],
+        "FOLIO_PED": [
+          "decimal",
+          "(8, 0)",
+          "NULL"
+        ],
+        "FECHA_PED": [
+          "datetime2",
+          "(0)",
+          "NULL"
+        ],
+        "PRODUCTO": [
+          "decimal",
+          "(7, 0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "WH_REGISTRO_FISCAL",
+      "name": "WH_REGFIS_PK",
+      "columns": [
+        "FACTURA"
+      ],
+      "local_columns": {
+        "FACTURA": [
+          "varchar",
+          "(12)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "WH_REGISTRO_FISCAL_DETALLE",
+      "name": "WH_REGFEDDET_PK",
+      "columns": [
+        "FACTURA",
+        "NUM_LINEA"
+      ],
+      "local_columns": {
+        "FACTURA": [
+          "varchar",
+          "(12)",
+          "NULL"
+        ],
+        "NUM_LINEA": [
+          "decimal",
+          "(4, 0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "W_BUZON_CLIENTE",
+      "name": "W_BUZ_CLTE_PK",
+      "columns": [
+        "SECUENCIA_ADC"
+      ],
+      "local_columns": {
+        "SECUENCIA_ADC": [
+          "decimal",
+          "(10, 0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "W_IMPRIME_DOCUMENTO",
+      "name": "W_IMP_DOC_PK",
+      "columns": [
+        "TIPO_IMPRESION",
+        "SECUENCIA"
+      ],
+      "local_columns": {
+        "TIPO_IMPRESION": [
+          "char",
+          "(1)",
+          "NULL"
+        ],
+        "SECUENCIA": [
+          "decimal",
+          "(5, 0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "W_MATERIAL_MAQUILA",
+      "name": "W_MATERIAL_MAQUILA_PK",
+      "columns": [
+        "MATERIAL"
+      ],
+      "local_columns": {
+        "MATERIAL": [
+          "varchar",
+          "(18)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "W_MOV_CENTRAL_ADC",
+      "name": "W_MOV_CEN_PK",
+      "columns": [
+        "SECUENCIA_ADC"
+      ],
+      "local_columns": {
+        "SECUENCIA_ADC": [
+          "decimal",
+          "(8, 0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "W_REGISTRO_FISCAL",
+      "name": "W_REGFIS_PK",
+      "columns": [
+        "FACTURA"
+      ],
+      "local_columns": {
+        "FACTURA": [
+          "varchar",
+          "(12)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "W_REGISTRO_FISCAL2",
+      "name": "W_REGFIS2_PK",
+      "columns": [
+        "FACTURA"
+      ],
+      "local_columns": {
+        "FACTURA": [
+          "varchar",
+          "(12)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "W_REGISTRO_FISCAL_DETALLE",
+      "name": "W_REGFEDDET_PK",
+      "columns": [
+        "FACTURA",
+        "NUM_LINEA"
+      ],
+      "local_columns": {
+        "FACTURA": [
+          "varchar",
+          "(12)",
+          "NULL"
+        ],
+        "NUM_LINEA": [
+          "decimal",
+          "(4, 0)",
+          "NULL"
+        ]
+      }
+    },
+    {
+      "table": "W_REGISTRO_FISCAL_DETALLE2",
+      "name": "W_REGFEDDET2_PK",
+      "columns": [
+        "FACTURA",
+        "NUM_LINEA"
+      ],
+      "local_columns": {
+        "FACTURA": [
+          "varchar",
+          "(12)",
+          "NULL"
+        ],
+        "NUM_LINEA": [
+          "decimal",
+          "(4, 0)",
+          "NULL"
+        ]
+      }
+    }
+  ],
+  "local_issues": [
+    [
+      "ECV_DOCS_SUM_WEEK",
+      "TABLA SIN DDL LOCAL"
+    ],
+    [
+      "ECV_DOCS_SUM_WEEK_NEW",
+      "TABLA SIN DDL LOCAL"
+    ],
+    [
+      "FACTC_AGR_T3",
+      "TABLA SIN DDL LOCAL"
+    ],
+    [
+      "FACTC_T3",
+      "TABLA SIN DDL LOCAL"
+    ],
+    [
+      "FACTURA_GENERAL",
+      "TABLA SIN DDL LOCAL"
+    ],
+    [
+      "FACT_AGR_T3",
+      "TABLA SIN DDL LOCAL"
+    ],
+    [
+      "FACT_T3",
+      "TABLA SIN DDL LOCAL"
+    ],
+    [
+      "NOTAC_AGR_T3",
+      "TABLA SIN DDL LOCAL"
+    ],
+    [
+      "NOTAC_T3",
+      "TABLA SIN DDL LOCAL"
+    ],
+    [
+      "NOTA_T3",
+      "TABLA SIN DDL LOCAL"
+    ],
+    [
+      "PEDC_T3",
+      "TABLA SIN DDL LOCAL"
+    ],
+    [
+      "PED_T3",
+      "TABLA SIN DDL LOCAL"
+    ],
+    [
+      "RMAC_T3",
+      "TABLA SIN DDL LOCAL"
+    ],
+    [
+      "RMAD_T3",
+      "TABLA SIN DDL LOCAL"
+    ],
+    [
+      "RMA_T3",
+      "TABLA SIN DDL LOCAL"
+    ],
+    [
+      "VAN_T3",
+      "TABLA SIN DDL LOCAL"
+    ]
+  ]
+}

@@ -1,0 +1,18 @@
+﻿Validacion de 06_INDICE_UPDATE_COBRANZA.sql y 07_VALIDAR_MEJORA_UPDATE.sql
+LocalDB: base temporal propia CodexAGRIndice_9dd1a8f1; eliminada en finally.
+No hubo conexion a T3QA.
+SHA256 06: FFF0FAB339D91BB8E4897EF5D5968D9C8714C4E0625F6D57109B76A2BB05DDB2
+SHA256 07: 8CC0E3F62B6CB78527F179957759575B7948B48710C52A004F2E6E9E17F8C3B3
+Ocho comprobaciones aprobadas:
+vista_previa_no_crea_indice_ni_cambia_datos
+aplica_solo_indice_aceptando_repetidos_identicos_y_excluyendo_valores_no_elegibles
+update_extraido_del_plan_conserva_resultados_en_las_fixtures
+medicion_consulta_cache_y_query_store_sin_ejecutar_el_sp
+detecta_equivalentes_con_otro_nombre_y_cobertura_en_claves_o_include
+no_sustituye_indice_con_nombre_ocupado
+bloquea_asignaciones_elegibles_distintas_sin_cambiar_datos
+detecta_diferencias_binarias_de_assignment_aunque_la_collation_ignore_mayusculas
+Se uso el UPDATE completo recuperado del plan historico, en un SP de prueba sin generadores ni secuencias.
+El modo de aplicacion solo creo el indice y preservo registros de negocio de la fixture.
+La medicion consulta cache y Query Store. No se probo ni se afirma una mejora de performance en T3QA.
+Evidencia completa: C:\Users\85233588\Documents\MigracionORA\OraToSQL\tmp\CodexAGRIndice_9dd1a8f1

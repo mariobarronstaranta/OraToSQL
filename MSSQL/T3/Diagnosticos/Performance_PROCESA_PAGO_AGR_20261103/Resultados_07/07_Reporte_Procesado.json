@@ -1,0 +1,154 @@
+{
+  "source_sha256": "80c4b8e96f672a4a37f85cc40d3791070b7dea3b5b6b65efe18b14f1e6e508ef",
+  "rows": [
+    {
+      "Seccion": "00_CONTEXTO_MEDICION",
+      "Servidor": "AZCRNMXNEVTD06",
+      "BaseDatos": "T3QA",
+      "Captura": "2026-11-03 14:07:31.0081655 -06:00",
+      "DesdeIntervalosQS": "2026-11-02 14:07:31.0081655 -06:00",
+      "HastaIntervalosQS": "2026-11-03 14:07:31.0081655 -06:00"
+    },
+    {
+      "Seccion": "01_REFERENCIA_29_OCT",
+      "Duracion_ms": "107029.831",
+      "CPU_ms": "16456.611",
+      "LecturasLogicas": "2701949",
+      "LecturasFisicas": "1314995",
+      "QueryId": "32735",
+      "PlanId": "8889",
+      "nDias": "30"
+    },
+    {
+      "Seccion": "02_INDICE_ACTUAL",
+      "name": "IX_CFDI_COBRANZA_ASIGCENTRAL_FECPROC",
+      "is_disabled": "0",
+      "has_filter": "0",
+      "OrdenClave": "1",
+      "EsInclude": "0",
+      "Columna": "ASIGNACION_CENTRAL"
+    },
+    {
+      "Seccion": "02_INDICE_ACTUAL",
+      "name": "IX_CFDI_COBRANZA_ASIGCENTRAL_FECPROC",
+      "is_disabled": "0",
+      "has_filter": "0",
+      "OrdenClave": "2",
+      "EsInclude": "0",
+      "Columna": "FECHA_PROCESO"
+    },
+    {
+      "Seccion": "02_INDICE_ACTUAL",
+      "name": "IX_CFDI_COBRANZA_ASIGCENTRAL_FECPROC",
+      "is_disabled": "0",
+      "has_filter": "0",
+      "OrdenClave": "0",
+      "EsInclude": "1",
+      "Columna": "ASIGNACION_ID"
+    },
+    {
+      "Seccion": "02_INDICE_ACTUAL",
+      "name": "IX_CFDI_COBRANZA_ASIGCENTRAL_FECPROC",
+      "is_disabled": "0",
+      "has_filter": "0",
+      "OrdenClave": "0",
+      "EsInclude": "1",
+      "Columna": "FACTURA"
+    },
+    {
+      "Seccion": "03_UPDATE_EN_CACHE",
+      "UltimaEjecucion": "2026-10-29 00:17:07.210",
+      "Ejecuciones": "1",
+      "Duracion_ms": "107029.831000",
+      "CPU_ms": "16456.611000",
+      "LecturasLogicas": "2701949",
+      "LecturasFisicas": "1314995",
+      "UsaIndicePropuesto": "0"
+    },
+    {
+      "Seccion": "05_INDICES_DE_PLANES_QS",
+      "QueryId": "28113",
+      "PlanId": "7065",
+      "Esquema": "[T3]",
+      "Tabla": "[REGISTRO_FISCAL]",
+      "Indice": "[REGFIS_PK]"
+    },
+    {
+      "Seccion": "05_INDICES_DE_PLANES_QS",
+      "QueryId": "32735",
+      "PlanId": "8889",
+      "Esquema": "[T3]",
+      "Tabla": "[REGISTRO_FISCAL]",
+      "Indice": "[REGFIS_PK]"
+    },
+    {
+      "Seccion": "06_ALCANCE_MEDICION",
+      "Mensaje": "Comparar fechas, parametros y carga. La cache puede seguir mostrando la corrida anterior. Intervalos QS pueden incluir ejecuciones previas al corte. Sin nueva corrida no hay mejora medida."
+    }
+  ],
+  "cabeceras_resultados": [
+    [
+      "Seccion",
+      "Servidor",
+      "BaseDatos",
+      "Captura",
+      "DesdeIntervalosQS",
+      "HastaIntervalosQS"
+    ],
+    [
+      "Seccion",
+      "Duracion_ms",
+      "CPU_ms",
+      "LecturasLogicas",
+      "LecturasFisicas",
+      "QueryId",
+      "PlanId",
+      "nDias"
+    ],
+    [
+      "Seccion",
+      "name",
+      "is_disabled",
+      "has_filter",
+      "OrdenClave",
+      "EsInclude",
+      "Columna"
+    ],
+    [
+      "Seccion",
+      "UltimaEjecucion",
+      "Ejecuciones",
+      "Duracion_ms",
+      "CPU_ms",
+      "LecturasLogicas",
+      "LecturasFisicas",
+      "UsaIndicePropuesto"
+    ],
+    [
+      "Seccion",
+      "QueryId",
+      "PlanId",
+      "execution_type_desc",
+      "PrimerIntervalo",
+      "UltimoIntervalo",
+      "Ejecuciones",
+      "UltimaFinalizacion",
+      "DuracionMedia_ms",
+      "CPUMedia_ms",
+      "LecturasLogicasMedias",
+      "UsaIndicePropuesto"
+    ],
+    [
+      "Seccion",
+      "QueryId",
+      "PlanId",
+      "Esquema",
+      "Tabla",
+      "Indice"
+    ],
+    [
+      "Seccion",
+      "Mensaje"
+    ]
+  ]
+}

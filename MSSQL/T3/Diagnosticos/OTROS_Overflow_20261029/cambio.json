@@ -1,0 +1,8 @@
+{
+  "sha256_antes": "47dc96d0ce3e5d3b4a640d0a5c489f8d456b46bf618e03aa35aedbc5724444a6",
+  "sha256_despues": "7badf96a962fa604ce0ab87f9c676a0f95c40d4f1a55409ee8712f72e7af5d0a",
+  "old1": "TRIM(CAST(ROUND( ISNULL( Doc.Valor_IVA , 0 ) * 100 /      NULLIF(( ISNULL( Ret.Retenido, 0 ) + ISNULL( Doc.Valor_Subt, 0 )),0),0) AS VARCHAR(10)))",
+  "new1": "TRIM(CAST(ROUND( ISNULL( Doc.Valor_IVA , 0 ) * 100 /      NULLIF(( ISNULL( Ret.Retenido, 0 ) + ISNULL( Doc.Valor_Subt, 0 )),0),0) AS VARCHAR(40)))",
+  "old2": "T3.FN_NUM_TO_CHAR_CFDI( @Doc_tasa / 100      , 6 )",
+  "new2": "T3.FN_NUM_TO_CHAR_CFDI( CAST(@Doc_tasa AS DECIMAL(38,12)) / 100.0, 6 )"
+}

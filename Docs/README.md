@@ -31,8 +31,8 @@ La documentacion busca servir para:
 - [INDEXES_MIGRATION.md](INDEXES_MIGRATION.md): inventario, archivos individuales y reglas para convertir indices y PK.
 - [INFO_INDEX.md](INFO_INDEX.md): tabla detallada de indices, PK y restricciones por esquema.
 - [T3QA_INDICES_CONTEXTO.md](T3QA_INDICES_CONTEXTO.md): referencia del inventario instalado en T3QA, captura del 22 de octubre de 2026, estados de indices y resultados de la mejora CFDI.
-- [PROC_CFDI_PROCESAR_PAGOS](../MSSQL/T3/T3/Procedures/T3.PROC_CFDI_PROCESAR_PAGOS.md): contrato, cursores corregidos, comparaciones DATE, calculos, 40 campos de salida, pruebas y pendientes de datos/despliegue; revision documental del 23 de octubre de 2026.
-- [Paridad Oracle de PROC_CFDI_PROCESAR_PAGOS](../MSSQL/T3/T3/Procedures/T3.PROC_CFDI_PROCESAR_PAGOS.PARIDAD_ORACLE.md): reglas conservadas, sustitucion SAT omitida y diferencias transaccionales; analisis previo a nuevos cambios.
+- [PROC_CFDI_PROCESAR_PAGOS](../MSSQL/T3/T3/Procedures/PROC_CFDI_PROCESAR_PAGOS.md): contrato, cursores corregidos, comparaciones DATE, calculos, 40 campos de salida, pruebas y pendientes de datos/despliegue; revision documental del 23 de octubre de 2026.
+- [Paridad Oracle de PROC_CFDI_PROCESAR_PAGOS](../MSSQL/T3/T3/Procedures/PROC_CFDI_PROCESAR_PAGOS.PARIDAD_ORACLE.md): reglas conservadas, sustitucion SAT omitida y diferencias transaccionales; analisis previo a nuevos cambios.
 - [PROMPTS.md](PROMPTS.md): prompts utiles para pedir analisis o conversion asistida por IA.
 
 ## Estructura del repositorio

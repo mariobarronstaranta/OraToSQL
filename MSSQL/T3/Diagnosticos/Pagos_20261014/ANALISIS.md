@@ -153,7 +153,7 @@ La evidencia vigente esta en LastRun.txt y LastRealRun.txt;
 LastRealRun_AntesCursores.txt conserva la prueba real anterior.
 
 Para aplicar en T3QA, ejecutar completo el archivo local
-`MSSQL/T3/T3/Procedures/T3.PROC_CFDI_PROCESAR_PAGOS.sql`, que contiene USE T3QA
+`MSSQL/T3/T3/Procedures/PROC_CFDI_PROCESAR_PAGOS.sql`, que contiene USE T3QA
  y ALTER PROCEDURE. Incluye tambien las comparaciones DATE ya autorizadas.
 El archivo solo altera el procedimiento, no lo ejecuta ni reprocesa el lote.
 No se ha aplicado desde esta sesion a la base real. Verificar despues del

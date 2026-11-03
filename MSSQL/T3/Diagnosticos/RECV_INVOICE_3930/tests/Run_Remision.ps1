@@ -17,7 +17,7 @@ try {
     $ddl = [IO.File]::ReadAllText((Join-Path $repoRoot 'MSSQL/T3/T3/Tables/T3.REMISION_GENERAL.Table.sql'))
     $ddl = [regex]::Replace($ddl, '(?im)^USE \[T3QA\]\s*\r?$', '')
     Sql $ddl
-    $source = [IO.File]::ReadAllText((Join-Path $repoRoot 'MSSQL/T3/T3/Procedures/T3.DELIVERY_WA_OXXO.StoredProcedure.sql'))
+    $source = [IO.File]::ReadAllText((Join-Path $repoRoot 'MSSQL/T3/T3/Procedures/DELIVERY_WA_OXXO.sql'))
     $m = [regex]::Match($source,'(?is)INSERT INTO T3\.Remision_General.*?VALUES\s*\(.*?\);')
     if (-not $m.Success) { throw 'No se encontro INSERT real.' }
     $oldInsert = [regex]::Replace($m.Value,'(?is)INSERT INTO T3\.Remision_General.*?VALUES','INSERT INTO T3.Remision_General VALUES')

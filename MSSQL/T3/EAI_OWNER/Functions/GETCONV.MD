@@ -9,7 +9,7 @@ descrita abajo se refiere al comportamiento SQL evaluado y no garantiza
 paridad Oracle con Targets distintos para la misma pareja. Sin match ambos
 conservan Source; con un match conservan Target, incluido NULL. Revisar
 duplicados/collation/vacios antes de cambiar esta funcion compartida. Ver
-[informe PAGOS](../../T3/Procedures/T3.PROC_CFDI_PROCESAR_PAGOS.PARIDAD_ORACLE.md).
+[informe PAGOS](../../T3/Procedures/PROC_CFDI_PROCESAR_PAGOS.PARIDAD_ORACLE.md).
 No se modifico la funcion durante esta revision.
 
 `GETCONV` traduce valores mediante el catálogo genérico

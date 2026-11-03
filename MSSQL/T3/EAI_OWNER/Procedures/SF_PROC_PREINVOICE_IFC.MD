@@ -1,5 +1,35 @@
 # Optimización de `EAI_OWNER.SF_PROC_PREINVOICE_IFC`
 
+## Estado vigente: 26 de octubre de 2026
+
+Segunda intervencion preparada: el fuente incorpora `RI_SKU_SEEK_V1` en la
+declaracion de curSKU para buscar material con clave VARCHAR cuando no hay
+perdida de Unicode, conservando consulta original como alternativa. GETCONV,
+formulas y el cuerpo del cursor permanecen. Query Store registra 33.322 s en
+6,714 consultas de ese cursor despues del primer parche. Aplicacion selectiva:
+[05_CORREGIR_BUSQUEDA_SKU.sql](../../Diagnosticos/RECV_INVOICE_20261026/05_CORREGIR_BUSQUEDA_SKU.sql).
+Pruebas LocalDB satisfactorias. La captura real de T3QA del 26/10 a las
+17:24:34 confirma ParcheSku=1 y modificacion del parser a las 17:01:22,
+anterior al lote 17:20:03-17:21:01: 869 registros/58 s, 14.98/s.
+curSKU acumula 0.229 s en Query Store; persisten costos de FACTURA y la meta
+20-25/s sigue pendiente. No equiparar esta mejora local con una mejora
+integral demostrada. Ver [analisis posterior](../../Diagnosticos/RECV_INVOICE_20261026/ANALISIS_172434.md).
+
+El archivo mantenido `SF_PROC_PREINVOICE_IFC.SQL` incorpora ahora los tres
+bloques `RI_REF_SEEK` en los DELETE por ReferenceID, ademas de las correcciones
+previas de transacciones/errores. La comparacion de versiones de las secciones
+siguientes es historica y no implica que el archivo sin sufijo siga siendo
+una linea base sin cambios. No se ha activado la variante OPTIMIZADO.
+
+Para conservar variantes desplegadas al aplicar este ajuste, usar
+[el parche puntual con respaldo](../../Diagnosticos/RECV_INVOICE_20261026/README.md)
+sobre la definicion instalada. El resultado real de T3QA identifica 533.66 ms
+combinados en los DELETE de detalle/cabecera y accesos por ReferenceID ya
+indexados. El parche y el fuente pasaron pruebas LocalDB. El usuario confirmo
+la aplicacion antes del lote del 26/10, 15:26:32-15:27:22: 706 registros en
+50 segundos (847.2/min), frente a una referencia inicial aproximada de 100/min.
+Ver [medicion posterior](../../Diagnosticos/RECV_INVOICE_20261026/RESULTADO_POSTERIOR_152632.md).
+
 ## 1. Objetivo
 
 Este documento describe los cambios realizados entre:

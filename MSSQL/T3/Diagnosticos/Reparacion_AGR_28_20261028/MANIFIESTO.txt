@@ -1,0 +1,6 @@
+Archivo origen: C:\Users\85233588\Documents\MigracionORA\OraToSQL\ORA\T3\T3\Datos\Resultados_28_Oracle.jsonl
+SHA256: b9122d5058ca82646eaa7e62dfe0dd0e481ff37c7ea938ab346e1f8a62c9180c
+Controles seleccionados: 28 (27 julio + 529099 Contado)
+Relaciones seleccionadas: 100 (99 julio + 1 octubre)
+Insercion de cobranza: 262201997114 (1 fila)
+Sin cambios: cobranza cancelada 262201996890, grupos 514967/529057, demas cobranzas, documentos, layouts, secuencia y componente 614.

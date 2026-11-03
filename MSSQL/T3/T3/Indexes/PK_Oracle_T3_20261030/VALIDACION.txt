@@ -1,0 +1,23 @@
+﻿Validacion local: 2026-10-30
+Fuente: PKS_ORACLE_T3.txt; 81 PK / 146 columnas.
+LocalDB: 65 DDL reales del repositorio + 16 tablas ficticias de prueba.
+Resultado: 13 casos aprobados; 81 PK verificadas por columnas y orden.
+No se accedio a T3QA. Base temporal CodexPKT3_4e646a00 eliminada.
+
+previsualizacion_sin_ddl_detecta_16_tablas_ausentes
+crea_65_ddl_reales_y_16_fixtures_sin_inferir_tipos_de_oracle
+detecta_null_y_duplicados_y_bloquea_aplicacion_global
+duplicados_respetan_collation_real_de_sql_server
+no_convierte_nullable_si_opcion_deshabilitada
+detecta_columna_ausente
+no_reemplaza_pk_existente_diferente
+detecta_nombre_de_restriccion_ocupado
+reconoce_pk_equivalente_con_otro_nombre
+crea_81_pk_columnas_orden_correctos_sin_reemplazar_clustered
+conserva_tipos_alias_precision_escala_longitud_y_collation
+reejecucion_idempotente_81_pk
+revierte_cambio_not_null_si_falla_creacion_pk
+PARSE_OK 01_CREAR_PK_T3.sql
+SHA256 01_CREAR_PK_T3.sql: 89DBE30A0C9A306DD687C06FABF0D65F8DBA68050D9D2B47F30CBAD4A7711D2D
+PARSE_OK 02_VERIFICAR_PK_T3.sql
+SHA256 02_VERIFICAR_PK_T3.sql: 2F497A0E118AFE4E453325E8A7D8DC734B9793E725F0B12F5D1624C65625D7DB

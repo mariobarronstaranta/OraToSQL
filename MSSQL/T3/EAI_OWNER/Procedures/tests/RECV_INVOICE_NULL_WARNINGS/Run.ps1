@@ -21,7 +21,7 @@ try {
     Sql (Get-Content -Raw (Join-Path $PSScriptRoot 'Fixture.sql'))
     $pre=[IO.File]::ReadAllText((Join-Path $owner 'Procedures/INVOICE_TO_PREVENTA.SQL'))
     $fac=[IO.File]::ReadAllText((Join-Path $owner 'Procedures/INVOICE_TO_FACTURA.SQL'))
-    $ox=[IO.File]::ReadAllText((Join-Path $owner '../T3/Procedures/T3.DELIVERY_WA_OXXO.StoredProcedure.sql'))
+    $ox=[IO.File]::ReadAllText((Join-Path $owner '../T3/Procedures/DELIVERY_WA_OXXO.sql'))
     # Ejecutar las consultas extraidas del codigo real, no copias del nuevo calculo.
     $queries=@(
         (MatchText $pre '(?s);WITH DetailData AS\s*\((.*?)\),\s*BaseCalc AS'),

@@ -948,7 +948,7 @@ Funciones directas: `EAI_OWNER.GETCONV` para bandera y `EAI_OWNER.FN_CHECK_INSTA
 
 El [delegado intercompany](../MSSQL/T3/EAI_OWNER/Procedures/SF_PROC_PREINVOICE_INTER.SQL) prepara interfases y contiene rutas a `EAI_OWNER.INVOICE_TO_PREVENTA` para clases `C020/C021/C022` y `EAI_OWNER.INVOICE_TO_OTROS` para otras operaciones procesables de sociedad con prefijo `MX`. Esas reglas pertenecen al delegado, no al selector del coordinador.
 
-El [proceso general T3](../MSSQL/T3/T3/Procedures/T3.PROC_T3_OT_GENERAL.StoredProcedure.sql) consulta otros documentos recientes sin fecha de proceso, compara total de cabecera y detalle y exige diferencia absoluta menor de `0.10` para generar. Contiene un marcado especial con fecha `2999-12-31` para documentos que cumplen su regla MX10/RFC. Llama `WA_ERR_INVOICE_PAYMETHOD 4` y `PROC_V40_GENERAR_OTROS @factura` **sin calificar esquema en esas instrucciones internas**; su resolución depende del contexto SQL Server. Después marca la fecha de proceso de los documentos generados. Estas llamadas son indirectas respecto del coordinador.
+El [proceso general T3](../MSSQL/T3/T3/Procedures/PROC_T3_OT_GENERAL.sql) consulta otros documentos recientes sin fecha de proceso, compara total de cabecera y detalle y exige diferencia absoluta menor de `0.10` para generar. Contiene un marcado especial con fecha `2999-12-31` para documentos que cumplen su regla MX10/RFC. Llama `WA_ERR_INVOICE_PAYMETHOD 4` y `PROC_V40_GENERAR_OTROS @factura` **sin calificar esquema en esas instrucciones internas**; su resolución depende del contexto SQL Server. Después marca la fecha de proceso de los documentos generados. Estas llamadas son indirectas respecto del coordinador.
 
 ### 13.6 Tablas input/output
 

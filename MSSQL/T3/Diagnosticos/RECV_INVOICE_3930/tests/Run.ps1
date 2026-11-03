@@ -22,7 +22,7 @@ try {
         'EAI_OWNER.INVOICE_TO_PREVENTA' = 'MSSQL/T3/EAI_OWNER/Procedures/INVOICE_TO_PREVENTA.SQL'
         'EAI_OWNER.INVOICE_TO_FACTURA' = 'MSSQL/T3/EAI_OWNER/Procedures/INVOICE_TO_FACTURA.SQL'
         'EAI_OWNER.INVOICE_TO_ENTREGA_PO' = 'MSSQL/T3/EAI_OWNER/Procedures/INVOICE_TO_ENTREGA_PO.SQL'
-        'T3.DELIVERY_WA_OXXO' = 'MSSQL/T3/T3/Procedures/T3.DELIVERY_WA_OXXO.StoredProcedure.sql'
+        'T3.DELIVERY_WA_OXXO' = 'MSSQL/T3/T3/Procedures/DELIVERY_WA_OXXO.sql'
     }
     foreach ($name in $modules.Keys) {
         $source = [IO.File]::ReadAllText((Join-Path $repoRoot $modules[$name]))

@@ -88,8 +88,8 @@ La implementación final utiliza `bcp` para transportar líneas completas desde 
 
 `WO_TMP_INVOICE` también es consultada por estos procedimientos del repositorio SQL Server:
 
-- [T3.PROC_T3_EOD_CONF](../../T3/Procedures/T3.PROC_T3_EOD_CONF.StoredProcedure.sql).
-- [T3.PROC_T3_EOD_NOTDELV](../../T3/Procedures/T3.PROC_T3_EOD_NOTDELV.StoredProcedure.sql).
+- [T3.PROC_T3_EOD_CONF](../../T3/Procedures/PROC_T3_EOD_CONF.sql).
+- [T3.PROC_T3_EOD_NOTDELV](../../T3/Procedures/PROC_T3_EOD_NOTDELV.sql).
 
 WebOrderTrace no los invoca, pero comparten su tabla de entrada. Esto amplía la revisión de compatibilidad. Su presencia en el repositorio no confirma que estén activos en destino; esa información está pendiente.
 

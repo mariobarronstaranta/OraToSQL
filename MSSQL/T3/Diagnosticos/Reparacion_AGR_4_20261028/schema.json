@@ -1,0 +1,577 @@
+{
+  "CFDI_COBRANZA": {
+    "scope": "ASIGNACION_ID IN ('262201997234','262201997964','262201997720','262201997198')",
+    "columns": [
+      [
+        "FOLIO_ID",
+        "varchar",
+        "(30)"
+      ],
+      [
+        "ASIGNACION_ID",
+        "varchar",
+        "(30)"
+      ],
+      [
+        "FECHA_ASIGNACION",
+        "datetime2",
+        "(0)"
+      ],
+      [
+        "IMPORTE",
+        "decimal",
+        "(16, 2)"
+      ],
+      [
+        "SALDO_ANTERIOR",
+        "decimal",
+        "(16, 2)"
+      ],
+      [
+        "NUMERO_PAGO",
+        "decimal",
+        "(10, 0)"
+      ],
+      [
+        "ACCNT_ID",
+        "varchar",
+        "(30)"
+      ],
+      [
+        "FACTURA",
+        "varchar",
+        "(30)"
+      ],
+      [
+        "NOTA_VENTA",
+        "varchar",
+        "(30)"
+      ],
+      [
+        "RFC",
+        "varchar",
+        "(15)"
+      ],
+      [
+        "FECHA_PROC_BATMD",
+        "datetime2",
+        "(0)"
+      ],
+      [
+        "FECHA_PROCESO",
+        "datetime2",
+        "(0)"
+      ],
+      [
+        "STATUS",
+        "varchar",
+        "(20)"
+      ],
+      [
+        "VIA_PAGO",
+        "varchar",
+        "(4)"
+      ],
+      [
+        "CANT_PAGOS",
+        "decimal",
+        "(10, 0)"
+      ],
+      [
+        "ABONO_PAGOS",
+        "decimal",
+        "(16, 2)"
+      ],
+      [
+        "CANT_CM",
+        "decimal",
+        "(10, 0)"
+      ],
+      [
+        "ABONO_CM",
+        "decimal",
+        "(16, 2)"
+      ],
+      [
+        "NOTA_CREDITO",
+        "varchar",
+        "(30)"
+      ],
+      [
+        "UUID_VENTA",
+        "varchar",
+        "(40)"
+      ],
+      [
+        "FECHA_FACTURA",
+        "datetime2",
+        "(0)"
+      ],
+      [
+        "DIAS_CDTO",
+        "decimal",
+        "(3, 0)"
+      ],
+      [
+        "IMPORTE_FACTURA",
+        "decimal",
+        "(16, 2)"
+      ],
+      [
+        "PID",
+        "decimal",
+        "(10, 0)"
+      ],
+      [
+        "CREATED_BY",
+        "varchar",
+        "(30)"
+      ],
+      [
+        "PAGO_ID",
+        "varchar",
+        "(30)"
+      ],
+      [
+        "FECHA_PAGO",
+        "datetime2",
+        "(0)"
+      ],
+      [
+        "SOCIEDAD",
+        "varchar",
+        "(4)"
+      ],
+      [
+        "CTRO",
+        "varchar",
+        "(4)"
+      ],
+      [
+        "DB_LAST_UPD",
+        "datetime2",
+        "(0)"
+      ],
+      [
+        "BANCO_NOMBRE",
+        "varchar",
+        "(30)"
+      ],
+      [
+        "BANCO_NUM_CUENTA",
+        "varchar",
+        "(20)"
+      ],
+      [
+        "NUMERO_CHEQUE",
+        "varchar",
+        "(20)"
+      ],
+      [
+        "MASTER_BANCO",
+        "varchar",
+        "(30)"
+      ],
+      [
+        "MASTER_CUENTA",
+        "varchar",
+        "(20)"
+      ],
+      [
+        "RECEPTOR_BANCO",
+        "varchar",
+        "(30)"
+      ],
+      [
+        "RECEPTOR_CUENTA",
+        "varchar",
+        "(30)"
+      ],
+      [
+        "FECHA_ENVIO",
+        "datetime2",
+        "(0)"
+      ],
+      [
+        "TASA_IVA",
+        "decimal",
+        "(6, 2)"
+      ],
+      [
+        "REFERENCIA",
+        "varchar",
+        "(30)"
+      ],
+      [
+        "ASIGNACION_CENTRAL",
+        "varchar",
+        "(30)"
+      ],
+      [
+        "CLIENTE_SAP",
+        "varchar",
+        "(10)"
+      ]
+    ]
+  },
+  "CFDI_AGRUPACION_CTRL": {
+    "scope": "AGRUPACION IN (514957,514969,514981,514984,529050,529096,529120,529179)",
+    "columns": [
+      [
+        "AGRUPACION",
+        "decimal",
+        "(10, 0)"
+      ],
+      [
+        "FECHA_PAGO",
+        "datetime2",
+        "(0)"
+      ],
+      [
+        "VIA_PAGO",
+        "varchar",
+        "(2)"
+      ],
+      [
+        "RFC",
+        "varchar",
+        "(20)"
+      ],
+      [
+        "BANCO_NOMBRE",
+        "varchar",
+        "(30)"
+      ],
+      [
+        "BANCO_NUM_CUENTA",
+        "varchar",
+        "(30)"
+      ],
+      [
+        "IMPORTE",
+        "decimal",
+        "(15, 2)"
+      ],
+      [
+        "CANTIDAD_PAGOS",
+        "decimal",
+        "(4, 0)"
+      ],
+      [
+        "ACCNT_ID",
+        "varchar",
+        "(30)"
+      ],
+      [
+        "FECHA_REGISTRO",
+        "datetime2",
+        "(0)"
+      ],
+      [
+        "FECHA_ENVIO",
+        "datetime2",
+        "(0)"
+      ],
+      [
+        "ASIGNACION_CENTRAL",
+        "varchar",
+        "(30)"
+      ],
+      [
+        "CTRO",
+        "varchar",
+        "(4)"
+      ],
+      [
+        "CLIENTE_SAP",
+        "varchar",
+        "(30)"
+      ]
+    ]
+  },
+  "CFDI_AGRUPACION_PAGO": {
+    "scope": "AGRUPACION IN (514957,514969,514981,514984,529050,529096,529120,529179) OR ASIGNACION_ID IN ('262201997234','262201997964','262201997720','262201997198')",
+    "columns": [
+      [
+        "AGRUPACION",
+        "decimal",
+        "(10, 0)"
+      ],
+      [
+        "FECHA_PAGO",
+        "datetime2",
+        "(0)"
+      ],
+      [
+        "ASIGNACION_ID",
+        "varchar",
+        "(30)"
+      ]
+    ]
+  },
+  "REGISTRO_FISCAL": {
+    "scope": "FACTURA IN ('V0225-134949','V0822-105802','V0179-67553','V0440-70133')",
+    "columns": [
+      [
+        "FACTURA",
+        "varchar",
+        "(30)"
+      ],
+      [
+        "DISTRIBUIDOR",
+        "decimal",
+        "(4, 0)"
+      ],
+      [
+        "PEDIDO",
+        "varchar",
+        "(30)"
+      ],
+      [
+        "FECHA_FACTURA",
+        "datetime2",
+        "(0)"
+      ],
+      [
+        "TIPO_DOCTO",
+        "varchar",
+        "(4)"
+      ],
+      [
+        "CLIENTE_V3",
+        "varchar",
+        "(15)"
+      ],
+      [
+        "CLIENTE_SAP",
+        "varchar",
+        "(10)"
+      ],
+      [
+        "STATUS",
+        "varchar",
+        "(15)"
+      ],
+      [
+        "CLTE_FACTURA_V3",
+        "varchar",
+        "(15)"
+      ],
+      [
+        "CLTE_FACTURA_SAP",
+        "varchar",
+        "(10)"
+      ],
+      [
+        "FECHA_TRN",
+        "datetime2",
+        "(0)"
+      ],
+      [
+        "VALOR_SUBTOTAL",
+        "decimal",
+        "(15, 2)"
+      ],
+      [
+        "VALOR_DESCTO",
+        "decimal",
+        "(15, 2)"
+      ],
+      [
+        "VALOR_IVA",
+        "decimal",
+        "(15, 2)"
+      ],
+      [
+        "TIPO_VENTA",
+        "varchar",
+        "(2)"
+      ],
+      [
+        "DESGLOSE_IVA",
+        "char",
+        "(1)"
+      ],
+      [
+        "REFERENCIA",
+        "varchar",
+        "(30)"
+      ],
+      [
+        "ENTREGA",
+        "varchar",
+        "(10)"
+      ],
+      [
+        "FECHA_PAGO",
+        "datetime2",
+        "(0)"
+      ],
+      [
+        "ROW_ID",
+        "varchar",
+        "(15)"
+      ],
+      [
+        "REP_ID",
+        "varchar",
+        "(10)"
+      ],
+      [
+        "CREDITO_EXPRESS",
+        "varchar",
+        "(20)"
+      ],
+      [
+        "VALOR_ISSA",
+        "decimal",
+        "(15, 2)"
+      ],
+      [
+        "CTRO",
+        "varchar",
+        "(4)"
+      ],
+      [
+        "BONIF_SUBT",
+        "decimal",
+        "(15, 2)"
+      ],
+      [
+        "BONIF_IVA",
+        "decimal",
+        "(15, 2)"
+      ],
+      [
+        "BONIF_PORC",
+        "decimal",
+        "(5, 2)"
+      ],
+      [
+        "BONIF_VOL",
+        "decimal",
+        "(10, 0)"
+      ],
+      [
+        "FECHA_DOCUMENTO",
+        "datetime2",
+        "(0)"
+      ]
+    ]
+  },
+  "REGISTRO_FISCAL_DETALLE": {
+    "scope": "FACTURA IN ('V0225-134949','V0822-105802','V0179-67553','V0440-70133')",
+    "columns": [
+      [
+        "FACTURA",
+        "varchar",
+        "(30)"
+      ],
+      [
+        "NUM_LINEA",
+        "decimal",
+        "(4, 0)"
+      ],
+      [
+        "MATERIAL",
+        "varchar",
+        "(18)"
+      ],
+      [
+        "REFERENCIA_PEDIDO",
+        "varchar",
+        "(12)"
+      ],
+      [
+        "CANTIDAD_VTA",
+        "decimal",
+        "(10, 0)"
+      ],
+      [
+        "UNIDAD_MED_VTA",
+        "varchar",
+        "(3)"
+      ],
+      [
+        "PRECIO_UNIT",
+        "decimal",
+        "(15, 2)"
+      ],
+      [
+        "VALOR_SUBT",
+        "decimal",
+        "(15, 2)"
+      ],
+      [
+        "VALOR_TOT",
+        "decimal",
+        "(15, 2)"
+      ],
+      [
+        "VALOR_DESC",
+        "decimal",
+        "(15, 2)"
+      ],
+      [
+        "VALOR_IVA",
+        "decimal",
+        "(15, 2)"
+      ],
+      [
+        "VALOR_ISSA",
+        "decimal",
+        "(15, 2)"
+      ],
+      [
+        "BONIF_SUBT",
+        "decimal",
+        "(15, 2)"
+      ],
+      [
+        "BONIF_IVA",
+        "decimal",
+        "(15, 2)"
+      ],
+      [
+        "BONIF_PORC",
+        "decimal",
+        "(5, 2)"
+      ],
+      [
+        "BONIF_VOL",
+        "decimal",
+        "(10, 0)"
+      ],
+      [
+        "ENVIO_SUBT",
+        "decimal",
+        "(15, 2)"
+      ],
+      [
+        "ENVIO_IVA",
+        "decimal",
+        "(15, 2)"
+      ],
+      [
+        "ENVIO_PORC",
+        "decimal",
+        "(5, 2)"
+      ],
+      [
+        "VALOR_IEPS",
+        "decimal",
+        "(15, 2)"
+      ],
+      [
+        "CREDITO_SUBT",
+        "decimal",
+        "(15, 2)"
+      ],
+      [
+        "CREDITO_IVA",
+        "decimal",
+        "(15, 2)"
+      ]
+    ]
+  }
+}

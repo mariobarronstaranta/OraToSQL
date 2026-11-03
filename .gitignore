@@ -5,6 +5,9 @@
 *.sln.docstates
 /ORA/T3/EAI/DATOS/
 /ORA/T3/EAI_OWNER/DATOS/*
+/ORA/T3/T3/Datos/*
+!/ORA/T3/T3/Datos/*.sql
+!/ORA/T3/T3/Datos/*.md
 MSSQL/T3/EAI_OWNER/Jobs.7z
 MSSQL/T3/EAI_OWNER/Jobs_Creacion_Persmisos.zip
 *.zip

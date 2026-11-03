@@ -1,0 +1,9 @@
+﻿Revision de resultado 01: 2026-11-03
+Captura origen: AZCRNMXNEVTD06 / T3QA / 2026-11-03 13:08:51.250.
+Corrida cacheada: 2026-10-29, una ejecucion; UPDATE=107029.831 ms / padre=107867.574 ms.
+04: TSql160Parser sin errores; tres casos locales aprobados.
+Base temporal CodexAGRUpdateDiag_3a58d7d7 eliminada. No se accedio a T3QA.
+
+maneja_cache_y_extrae_texto_xml_de_query_store_del_update_ficticio
+consulta_vistas_query_store_y_esperas_sin_cambiarlas
+organizacion_y_selectividad_opcional_sin_escrituras_de_negocio

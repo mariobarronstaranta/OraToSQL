@@ -91,9 +91,9 @@ historicas; si no resuelve la causa, medir otra remision nueva con plan real/IO
 en el proceso habitual sin reprocesar documentos existentes.
 
 Fuente indicada por el usuario:
-`MSSQL/T3/T3/Procedures/T3.DELIVERY_IDOC_TO_REMISION.sql`,
+`MSSQL/T3/T3/Procedures/DELIVERY_IDOC_TO_REMISION.sql`,
 exportacion 20/10/2026 13:24:26. No confundir con el archivo antiguo
-`T3.DELIVERY_IDOC_TO_REMISION.StoredProcedure.sql`.
+`DELIVERY_IDOC_TO_REMISION.sql`.
 
 Los 178 documentos del lote 13:16:45–13:17:04 fueron confirmados exitosos.
 El parche ReferenceID de SF_PROC_REPLENISHMENT queda validado en ese lote.

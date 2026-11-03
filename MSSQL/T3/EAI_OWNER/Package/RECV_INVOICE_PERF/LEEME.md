@@ -1,5 +1,12 @@
 # Aplicacion en AZCRNMXNEVTD06 / T3QA
 
+Actualizacion del 26 de octubre: hay una entrega de
+[parche con respaldo atomico, reversa por RunId y medicion nueva](../../../Diagnosticos/RECV_INVOICE_20261026/README.md).
+Es la via recomendada para la instalacion actual. El fuente del parser tambien
+incluye RI_REF_SEEK. Este paquete anterior se conserva como antecedente; no
+es necesario aplicar su indice de folios para corregir el costo confirmado
+de los DELETE, pues los accesos por ReferenceID ya existen.
+
 Estos archivos responden a la captura del 19/10/2026 a las 14:22:
 DELETE de detalle ~420 ms y ~48,277 lecturas por llamada; DELETE de cabecera
 ~108 ms y ~11,583 lecturas; consulta de relacion de folios ~88 ms por llamada.

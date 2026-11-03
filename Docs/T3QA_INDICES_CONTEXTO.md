@@ -58,6 +58,14 @@ nombre `_PK` no demuestra que sean restricciones PRIMARY KEY. Confirmar las
 propiedades `is_primary_key`, `is_unique_constraint` e `is_unique` en la fuente.
 Pueden conservar contadores de uso anteriores a su deshabilitacion.
 
+Actualizacion operativa 26/10/2026 17:42:41: captura posterior confirma
+CLIENTE_PK aun deshabilitado y CLIENTE_IDX1 por CLIENTE_SAP habilitado.
+El usuario desconoce por que se deshabilito CLIENTE_PK, que el inventario
+identifica como UNIQUE sin ser restriccion. Se preparo un acceso NO UNIQUE
+alternativo por CLIENTE_V3/FECHA_INI_VIG/FECHA_FIN_VIG para GET_REMISION_INFO;
+no rehabilita CLIENTE_PK ni cambia datos. Su aplicacion todavia es pendiente.
+Ver [analisis, candidato y pruebas](../MSSQL/T3/Diagnosticos/RECV_INVOICE_20261026/ANALISIS_174241.md).
+
 ## Decisiones conocidas para CFDI
 
 Estado de despliegue: el usuario confirmo el 22 de octubre de 2026 que
@@ -103,7 +111,7 @@ y 334 grupos del dia BATMD `2026-10-14`.
 El procedimiento conserva `CAST AS DATE` en los filtros BATMD por decision del
 usuario; los planes reales mostraron Index Seek. Esta mejora no prueba el
 rendimiento completo del procedimiento, su costo de escritura ni otros dias.
-Ver [informe de la prueba](../MSSQL/T3/T3/Procedures/T3.PROC_CFDI_PROCESAR_DOCTOS.INDICES_REVISION.md).
+Ver [informe de la prueba](../MSSQL/T3/T3/Procedures/PROC_CFDI_PROCESAR_DOCTOS.INDICES_REVISION.md).
 
 ## Actualizacion posterior: ASIGNACION_PAGO para procesamiento de pagos
 

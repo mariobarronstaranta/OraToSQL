@@ -40,4 +40,4 @@ importes/saldos/numero de pago, bases NULL y control 889/logs. No se requiere
 reprocesar el 14/10 para verificar la instalacion. Los dos ALTER y esta consulta
 no acreditan timbrado ni paridad completa con un motor Oracle.
 
-Detalle de la entrega: [CAMBIOS_ORACLE](../../T3/Procedures/T3.PROC_CFDI_PROCESAR_PAGOS.CAMBIOS_ORACLE.md).
+Detalle de la entrega: [CAMBIOS_ORACLE](../../T3/Procedures/PROC_CFDI_PROCESAR_PAGOS.CAMBIOS_ORACLE.md).

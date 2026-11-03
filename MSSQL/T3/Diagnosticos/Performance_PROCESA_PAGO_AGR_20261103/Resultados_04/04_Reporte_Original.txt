@@ -1,0 +1,94 @@
+Seccion            Servidor                                                                                                                         BaseDatos                                                                                                                        CapturaConOffset                   FechaReferenciaDelServidor nDias                                   LimiteExclusivo DesdeQueryStoreUTC                 HastaQueryStoreUTC
+------------------ -------------------------------------------------------------------------------------------------------------------------------- -------------------------------------------------------------------------------------------------------------------------------- ---------------------------------- -------------------------- --------------------------------------- --------------- ---------------------------------- ----------------------------------
+00_CONTEXTO_UPDATE AZCRNMXNEVTD06                                                                                                                   T3QA                                                                                                                             2026-11-03 13:20:36.1496076 -06:00 2026-10-29 00:00:00.000    30                                      2026-09-29      2026-10-28 00:00:00.0000000 +00:00 2026-10-31 00:00:00.0000000 +00:00
+
+Seccion                    name                                                                                                                             modify_date             DefinicionXML
+-------------------------- -------------------------------------------------------------------------------------------------------------------------------- ----------------------- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+01_DEFINICIONES_INSTALADAS PROC_CFDI_LIBERA_PAGO_CHECK                                                                                                      2026-10-22 16:29:55.570 <Definicion>CREATE   PROCEDURE [T3].[PROC_CFDI_LIBERA_PAGO_CHECK] 
+   ( @pReference  NUMERIC(18,0),
+     @pRecords    NUMERIC(18,0) OUTPUT,
+     @pUUIDs      NUMERIC(18,0) OUTPUT  )
+AS
+BEGIN
+    SET NOCOUNT ON;
+	print 'PROC_CFDI_LIBERA_PAGO_CHECK---
+01_DEFINICIONES_INSTALADAS PROC_CFDI_PROCESA_PAGO_AGR                                                                                                       2026-10-28 21:19:59.407 <Definicion>CREATE PROCEDURE [T3].[PROC_CFDI_PROCESA_PAGO_AGR]
+    -- NUMERIC sin precision/escala explicitas usa NUMERIC(18,0) en SQL Server.
+    -- Por ejemplo, 4 toma como limite la medianoche de cuatro dias atras.
+    @nDias NUMERIC = NULL
+AS
+BEGI
+
+Seccion                     UltimaEjecucion         Ejecuciones          Duracion_ms            CPU_ms                 LecturasLogicas      LecturasFisicas      EscriturasLogicas    QueryHash          SentenciaCompletaXML
+--------------------------- ----------------------- -------------------- ---------------------- ---------------------- -------------------- -------------------- -------------------- ------------------ ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+02_METRICAS_UPDATE_EN_CACHE 2026-10-29 00:17:07.210 1                    107029.831             16456.611              2701949              1314995              0                    0xFCE94AEBA309D33F <Sentencia>UPDATE Cobza
+        SET Asignacion_Central = Acc.Assignment
+        FROM T3.CFDI_Cobranza AS Cobza
+        INNER JOIN EAI_Owner.tmp_Account_Header AS Acc
+            ON SUBSTRING(Cobza.Asignacion_ID, 3, 10)
+             = Acc.ClearingDocNu
+
+Seccion                         PlanXML
+------------------------------- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+03_PLAN_UPDATE_EN_CACHE_NO_REAL <ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan" Version="1.564" Build="16.0.4305.5"><BatchSequence><Batch><Statements><StmtSimple StatementText="UPDATE Cobza&#xD;&#xA;        SET Asignacion_Central = Acc.Assignment&#xD;&#xA;   
+
+Seccion               actual_state_desc                                            desired_state_desc                                           wait_stats_capture_mode_desc
+--------------------- ------------------------------------------------------------ ------------------------------------------------------------ ------------------------------------------------------------
+04_ESTADO_QUERY_STORE READ_WRITE                                                   READ_WRITE                                                   ON
+
+Seccion             QueryId              QueryHash          SentenciaCompletaXML
+------------------- -------------------- ------------------ ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+04_QUERY_IDS_UPDATE 28113                0xFCE94AEBA309D33F <Sentencia>(@nDias numeric(18,0))UPDATE Cobza
+        SET Asignacion_Central = Acc.Assignment
+        FROM T3.CFDI_Cobranza AS Cobza
+        INNER JOIN EAI_Owner.tmp_Account_Header AS Acc
+            ON SUBSTRING(Cobza.Asignacion_ID, 3, 10)
+          
+04_QUERY_IDS_UPDATE 32735                0xFCE94AEBA309D33F <Sentencia>(@nDias numeric(18,0))UPDATE Cobza
+        SET Asignacion_Central = Acc.Assignment
+        FROM T3.CFDI_Cobranza AS Cobza
+        INNER JOIN EAI_Owner.tmp_Account_Header AS Acc
+            ON SUBSTRING(Cobza.Asignacion_ID, 3, 10)
+          
+
+Seccion                        QueryId              plan_id              execution_type_desc                                          EjecucionesEnIntervalos UltimaFinalizacion                 TiempoTotal_ms         Media_ms               CPU_media_ms           LecturasLogicasMedias
+------------------------------ -------------------- -------------------- ------------------------------------------------------------ ----------------------- ---------------------------------- ---------------------- ---------------------- ---------------------- ----------------------
+05_HISTORIA_UPDATE_QUERY_STORE 32735                8889                 Regular                                                      1                       2026-10-29 06:18:54.2470000 +00:00 107029.831             107029.831             16456.611              2701949
+
+Seccion                       QueryId              plan_id              execution_type_desc                                          wait_category_desc                                           EsperasAcumuladas_ms
+----------------------------- -------------------- -------------------- ------------------------------------------------------------ ------------------------------------------------------------ --------------------
+06_ESPERAS_UPDATE_QUERY_STORE 32735                8889                 Regular                                                      Buffer IO                                                    837576
+06_ESPERAS_UPDATE_QUERY_STORE 32735                8889                 Regular                                                      Parallelism                                                  109011
+06_ESPERAS_UPDATE_QUERY_STORE 32735                8889                 Regular                                                      Idle                                                         2041
+06_ESPERAS_UPDATE_QUERY_STORE 32735                8889                 Regular                                                      Memory                                                       619
+06_ESPERAS_UPDATE_QUERY_STORE 32735                8889                 Regular                                                      CPU                                                          138
+06_ESPERAS_UPDATE_QUERY_STORE 32735                8889                 Regular                                                      Latch                                                        41
+06_ESPERAS_UPDATE_QUERY_STORE 32735                8889                 Regular                                                      Unknown                                                      18
+
+Seccion                          QueryId              plan_id              is_forced_plan last_compile_start_time            PlanXML
+-------------------------------- -------------------- -------------------- -------------- ---------------------------------- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+07_PLANES_HISTORICOS_QUERY_STORE 32735                8889                 0              2026-10-29 06:17:07.1370000 +00:00 <ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan" Version="1.564" Build="16.0.4305.5"><BatchSequence><Batch><Statements><StmtSimple StatementText="UPDATE Cobza&#xD;&#xA;        SET Asignacion_Central = Acc.Assignment&#xD;&#xA;   
+
+Seccion                Esquema                                                                                                                          Tabla                                                                                                                            Organizacion                                                 IndiceBase                                                                                                                       FilasAproximadas
+---------------------- -------------------------------------------------------------------------------------------------------------------------------- -------------------------------------------------------------------------------------------------------------------------------- ------------------------------------------------------------ -------------------------------------------------------------------------------------------------------------------------------- --------------------
+08_ORGANIZACION_TABLAS T3                                                                                                                               CFDI_COBRANZA                                                                                                                    HEAP                                                         NULL                                                                                                                             56115146
+08_ORGANIZACION_TABLAS EAI_OWNER                                                                                                                        TMP_ACCOUNT_HEADER                                                                                                               HEAP                                                         NULL                                                                                                                             1096194
+08_ORGANIZACION_TABLAS T3                                                                                                                               REGISTRO_FISCAL                                                                                                                  HEAP                                                         NULL                                                                                                                             154792173
+
+Seccion                    Esquema                                                                                                                          Tabla                                                                                                                            Estadistica                                                                                                                      PrimeraColumna                                                                                                                   last_updated                rows                 rows_sampled         modification_counter
+-------------------------- -------------------------------------------------------------------------------------------------------------------------------- -------------------------------------------------------------------------------------------------------------------------------- -------------------------------------------------------------------------------------------------------------------------------- -------------------------------------------------------------------------------------------------------------------------------- --------------------------- -------------------- -------------------- --------------------
+09_ESTADISTICAS_RELEVANTES T3                                                                                                                               CFDI_COBRANZA                                                                                                                    _WA_Sys_00000002_0D7A0286                                                                                                        ASIGNACION_ID                                                                                                                    2026-07-28 13:30:36.5666667 55447723             294242               112040853
+09_ESTADISTICAS_RELEVANTES T3                                                                                                                               CFDI_COBRANZA                                                                                                                    CFDI_COBRANZA_IDX8                                                                                                               FECHA_PROCESO                                                                                                                    2026-10-21 15:38:37.6500000 56108722             296143               11440
+09_ESTADISTICAS_RELEVANTES T3                                                                                                                               CFDI_COBRANZA                                                                                                                    CFDI_COBRANZA_IDX                                                                                                                ASIGNACION_ID                                                                                                                    2026-10-21 15:33:45.3033333 56108722             296143               11440
+09_ESTADISTICAS_RELEVANTES T3                                                                                                                               CFDI_COBRANZA                                                                                                                    _WA_Sys_00000029_0D7A0286                                                                                                        ASIGNACION_CENTRAL                                                                                                               2026-10-21 15:38:36.6833333 56108722             296143               11440
+09_ESTADISTICAS_RELEVANTES EAI_OWNER                                                                                                                        TMP_ACCOUNT_HEADER                                                                                                               TMP_ACCOUNT_HEADER_IX_ACCNT                                                                                                      CLEARINGDOCNUMBER                                                                                                                2026-10-27 13:01:05.7766667 1095016              65634                1178
+09_ESTADISTICAS_RELEVANTES EAI_OWNER                                                                                                                        TMP_ACCOUNT_HEADER                                                                                                               IX_TMP_ACCOUNT_HEADER_INCO_PROCESS                                                                                               CLEARINGDOCNUMBER                                                                                                                2026-10-27 13:01:05.6900000 1095016              65634                1178
+09_ESTADISTICAS_RELEVANTES EAI_OWNER                                                                                                                        TMP_ACCOUNT_HEADER                                                                                                               IX_TMP_ACCOUNT_HEADER_INCO_DUPLICATE                                                                                             CLEARINGDOCNUMBER                                                                                                                2026-10-27 13:01:07.2666667 1095016              65634                1178
+09_ESTADISTICAS_RELEVANTES T3                                                                                                                               REGISTRO_FISCAL                                                                                                                  REGFIS_PK                                                                                                                        FACTURA                                                                                                                          2026-10-21 12:07:50.4300000 154782596            519991               9587
+
+Seccion    Mensaje
+---------- ----------------------------------------------------------------------------------------------------------------------------------
+11_ALCANCE Planes compilados e intervalos historicos; no son un plan real ni una medicion de una nueva corrida. Las esperas pueden solaparse.
+
+
+Completion time: 2026-11-03T13:21:07.3061132-06:00
