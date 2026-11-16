@@ -1,0 +1,16 @@
+2026-11-07 - Pruebas funcionales en (localdb)\MSSQLLocalDB.
+Base temporal CodexRfdDiag_<identificador>; eliminada al terminar.
+No hubo conexion ni cambios en T3QA.
+
+PASS 01: reconoce indice UNIQUE sobre FACTURA,NUM_LINEA nullable.
+PASS 01: reconoce PK activa sobre FACTURA,NUM_LINEA NOT NULL.
+PASS 01: informa tabla ausente sin intentar DDL.
+PASS 02: ocho secciones ejecutadas sin secciones de error.
+PASS 01/02: LOCK_TIMEOUT de la conexion conserva su valor previo (1234).
+PASS bloqueos: 01_CREAR, 05_APLICAR, lote08/17 y correccion15/17
+              se detienen con error 56992 antes de procesar datos.
+PASS: fila de prueba y PK conservadas tras consultas y bloqueos.
+
+Estas pruebas validan funcionamiento, no capacidad, duracion ni seguridad
+operacional de DDL sobre 489 millones de filas. No se incluye DDL nuevo
+de aplicacion. Se necesitan resultados actuales del servidor destino.

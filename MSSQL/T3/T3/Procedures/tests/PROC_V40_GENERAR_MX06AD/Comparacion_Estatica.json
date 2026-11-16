@@ -1,0 +1,1263 @@
+﻿{
+  "source": {
+    "oracle": "ORA/T3/T3/Procedures/PROC_V40_GENERAR_MX06AD.SQL",
+    "sql": "MSSQL/T3/T3/Procedures/PROC_V40_GENERAR_MX06AD_CORREGIDO.sql"
+  },
+  "segments": {
+    "uheader": {
+      "oracleAssignments": 100,
+      "sqlAssignments": 100,
+      "oracleSeparators": 97,
+      "sqlSeparators": 97,
+      "oracleOnly": [],
+      "sqlOnly": []
+    },
+    "ulinfac": {
+      "oracleAssignments": 227,
+      "sqlAssignments": 227,
+      "oracleSeparators": 209,
+      "sqlSeparators": 209,
+      "oracleOnly": [
+        {
+          "line": 963,
+          "key": "ulinfac|nnum_linea|ssepcampo"
+        },
+        {
+          "line": 1025,
+          "key": "ulinfac|reg_linea_con_iva|ssepcampo"
+        },
+        {
+          "line": 1029,
+          "key": "ulinfac|reg_cantidad_vta|ssepcampo"
+        },
+        {
+          "line": 1033,
+          "key": "ulinfac|reg_precio_con_iva|ssepcampo"
+        },
+        {
+          "line": 1035,
+          "key": "ulinfac|reg_precio_con_iva|ssepcampo"
+        },
+        {
+          "line": 1036,
+          "key": "ulinfac|reg_linea_con_iva|ssepcampo"
+        },
+        {
+          "line": 1100,
+          "key": "ulinfac|nlineatax|ssepcampo"
+        },
+        {
+          "line": 1120,
+          "key": "ulinfac|nlineatax|ssepcampo"
+        },
+        {
+          "line": 1131,
+          "key": "ulinfac|nlineatax|ssepcampo"
+        },
+        {
+          "line": 1180,
+          "key": "ulinfac|nnum_linea|ssepcampo"
+        },
+        {
+          "line": 1250,
+          "key": "ulinfac|nnum_linea|ssepcampo"
+        },
+        {
+          "line": 1266,
+          "key": "ulinfac|trim(to_char(ncredito_subt,'999999999.99'))|ssepcampo"
+        },
+        {
+          "line": 1267,
+          "key": "ulinfac|trim(to_char(ncredito_subt,'999999999.99'))|ssepcampo"
+        },
+        {
+          "line": 1277,
+          "key": "ulinfac|trim(to_char(ncredito_subt,'999999999.99'))|ssepcampo"
+        },
+        {
+          "line": 1278,
+          "key": "ulinfac|trim(to_char(ncredito_subt,'999999999.99'))|ssepcampo"
+        },
+        {
+          "line": 1307,
+          "key": "ulinfac|trim(to_char(nlineas))|ssepcampo"
+        },
+        {
+          "line": 1312,
+          "key": "ulinfac|trim(to_char(nlineas))|ssepcampo"
+        },
+        {
+          "line": 1313,
+          "key": "ulinfac|'Ingreso base 16% '|trim(to_char((ndoc_valor_con_iva),'999,999,999.99'))|ssepcampo"
+        },
+        {
+          "line": 1320,
+          "key": "ulinfac|trim(to_char(nlineas))|ssepcampo"
+        },
+        {
+          "line": 1321,
+          "key": "ulinfac|'Ingreso base 0% '|trim(to_char(ndoc_valor_sin_iva,'999,999,999.99'))|ssepcampo"
+        },
+        {
+          "line": 1783,
+          "key": "ulinfac|trim(to_char(nlineas))|ssepcampo"
+        }
+      ],
+      "sqlOnly": [
+        {
+          "line": 859,
+          "key": "ulinfac|cast(nnum_lineaasvarchar)|ssepcampo"
+        },
+        {
+          "line": 980,
+          "key": "ulinfac|cast(reg_linea_con_ivaasvarchar)|ssepcampo"
+        },
+        {
+          "line": 987,
+          "key": "ulinfac|cast(reg_cantidad_vtaasvarchar)|ssepcampo"
+        },
+        {
+          "line": 993,
+          "key": "ulinfac|cast(reg_precio_con_ivaasvarchar)|ssepcampo"
+        },
+        {
+          "line": 995,
+          "key": "ulinfac|cast(reg_precio_con_ivaasvarchar)|ssepcampo"
+        },
+        {
+          "line": 996,
+          "key": "ulinfac|cast(reg_linea_con_ivaasvarchar)|ssepcampo"
+        },
+        {
+          "line": 1090,
+          "key": "ulinfac|cast(nlineataxasvarchar)|ssepcampo"
+        },
+        {
+          "line": 1119,
+          "key": "ulinfac|cast(nlineataxasvarchar)|ssepcampo"
+        },
+        {
+          "line": 1132,
+          "key": "ulinfac|cast(nlineataxasvarchar)|ssepcampo"
+        },
+        {
+          "line": 1195,
+          "key": "ulinfac|cast(nnum_lineaasvarchar)|ssepcampo"
+        },
+        {
+          "line": 1265,
+          "key": "ulinfac|cast(nnum_lineaasvarchar)|ssepcampo"
+        },
+        {
+          "line": 1281,
+          "key": "ulinfac|convert(varchar(41),cast(ncredito_subtasdecimal(38,2)))|ssepcampo"
+        },
+        {
+          "line": 1282,
+          "key": "ulinfac|convert(varchar(41),cast(ncredito_subtasdecimal(38,2)))|ssepcampo"
+        },
+        {
+          "line": 1292,
+          "key": "ulinfac|convert(varchar(41),cast(ncredito_subtasdecimal(38,2)))|ssepcampo"
+        },
+        {
+          "line": 1293,
+          "key": "ulinfac|convert(varchar(41),cast(ncredito_subtasdecimal(38,2)))|ssepcampo"
+        },
+        {
+          "line": 1322,
+          "key": "ulinfac|convert(varchar(41),cast(nlineasasdecimal(38,0)))|ssepcampo"
+        },
+        {
+          "line": 1327,
+          "key": "ulinfac|convert(varchar(41),cast(nlineasasdecimal(38,0)))|ssepcampo"
+        },
+        {
+          "line": 1329,
+          "key": "ulinfac|'Ingreso base 16% '|convert(varchar(41),cast((ndoc_valor_con_iva)asdecimal(38,2)))|ssepcampo"
+        },
+        {
+          "line": 1333,
+          "key": "ulinfac|convert(varchar(41),cast(nlineasasdecimal(38,0)))|ssepcampo"
+        },
+        {
+          "line": 1334,
+          "key": "ulinfac|'Ingreso base 0% '|convert(varchar(41),cast(ndoc_valor_sin_ivaasdecimal(38,2)))|ssepcampo"
+        },
+        {
+          "line": 1970,
+          "key": "ulinfac|convert(varchar(41),cast(nlineasasdecimal(38,0)))|ssepcampo"
+        }
+      ]
+    },
+    "uimpfac": {
+      "oracleAssignments": 57,
+      "sqlAssignments": 57,
+      "oracleSeparators": 50,
+      "sqlSeparators": 50,
+      "oracleOnly": [],
+      "sqlOnly": []
+    },
+    "ucabadd": {
+      "oracleAssignments": 78,
+      "sqlAssignments": 78,
+      "oracleSeparators": 76,
+      "sqlSeparators": 76,
+      "oracleOnly": [],
+      "sqlOnly": []
+    },
+    "scabclie": {
+      "oracleAssignments": 28,
+      "sqlAssignments": 28,
+      "oracleSeparators": 24,
+      "sqlSeparators": 24,
+      "oracleOnly": [],
+      "sqlOnly": []
+    },
+    "scfdirel": {
+      "oracleAssignments": 15,
+      "sqlAssignments": 15,
+      "oracleSeparators": 12,
+      "sqlSeparators": 12,
+      "oracleOnly": [],
+      "sqlOnly": []
+    },
+    "srel_facturas": {
+      "oracleAssignments": 10,
+      "sqlAssignments": 10,
+      "oracleSeparators": 6,
+      "sqlSeparators": 6,
+      "oracleOnly": [
+        {
+          "line": 857,
+          "key": "srel_facturas|trim(to_char(ncfdi_cm))|ssepcampo"
+        },
+        {
+          "line": 858,
+          "key": "srel_facturas|'Abono a documento '|cma_doc_num|' del '|to_char(dtfecha_docto,'DD/MM/YYYY')|' por '|trim(to_char(cma_paid_amt,'999,999,999.99'))|ssepcampo"
+        },
+        {
+          "line": 864,
+          "key": "srel_facturas|trim(to_char(ncfdi_cm+1))|ssepcampo"
+        },
+        {
+          "line": 865,
+          "key": "srel_facturas|'Fecha de documento interno '|to_char(doc_fecha_factura,'DD/MM/YYYY')|ssepcampo"
+        }
+      ],
+      "sqlOnly": [
+        {
+          "line": 612,
+          "key": "srel_facturas|convert(varchar(41),cast(ncfdi_cmasdecimal(38,0)))|ssepcampo"
+        },
+        {
+          "line": 613,
+          "key": "srel_facturas|'Abono a documento '|cma_doc_num|' del '|convert(varchar(10),dtfecha_docto,103)|' por '|convert(varchar(41),cast(cma_paid_amtasdecimal(38,2)))|ssepcampo"
+        },
+        {
+          "line": 623,
+          "key": "srel_facturas|convert(varchar(41),cast(ncfdi_cm+1asdecimal(38,0)))|ssepcampo"
+        },
+        {
+          "line": 624,
+          "key": "srel_facturas|'Fecha de documento interno '|convert(varchar(10),doc_fecha_factura,103)|ssepcampo"
+        }
+      ]
+    }
+  },
+  "numericAssignments": {
+    "ntimbrados": {
+      "oracle": [
+        {
+          "variable": "ntimbrados",
+          "line": 848,
+          "expression": "nTimbrados + 1"
+        }
+      ],
+      "sql": [
+        {
+          "variable": "ntimbrados",
+          "line": 453,
+          "expression": "0"
+        },
+        {
+          "variable": "ntimbrados",
+          "line": 600,
+          "expression": "@nTimbrados + 1"
+        }
+      ]
+    },
+    "nhdp": {
+      "oracle": [
+        {
+          "variable": "nhdp",
+          "line": 876,
+          "expression": "SQL%ROWCOUNT"
+        }
+      ],
+      "sql": [
+        {
+          "variable": "nhdp",
+          "line": 652,
+          "expression": "@@ROWCOUNT"
+        }
+      ]
+    },
+    "nnumlinea": {
+      "oracle": [
+        {
+          "variable": "nnumlinea",
+          "line": 909,
+          "expression": "Item.numLinea"
+        }
+      ],
+      "sql": [
+        {
+          "variable": "nnumlinea",
+          "line": 759,
+          "expression": "CAST(@Item_numLinea AS NUMERIC(6,0))"
+        }
+      ]
+    },
+    "nitemvalorunitario": {
+      "oracle": [
+        {
+          "variable": "nitemvalorunitario",
+          "line": 929,
+          "expression": "ROUND( nItemImporte / Item.Cantidad, 2 )"
+        },
+        {
+          "variable": "nitemvalorunitario",
+          "line": 933,
+          "expression": "Item.valorUnitario"
+        }
+      ],
+      "sql": [
+        {
+          "variable": "nitemvalorunitario",
+          "line": 797,
+          "expression": "ROUND( @nItemImporte / CAST(@Item_cantidad AS NUMERIC(22,2)), 2 )"
+        },
+        {
+          "variable": "nitemvalorunitario",
+          "line": 803,
+          "expression": "@Item_valorUnitario"
+        }
+      ]
+    },
+    "ntasa_ieps": {
+      "oracle": [
+        {
+          "variable": "ntasa_ieps",
+          "line": 1095,
+          "expression": "ROUND( Item.Valor_IEPS * 100 / Item.Subt_sin_IEPS )"
+        },
+        {
+          "variable": "ntasa_ieps",
+          "line": 1110,
+          "expression": "ROUND( Item.PDF_Valor_IVA * 100 / Item.PDF_Valor_Subt )"
+        },
+        {
+          "variable": "ntasa_ieps",
+          "line": 1112,
+          "expression": "nTasa_LP"
+        },
+        {
+          "variable": "ntasa_ieps",
+          "line": 1114,
+          "expression": "0"
+        },
+        {
+          "variable": "ntasa_ieps",
+          "line": 1712,
+          "expression": "ROUND( Doc.Valor_IEPS * 100 / Doc.Valor_Subt_IEPS )"
+        }
+      ],
+      "sql": [
+        {
+          "variable": "ntasa_ieps",
+          "line": 1086,
+          "expression": "ROUND( @Item_Valor_IEPS * 100 / @Item_Subt_sin_IEPS, 0 )"
+        },
+        {
+          "variable": "ntasa_ieps",
+          "line": 1107,
+          "expression": "ROUND( @Item_PDF_Valor_IVA * 100 / @Item_PDF_Valor_Subt, 0 )"
+        },
+        {
+          "variable": "ntasa_ieps",
+          "line": 1110,
+          "expression": "@nTasa_LP"
+        },
+        {
+          "variable": "ntasa_ieps",
+          "line": 1114,
+          "expression": "0"
+        },
+        {
+          "variable": "ntasa_ieps",
+          "line": 1875,
+          "expression": "ROUND( @Doc_Valor_IEPS * 100 / @Doc_Valor_Subt_IEPS, 0 )"
+        }
+      ]
+    },
+    "nenvio_tasa": {
+      "oracle": [
+        {
+          "variable": "nenvio_tasa",
+          "line": 1212,
+          "expression": "ROUND( nEnvio_IVA * 100 / nEnvio_Subt, 0 )"
+        },
+        {
+          "variable": "nenvio_tasa",
+          "line": 1213,
+          "expression": "16"
+        }
+      ],
+      "sql": [
+        {
+          "variable": "nenvio_tasa",
+          "line": 1228,
+          "expression": "16"
+        }
+      ]
+    },
+    "ncredito_tasa": {
+      "oracle": [
+        {
+          "variable": "ncredito_tasa",
+          "line": 1282,
+          "expression": "ROUND( nCredito_IVA * 100 / nCredito_Subt, 0 )"
+        },
+        {
+          "variable": "ncredito_tasa",
+          "line": 1283,
+          "expression": "16"
+        }
+      ],
+      "sql": [
+        {
+          "variable": "ncredito_tasa",
+          "line": 1298,
+          "expression": "16"
+        }
+      ]
+    }
+  },
+  "constants": {
+    "sleymenor": {
+      "oracle": [
+        {
+          "variable": "sleymenor",
+          "line": 756,
+          "expression": "'Le recordamos que las leyes prohíben y sancionan la venta de cigarros a menores de 18 años de edad '  ||\r\n                 'y en unidades sueltas. En caso de duda solicite identificación oficial. Ayúdenos a que los menores '  ||\r\n                 'de edad no tengan acceso a los cigarros.'"
+        },
+        {
+          "variable": "sleymenor",
+          "line": 776,
+          "expression": "sLeyVype"
+        }
+      ],
+      "sql": [
+        {
+          "variable": "sleymenor",
+          "line": 237,
+          "expression": "'Le recordamos que las leyes prohíben y sancionan la venta de cigarros a menores de 18 años de edad y en unidades sueltas. En caso de duda solicite identificación oficial. Ayúdenos a que los menores de edad no tengan acceso a los cigarros.'"
+        },
+        {
+          "variable": "sleymenor",
+          "line": 247,
+          "expression": "@sLeyVype"
+        }
+      ]
+    },
+    "sleyvype": {
+      "oracle": [
+        {
+          "variable": "sleyvype",
+          "line": 754,
+          "expression": "'Le recordamos que la venta de vaporizadores y cartuchos de líquido vaporizable es exclusiva para mayores de edad. En caso de duda, solicite identificación oficial. ' ||\r\n                 'Ayúdenos a que los menores de edad no tengan acceso a este tipo de productos. '"
+        }
+      ],
+      "sql": [
+        {
+          "variable": "sleyvype",
+          "line": 236,
+          "expression": "'Le recordamos que la venta de vaporizadores y cartuchos de líquido vaporizable es exclusiva para mayores de edad. En caso de duda, solicite identificación oficial. Ayúdenos a que los menores de edad no tengan acceso a este tipo de productos. '"
+        }
+      ]
+    },
+    "sleypriv": {
+      "oracle": [
+        {
+          "variable": "sleypriv",
+          "line": 759,
+          "expression": "'British American Tobacco México S.A. de C.V. y subsidiarias protegen los datos personales de sus clientes ' ||\r\n                 'que son tratados por nuestra empresa. Para mayor información consultar el aviso de privacidad en www.batmexico.com.mx'"
+        },
+        {
+          "variable": "sleypriv",
+          "line": 761,
+          "expression": "'British American Tobacco México, S.A. de C.V. y empresas relacionadas, con domicilio indicado arriba, utilizará los datos personales ' ||\r\n                 'que usted entregue voluntariamente en este documento para cumplir con las políticas, procedimientos y requisitos legales aplicables, ' ||\r\n                 'para llevar un registro adecuado de los proveedores y clientes, y para coordinar los servicios prestados por y para el Grupo. '        ||\r\n                 'Para mayor información respecto al tratamiento de sus datos personales o al ejercicio de sus derechos ARCO consulte nuestro aviso '    ||\r\n                 'de privacidad en www.batmexico.com.mx.'"
+        },
+        {
+          "variable": "sleypriv",
+          "line": 766,
+          "expression": "'British American Tobacco México, S.A. de C.V. y sus empresas relacionadas (el \"Grupo\"), con domicilio en Avenida Francisco I. Madero, ' ||\r\n                 '2750 Pte., Centro de la Ciudad, Monterrey, N.L. C.P. 64000, utilizarán los datos personales que usted entregue voluntariamente mediante '    ||\r\n                 'este documento para cumplir con las políticas, procedimientos operativos y requisitos legales aplicables y llevar un registro adecuado' || \r\n                 ' de los proveedores y clientes del Grupo. Para mayor información respecto al tratamiento de sus datos personales o al ejercicio de sus' || \r\n                 ' derechos ARCO consulte nuestro aviso de privacidad integral en www.batmexico.com.mx'"
+        }
+      ],
+      "sql": [
+        {
+          "variable": "sleypriv",
+          "line": 241,
+          "expression": "'British American Tobacco México, S.A. de C.V. y sus empresas relacionadas (el \"Grupo\"), con domicilio en Avenida Francisco I. Madero, 2750 Pte., Centro de la Ciudad, Monterrey, N.L. C.P. 64000, utilizarán los datos personales que usted entregue voluntariamente mediante este documento para cumplir con las políticas, procedures operativos y requisitos legales aplicables y llevar un registro adecuado de los proveedores y clientes del Grupo. Para mayor información respecto al tratamiento de sus datos personales o al ejercicio de sus derechos ARCO consulte nuestro aviso de privacidad integral en www.batmexico.com.mx'"
+        }
+      ]
+    },
+    "svendornint": {
+      "oracle": [
+        {
+          "variable": "svendornint",
+          "line": 1508,
+          "expression": "Inf.VendorNInt"
+        },
+        {
+          "variable": "svendornint",
+          "line": 1513,
+          "expression": "'001781012'"
+        },
+        {
+          "variable": "svendornint",
+          "line": 1516,
+          "expression": "'472592012'"
+        },
+        {
+          "variable": "svendornint",
+          "line": 1519,
+          "expression": "'001781019'"
+        },
+        {
+          "variable": "svendornint",
+          "line": 1522,
+          "expression": "'001776640'"
+        },
+        {
+          "variable": "svendornint",
+          "line": 1525,
+          "expression": "'001781014'"
+        },
+        {
+          "variable": "svendornint",
+          "line": 1531,
+          "expression": "'907676'"
+        },
+        {
+          "variable": "svendornint",
+          "line": 1536,
+          "expression": "'142844'"
+        }
+      ],
+      "sql": [
+        {
+          "variable": "svendornint",
+          "line": 1623,
+          "expression": "@Inf_VendorNInt"
+        },
+        {
+          "variable": "svendornint",
+          "line": 1632,
+          "expression": "'001781012'"
+        },
+        {
+          "variable": "svendornint",
+          "line": 1637,
+          "expression": "'472592012'"
+        },
+        {
+          "variable": "svendornint",
+          "line": 1642,
+          "expression": "'001781019'"
+        },
+        {
+          "variable": "svendornint",
+          "line": 1647,
+          "expression": "'001776640'"
+        },
+        {
+          "variable": "svendornint",
+          "line": 1652,
+          "expression": "'001781014'"
+        },
+        {
+          "variable": "svendornint",
+          "line": 1659,
+          "expression": "'907676'"
+        },
+        {
+          "variable": "svendornint",
+          "line": 1665,
+          "expression": "'142844'"
+        }
+      ]
+    },
+    "scompradorgln": {
+      "oracle": [
+        {
+          "variable": "scompradorgln",
+          "line": 1509,
+          "expression": "Inf.CompradorGLN"
+        },
+        {
+          "variable": "scompradorgln",
+          "line": 1514,
+          "expression": "'7507003100001'"
+        },
+        {
+          "variable": "scompradorgln",
+          "line": 1517,
+          "expression": "'7507003100001'"
+        },
+        {
+          "variable": "scompradorgln",
+          "line": 1520,
+          "expression": "'7507003100001'"
+        },
+        {
+          "variable": "scompradorgln",
+          "line": 1523,
+          "expression": "'7507003100001'"
+        },
+        {
+          "variable": "scompradorgln",
+          "line": 1526,
+          "expression": "'7507003100001'"
+        },
+        {
+          "variable": "scompradorgln",
+          "line": 1532,
+          "expression": "'7505000099632'"
+        }
+      ],
+      "sql": [
+        {
+          "variable": "scompradorgln",
+          "line": 1624,
+          "expression": "@Inf_CompradorGLN"
+        },
+        {
+          "variable": "scompradorgln",
+          "line": 1633,
+          "expression": "'7507003100001'"
+        },
+        {
+          "variable": "scompradorgln",
+          "line": 1638,
+          "expression": "'7507003100001'"
+        },
+        {
+          "variable": "scompradorgln",
+          "line": 1643,
+          "expression": "'7507003100001'"
+        },
+        {
+          "variable": "scompradorgln",
+          "line": 1648,
+          "expression": "'7507003100001'"
+        },
+        {
+          "variable": "scompradorgln",
+          "line": 1653,
+          "expression": "'7507003100001'"
+        },
+        {
+          "variable": "scompradorgln",
+          "line": 1660,
+          "expression": "'7505000099632'"
+        }
+      ]
+    },
+    "slocalidademisor": {
+      "oracle": [
+        {
+          "variable": "slocalidademisor",
+          "line": 1345,
+          "expression": "'Monterrey'"
+        },
+        {
+          "variable": "slocalidademisor",
+          "line": 1348,
+          "expression": "''"
+        }
+      ],
+      "sql": [
+        {
+          "variable": "slocalidademisor",
+          "line": 1357,
+          "expression": "'Monterrey'"
+        },
+        {
+          "variable": "slocalidademisor",
+          "line": 1362,
+          "expression": "''"
+        }
+      ]
+    },
+    "slocalidadreceptor": {
+      "oracle": [
+        {
+          "variable": "slocalidadreceptor",
+          "line": 1346,
+          "expression": "'México'"
+        },
+        {
+          "variable": "slocalidadreceptor",
+          "line": 1349,
+          "expression": "''"
+        }
+      ],
+      "sql": [
+        {
+          "variable": "slocalidadreceptor",
+          "line": 1358,
+          "expression": "'México'"
+        },
+        {
+          "variable": "slocalidadreceptor",
+          "line": 1363,
+          "expression": "''"
+        }
+      ]
+    }
+  },
+  "cursors": {
+    "oracle": {
+      "scrdatos": {
+        "line": 111,
+        "count": 95,
+        "columns": [
+          "fn_addenda_param(cte.tax_exempt_num,'VENTA')asaddenda_venta",
+          "fn_addenda_param(cte.tax_exempt_num,'DEVOL')asaddenda_devol",
+          "fn_addenda_param(cte.tax_exempt_num,'MIGRAR')asaddenda_migrar",
+          "rf.tipo_doctoasaddenda_tipo_docto",
+          "rf.ctroasctro",
+          "ctex_attrib_34asfecha_rollout",
+          "fn_addenda_param(cte.tax_exempt_num,'FASES')asaddenda_fases",
+          "rf.fecha_facturaasfecha_documento",
+          "rf.fecha_facturaasfecha_factura",
+          "substr(cad_ou_num,1,2)ascadena_comercial",
+          "fn_trim_cfdi(cte.tax_exempt_num)asrfc_cliente",
+          "rf.facturaasfactura",
+          "cte.versioncfdiasversioncfdi",
+          "substr(rf.factura,1,instr(rf.factura,'-')-1)asserie",
+          "substr(replace(rf.factura,'00000',''),instr(replace(rf.factura,'00000',''),'-')+1,30)asfolio",
+          "rf.referenciaaspedidov3",
+          "rf.pedidoaspedidosap",
+          "rf.entregaasfacturasap",
+          "comp.rep_idasrepventas",
+          "fn_trim_cfdi(cte.x_route_ref_1)assucursalnombre",
+          "substr(lp_name,1,2)aslista_precio",
+          "to_char(sysdate,'YYYYMMDD')||replace(fn_adjust_gmt(to_char(sysdate,'HH24:MI:SS'),df.dif_gmt),':','')asfecha_reenvio",
+          "to_char(rf.fecha_factura,'YYYYMMDD')||replace(fn_adjust_gmt(comp.hora_factura,df.dif_gmt),':','')asfecha",
+          "decode(rf.tipo_docto,'Z003','I','Z005','I','Z007','I','Z014','I','Z0FX','I','Z020','I','C003','I','C005','I','C007','I','C014','I','C0FX','I','C020','I','C030','I','E')astipodecomprobante",
+          "eai_owner.getconv('CFG Settings','Forma Pago')asformadepago",
+          "lpad(nvl(comp.dias_pago,0),3,'0')ascondicionesdepago",
+          "'Descuento'asmotivodescuento",
+          "nvl(cfd.descuento,0)asdescuento",
+          "fn_dist_fee_tax_adj(rf.factura)asajusteenvio",
+          "trim(to_char(cfd.valor_subtotal+cfd.subtotal_noiva+nvl(cfd.descuento,0)+decode(rf.desglose_iva,'N',cfd.valor_iva,0),'999999999.99'))assubtotal",
+          "trim(to_char(cfd.valor_subtotal+cfd.valor_iva+cfd.subtotal_noiva+nvl(fn_dist_fee_tax_adj(rf.factura),0),'999999999.99'))astotal",
+          "fn_dist_fee_tax_adj(rf.factura)asajusteiva_distfee",
+          "eai_owner.getconv('CFG Settings','Metodo Pago')asmetododepago",
+          "decode(cte.pay_type_cd,'Efectivo','',nvl(ctex_x_em_field_18,'No identificado'))asnumctapago",
+          "'1'astipocambio",
+          "'MXN'asmoneda",
+          "alm.almacen_lugar_expideaslugarexpedicion",
+          "fn_trim_cfdi(soc.rfc)asemisor_rfc",
+          "fn_trim_cfdi(soc.razon_social_hh)asemisor_nombre",
+          "fn_trim_cfdi(soc.calle)asemisor_calle",
+          "fn_trim_cfdi(soc.numero_ext)asemisor_noexterior",
+          "fn_trim_cfdi(soc.numero_int)asemisor_nointerior",
+          "fn_trim_cfdi(soc.colonia)asemisor_colonia",
+          "fn_trim_cfdi(soc.localidad)asemisor_localidad",
+          "fn_trim_cfdi(soc.municipio)asemisor_municipio",
+          "fn_trim_cfdi(eai_owner.getconv('CFDI Estado',soc.estado))asemisor_estado",
+          "fn_trim_cfdi(soc.pais)asemisor_pais",
+          "fn_trim_cfdi(soc.codigo_postal)asemisor_codigopostal",
+          "fn_trim_cfdi(alm.almacen_calle)asexpide_calle",
+          "fn_trim_cfdi(alm.almacen_noexterior)asexpide_noexterior",
+          "fn_trim_cfdi(alm.almacen_nointerior)asexpide_nointerior",
+          "fn_trim_cfdi(alm.almacen_colonia)asexpide_colonia",
+          "fn_trim_cfdi(alm.almacen_municipio)asexpide_municipio",
+          "fn_trim_cfdi(alm.almacen_estado)asexpide_estado",
+          "fn_trim_cfdi(alm.almacen_pais)asexpide_pais",
+          "fn_trim_cfdi(lpad(alm.almacen_codigopostal,5,'0'))asexpide_codigopostal",
+          "eai_owner.getconv('CFG Settings','Regimen Fiscal')asregimenfiscal",
+          "cte.regimenfiscalasregimen_fiscal_cte",
+          "fn_trim_cfdi(cte.tax_exempt_num)asrecibe_rfc",
+          "fn_trim_cfdi(cte.name)asrecibe_nombre",
+          "fn_trim_cfdi(bill_addr)asrecibe_calle",
+          "''asrecibe_noexterior",
+          "''asrecibe_nointerior",
+          "fn_trim_cfdi(bill_addr_line_2)asrecibe_colonia",
+          "fn_trim_cfdi(bill_city)asrecibe_municipio",
+          "fn_trim_cfdi(eai_owner.getconv('CFDI Estado',bill_state))asrecibe_estado",
+          "fn_trim_cfdi(bill_country)asrecibe_pais",
+          "fn_trim_cfdi(lpad(nvl(bill_zipcode,'99999'),5,'0'))asrecibe_codigopostal",
+          "fn_trim_cfdi(ship_addr)asremite_calle",
+          "fn_trim_cfdi(ship_addr_line_2)asremite_colonia",
+          "fn_trim_cfdi(ship_city)asremite_municipio",
+          "fn_trim_cfdi(eai_owner.getconv('CFDI Estado',ship_state))asremite_estado",
+          "fn_trim_cfdi(ship_country)asremite_pais",
+          "fn_trim_cfdi(lpad(nvl(ship_zipcode,'99999'),5,'0'))asremite_codigopostal",
+          "decode(rf.tipo_docto,'Z003','FACTURA','Z005','FACTURA','Z007','FACTURA','Z014','FACTURA','Z0FX','FACTURA','Z020','FACTURA','Z024','NOTA DE CREDITO','Z022','NOTA DE CREDITO','C003','FACTURA','C005','FACTURA','C007','FACTURA','C014','FACTURA','C0FX','FACTURA','C020','FACTURA','C030','FACTURA','C024','NOTA DE CREDITO','C022','NOTA DE CREDITO','NOTA DE CREDITO')astipo_documento",
+          "cte.integration_idasrecibe_cliente",
+          "cte.integration_idasremite_cliente",
+          "alm.almacen_ctroascentroexpedicion",
+          "cte.pr_con_idasemail",
+          "''asconfirmacionpac",
+          "decode(rf.tipo_docto,'C003',cte.usocfdi,'C005',cte.usocfdi,nvl(usoc.uso_devolucion,eai_owner.getconv('CFG Settings','UsoCFDI_Comercial_NC')))asusocfdi",
+          "''asresidenciafiscal",
+          "''asregtributarioext",
+          "''astiporelacion",
+          "trim(to_char(cfd.valor_iva+fn_dist_fee_tax_adj(rf.factura),'9999999.99'))asimpuestostrasladados",
+          "'IVA'asimpuesto",
+          "casewhen(cfd.valor_subtotal=0)then'0'elsetrim(to_char(round(cfd.valor_iva*100/cfd.valor_subtotal,0),'99'))endastasa",
+          "trim(to_char((cfd.valor_iva+fn_dist_fee_tax_adj(rf.factura)),'9999999999.99'))asimporte_iva",
+          "trim(to_char((cfd.valor_iva+fn_dist_fee_tax_adj(rf.factura)+(cfd.valor_ieps*nvl(usoc.desglose_ieps,0))),'9999999999.99'))asimporte",
+          "trim(to_char(cfd.valor_subtotal,'9999999999.99'))assubtotal_tasaiva",
+          "trim(to_char(cfd.subtotal_noiva,'9999999999.99'))assubtotal_tasa00",
+          "cfd.valor_subtotalasimpsubtot_tasaiva",
+          "cfd.subtotal_noivaasimpsubtot_tasa00",
+          "cfd.subt_sin_ieps*nvl(usoc.desglose_ieps,0)asvalor_subt_ieps",
+          "cfd.valor_ieps*nvl(usoc.desglose_ieps,0)asvalor_ieps"
+        ]
+      },
+      "scrdetalle": {
+        "line": 433,
+        "count": 20,
+        "columns": [
+          "trim(to_char(rfd.num_linea,'999999999'))asnumlinea",
+          "trim(to_char(rfd.cantidad_vta,'999999999'))ascantidad",
+          "decode(rf.tipo_docto,'Z024','DCTO','Z022','DCTO','Z019','UA','Z0FX','UA','C025','DCTO','C024','DCTO','C022','DCTO','C019','DCTO','C0FX','UA',prod.unidad_med_vta)asunidad",
+          "fn_sap_sku(rfd.material)asnoidentificacion",
+          "fn_cfdi_sku_name(prod.nombre_material)asdescripcion",
+          "decode(rf.tipo_venta,'VD',trim(to_char(round((rfd.valor_subt+nvl(rfd.bonif_subt,0))/rfd.cantidad_vta,2),'999999999.99')),trim(to_char(rfd.precio_unit,'999999999.99')))asvalorunitario",
+          "decode(rf.tipo_venta,'VD',trim(to_char((rfd.valor_subt+nvl(rfd.bonif_subt,0)),'999999999.99')),trim(to_char(rfd.precio_unit*rfd.cantidad_vta,'999999999.99')))asimporte",
+          "trim(to_char(nvl(rfd.bonif_subt,0),'999999999.99'))asdescuento",
+          "nvl(rfd.valor_subt,0)asrfd_valor_subt",
+          "nvl(rfd.valor_iva,0)asrfd_valor_iva",
+          "trim(to_char(round(rfd.valor_iva*100/rfd.valor_subt,0),'99.99'))asrfd_tasa_iva",
+          "trim(to_char(nvl(rfd.valor_subt,0),'999999999.99'))aspdf_valor_subt",
+          "trim(to_char(nvl(rfd.valor_iva,0),'999999999.99'))aspdf_valor_iva",
+          "trim(to_char(round(rfd.valor_iva*100/rfd.valor_subt,2),'99'))aspdf_tasa_iva",
+          "nvl(rfd.envio_subt,0)asenvio_subt",
+          "nvl(rfd.envio_iva,0)asenvio_iva",
+          "nvl(rfd.credito_subt,0)ascredito_subt",
+          "nvl(rfd.credito_iva,0)ascredito_iva",
+          "nvl(usoc.desglose_ieps,0)*(nvl(rfd.valor_subt,0)-nvl(rfd.valor_ieps,0))assubt_sin_ieps",
+          "nvl(rfd.valor_ieps,0)*nvl(usoc.desglose_ieps,0)asvalor_ieps"
+        ]
+      },
+      "scrheadaddenda": {
+        "line": 505,
+        "count": 56,
+        "columns": [
+          "'7504015884004'asgln_bat",
+          "fn_trim_cfdi(ctex.x_em_field_5)assucursal_edi",
+          "fn_trim_cfdi(ctex.x_route_ref_1)assucursalname",
+          "fn_trim_cfdi(cfd.pedido)asref_pedido",
+          "fn_trim_cfdi(cfd.entrada)asref_entrada",
+          "fn_trim_cfdi(ctex.x_em_field_5)asref_tienda",
+          "fn_trim_cfdi(ctex.x_em_field_5)asref_sucursal",
+          "'CABADD'aslabel",
+          "'OR'asfuncion",
+          "''asdoc_reemplazo",
+          "fn_trim_cfdi(cfd.pedido)aspedido",
+          "to_char(rf.fecha_factura,'DDMMYYYY')||replace(comp.hora_factura,':','')asfepedido",
+          "trim(cfd.entrada)asnotaent",
+          "to_char(rf.fecha_factura,'DDMMYYYY')asfenotaent",
+          "'7504015884004'asvendedorgln",
+          "nvl(addenda.num_proveedor,'')asvendornint",
+          "''asvendorieps",
+          "nvl(addenda.gln_comprador,'')ascompradorgln",
+          "''ascompradorconti",
+          "''ascompradornref",
+          "ctex.x_em_field_5asreceptorgln",
+          "fn_trim_cfdi(ctex.x_route_ref_1)asreceptornombre",
+          "fn_trim_cfdi(cte.direccion_1)asreceptorcalle",
+          "fn_trim_cfdi(cte.colonia_1)asreceptorcolonia",
+          "''asreceptorlocal",
+          "fn_trim_cfdi(cte.ciudad_1)asreceptormunicip",
+          "fn_trim_cfdi(eai_owner.getconv('CFDI Estado',cte.estado_1))asreceptorestado",
+          "fn_trim_cfdi(cte.pais_1)asreceptorpais",
+          "fn_trim_cfdi(lpad(cte.codigo_postal_1,5,'0'))asreceptorcp",
+          "'MXN'asmonedaprecio",
+          "'1.00'astcambiompr",
+          "'MXN'asmonedapago",
+          "'1.00'astcambiompy",
+          "'FE'asrefpago",
+          "'BT'ascondpago",
+          "nvl(cte.dias_cdto,'0')asdpago",
+          "''asncheque",
+          "trim(to_char(rf.valor_subtotal,'999999999.99'))astotneto",
+          "''ascpredial",
+          "replace(pr_num_a_letras.dintex(rf.valor_subtotal+rf.valor_iva),'M.N.','M. N.')astotalconletra",
+          "''asfolio_aviso_pago",
+          "''asplaza",
+          "''astipoprov",
+          "''astipoloc",
+          "'1'astipobulto",
+          "'true'ascumplereqfiscales",
+          "'1'ascantbulto",
+          "'1'ascantpedido",
+          "'SI'aspedemiprov",
+          "''aspedido_vend",
+          "''asfactura_nota",
+          "rf.facturaasremision",
+          "''asdestinobm",
+          "''ascorreoproveedor",
+          "'PD'astipopedido",
+          "''ascomplementoce"
+        ]
+      },
+      "scritemaddenda": {
+        "line": 611,
+        "count": 31,
+        "columns": [
+          "'LINADD'aslabel",
+          "rfd.num_lineaasnumlin",
+          "fn_sap_sku(rfd.material)asrefcliente",
+          "prod.codigo_barras_pres_2asrefprovee",
+          "''asrefserieart",
+          "'ES'asidiomadesc",
+          "rfd.cantidad_vtaascantidad_vta",
+          "rfd.unidad_med_vtaasunidad_med_vta",
+          "'1'ascantconsum",
+          "''ascantfree",
+          "''ascantcomer",
+          "sordencompraasnordenc",
+          "'SRV'ascalifidentity",
+          "''asseriecontenedor",
+          "''asnumpaq",
+          "'PCE'astippaq",
+          "''asdescrippaq",
+          "''aspaqmetodopago",
+          "trim(to_char(nvl(rfd.valor_subt,0)-decode(rf.tipo_venta,'VD',0,nvl(rfd.bonif_subt,0)),'999999999.99'))asmontobrulin",
+          "trim(to_char(nvl(rfd.precio_unit,0),'999999999.99'))aspreciobruto",
+          "''asfechaentrega",
+          "''ascrtienda",
+          "''astienda",
+          "''asfacturainterna",
+          "''aslineainterna",
+          "''asplantareceptora",
+          "''asnrecipiente",
+          "''asrelease",
+          "''asremision",
+          "rfd.valor_subt+rfd.valor_ivaaslinea_con_iva",
+          "round((rfd.valor_subt+rfd.valor_iva)/rfd.cantidad_vta,2)asprecio_con_iva"
+        ]
+      },
+      "scrpedimento": {
+        "line": 675,
+        "count": 3,
+        "columns": [
+          "sat.aduana_numero",
+          "sat.pedimento",
+          "decode(sat.fecha_pedimento,null,'',to_char(sat.fecha_pedimento,'DDMMYYYY'))asfecpedimento"
+        ]
+      },
+      "scrreenvio": {
+        "line": 683,
+        "count": 2,
+        "columns": [
+          "folio_fiscal",
+          "fecha_factura"
+        ]
+      },
+      "scrtextoadicional": {
+        "line": 689,
+        "count": 2,
+        "columns": [
+          "1000+lineaaslinea",
+          "texto"
+        ]
+      },
+      "scrallocation": {
+        "line": 695,
+        "count": 6,
+        "columns": [
+          "cobza.fecha_asignacionascreated",
+          "cobza.importeaspaid_amt",
+          "cobza.fecha_facturaasinvc_dt",
+          "casewhen(wa.fecha_liberacionisnull)and(cfd.fecha_liberacionisnotnull)thencfd.nota_ventawhen(wa.fecha_liberacionisnotnull)thenwa.nota_ventaelsecobza.referenciaendasdoc_num",
+          "casewhen(wa.fecha_liberacionisnull)and(cfd.fecha_liberacionisnotnull)then'Otro'when(wa.fecha_liberacionisnotnull)then'Nota de Venta'else'Debit Note'endassub_type_cd",
+          "casewhen(wa.fecha_liberacionisnull)and(cfd.fecha_liberacionisnotnull)thencfd.folio_fiscalwhen(wa.fecha_liberacionisnotnull)thenwa.folio_fiscalelsecobza.uuid_ventaendasfolio_fiscal"
+        ]
+      }
+    },
+    "sql": {
+      "scrdatos": {
+        "line": 259,
+        "count": 95,
+        "columns": [
+          "fn_addenda_param(cte.tax_exempt_num,'VENTA')asaddenda_venta",
+          "fn_addenda_param(cte.tax_exempt_num,'DEVOL')asaddenda_devol",
+          "fn_addenda_param(cte.tax_exempt_num,'MIGRAR')asaddenda_migrar",
+          "rf.tipo_doctoasaddenda_tipo_docto",
+          "rf.ctroasctro",
+          "ctex_attrib_34asfecha_rollout",
+          "fn_addenda_param(cte.tax_exempt_num,'FASES')asaddenda_fases",
+          "rf.fecha_facturaasfecha_documento",
+          "rf.fecha_facturaasfecha_factura",
+          "substring(cad_ou_num,1,2)ascadena_comercial",
+          "fn_trim_cfdi(cte.tax_exempt_num)asrfc_cliente",
+          "rf.facturaasfactura",
+          "cte.versioncfdiasversioncfdi",
+          "substring(rf.factura,1,charindex('-',rf.factura)-1)asserie",
+          "substring(replace(rf.factura,'00000',''),charindex('-',replace(rf.factura,'00000',''))+1,30)asfolio",
+          "rf.referenciaaspedidov3",
+          "rf.pedidoaspedidosap",
+          "rf.entregaasfacturasap",
+          "comp.rep_idasrepventas",
+          "fn_trim_cfdi(cte.x_route_ref_1)assucursalnombre",
+          "substring(lp_name,1,2)aslista_precio",
+          "concat(convert(varchar(8),getdate(),112),replace(fn_adjust_gmt(convert(varchar(8),getdate(),108),df.dif_gmt),':',''))asfecha_reenvio",
+          "concat(convert(varchar(8),rf.fecha_factura,112),replace(fn_adjust_gmt(comp.hora_factura,df.dif_gmt),':',''))asfecha",
+          "casewhenrf.tipo_doctoin('Z003','Z005','Z007','Z014','Z0FX','Z020','C003','C005','C007','C014','C0FX','C020','C030')then'I'else'E'endastipodecomprobante",
+          "eai_owner.getconv('CFG Settings','Forma Pago')asformadepago",
+          "concat(replicate('0',3-len(isnull(comp.dias_pago,0))),cast(isnull(comp.dias_pago,0)asvarchar))",
+          "'Descuento'asmotivodescuento",
+          "isnull(cfd.descuento,0)asdescuento",
+          "fn_dist_fee_tax_adj(rf.factura)asajusteenvio",
+          "cast(cfd.valor_subtotal+cfd.subtotal_noiva+isnull(cfd.descuento,0)+casewhenrf.desglose_iva='N'thencfd.valor_ivaelse0endasdecimal(22,2))assubtotal",
+          "cast(cfd.valor_subtotal+cfd.valor_iva+cfd.subtotal_noiva+isnull(fn_dist_fee_tax_adj(rf.factura),0)asdecimal(22,2))astotal",
+          "fn_dist_fee_tax_adj(rf.factura)asajusteiva_distfee",
+          "eai_owner.getconv('CFG Settings','Metodo Pago')asmetododepago",
+          "casewhencte.pay_type_cd='Efectivo'then''elseisnull(ctex_x_em_field_18,'No identificado')endasnumctapago",
+          "'1'astipocambio",
+          "'MXN'asmoneda",
+          "alm.almacen_lugar_expideaslugarexpedicion",
+          "fn_trim_cfdi(soc.rfc)asemisor_rfc",
+          "fn_trim_cfdi(soc.razon_social_hh)asemisor_nombre",
+          "fn_trim_cfdi(soc.calle)asemisor_calle",
+          "fn_trim_cfdi(soc.numero_ext)asemisor_noexterior",
+          "fn_trim_cfdi(soc.numero_int)asemisor_nointerior",
+          "fn_trim_cfdi(soc.colonia)asemisor_colonia",
+          "fn_trim_cfdi(soc.localidad)asemisor_localidad",
+          "fn_trim_cfdi(soc.municipio)asemisor_municipio",
+          "fn_trim_cfdi(eai_owner.getconv('CFDI Estado',soc.estado))asemisor_estado",
+          "fn_trim_cfdi(soc.pais)asemisor_pais",
+          "fn_trim_cfdi(soc.codigo_postal)asemisor_codigopostal",
+          "fn_trim_cfdi(alm.almacen_calle)asexpide_calle",
+          "fn_trim_cfdi(alm.almacen_noexterior)asexpide_noexterior",
+          "fn_trim_cfdi(alm.almacen_nointerior)asexpide_nointerior",
+          "fn_trim_cfdi(alm.almacen_colonia)asexpide_colonia",
+          "fn_trim_cfdi(alm.almacen_municipio)asexpide_municipio",
+          "fn_trim_cfdi(alm.almacen_estado)asexpide_estado",
+          "fn_trim_cfdi(alm.almacen_pais)asexpide_pais",
+          "fn_trim_cfdi(concat(replicate('0',5-len(alm.almacen_codigopostal)),cast(alm.almacen_codigopostalasvarchar)))asexpide_codigopostal",
+          "eai_owner.getconv('CFG Settings','Regimen Fiscal')asregimenfiscal",
+          "cte.regimenfiscalasregimen_fiscal_cte",
+          "fn_trim_cfdi(cte.tax_exempt_num)asrecibe_rfc",
+          "fn_trim_cfdi(cte.name)asrecibe_nombre",
+          "fn_trim_cfdi(bill_addr)asrecibe_calle",
+          "''asrecibe_noexterior",
+          "''asrecibe_nointerior",
+          "fn_trim_cfdi(bill_addr_line_2)asrecibe_colonia",
+          "fn_trim_cfdi(bill_city)asrecibe_municipio",
+          "fn_trim_cfdi(eai_owner.getconv('CFDI Estado',bill_state))asrecibe_estado",
+          "fn_trim_cfdi(bill_country)asrecibe_pais",
+          "fn_trim_cfdi(concat(replicate('0',5-len(isnull(bill_zipcode,'99999'))),cast(isnull(bill_zipcode,'99999')asvarchar)))asrecibe_codigopostal",
+          "fn_trim_cfdi(ship_addr)asremite_calle",
+          "fn_trim_cfdi(ship_addr_line_2)asremite_colonia",
+          "fn_trim_cfdi(ship_city)asremite_municipio",
+          "fn_trim_cfdi(eai_owner.getconv('CFDI Estado',ship_state))asremite_estado",
+          "fn_trim_cfdi(ship_country)asremite_pais",
+          "fn_trim_cfdi(concat(replicate('0',5-len(isnull(ship_zipcode,'99999'))),cast(isnull(ship_zipcode,'99999')asvarchar)))asremite_codigopostal",
+          "caserf.tipo_doctowhen'Z003'then'FACTURA'when'Z005'then'FACTURA'when'Z007'then'FACTURA'when'Z014'then'FACTURA'when'Z0FX'then'FACTURA'when'Z020'then'FACTURA'when'Z024'then'NOTA DE CREDITO'when'Z022'then'NOTA DE CREDITO'when'C003'then'FACTURA'when'C005'then'FACTURA'when'C007'then'FACTURA'when'C014'then'FACTURA'when'C0FX'then'FACTURA'when'C020'then'FACTURA'when'C030'then'FACTURA'when'C024'then'NOTA DE CREDITO'when'C022'then'NOTA DE CREDITO'else'NOTA DE CREDITO'endastipo_documento",
+          "cte.integration_idasrecibe_cliente",
+          "cte.integration_idasremite_cliente",
+          "alm.almacen_ctroascentroexpedicion",
+          "cte.pr_con_idasemail",
+          "''asconfirmacionpac",
+          "casewhenrf.tipo_doctoin('C003','C005')thencte.usocfdielseisnull(usoc.uso_devolucion,eai_owner.getconv('CFG Settings','UsoCFDI_Comercial_NC'))endasusocfdi",
+          "''asresidenciafiscal",
+          "''asregtributarioext",
+          "''astiporelacion",
+          "cast(cfd.valor_iva+fn_dist_fee_tax_adj(rf.factura)asdecimal(22,2))asimpuestostrasladados",
+          "'IVA'asimpuesto",
+          "casewhencfd.valor_subtotal=0then'0'elseconvert(varchar(41),cast(round(cfd.valor_iva*100/cfd.valor_subtotal,0)asdecimal(38,0)))endastasa",
+          "cast(cfd.valor_iva+fn_dist_fee_tax_adj(rf.factura)asdecimal(22,2))asimporte_iva",
+          "cast(cfd.valor_iva+fn_dist_fee_tax_adj(rf.factura)+(cfd.valor_ieps*isnull(usoc.desglose_ieps,0))asdecimal(22,2))asimporte",
+          "cast(cfd.valor_subtotalasdecimal(22,2))assubtotal_tasaiva",
+          "cast(cfd.subtotal_noivaasdecimal(22,2))assubtotal_tasa00",
+          "cfd.valor_subtotalasimpsubtot_tasaiva",
+          "cfd.subtotal_noivaasimpsubtot_tasa00",
+          "cfd.subt_sin_ieps*isnull(usoc.desglose_ieps,0)asvalor_subt_ieps",
+          "cfd.valor_ieps*isnull(usoc.desglose_ieps,0)asvalor_ieps"
+        ]
+      },
+      "scrreenvio": {
+        "line": 512,
+        "count": 2,
+        "columns": [
+          "folio_fiscal",
+          "fecha_factura"
+        ]
+      },
+      "scrallocation": {
+        "line": 556,
+        "count": 6,
+        "columns": [
+          "cobza.fecha_asignacionascreated",
+          "cobza.importeaspaid_amt",
+          "cobza.fecha_facturaasinvc_dt",
+          "casewhen(wa.fecha_liberacionisnull)and(cfd.fecha_liberacionisnotnull)thencfd.nota_ventawhen(wa.fecha_liberacionisnotnull)thenwa.nota_ventaelsecobza.referenciaendasdoc_num",
+          "casewhen(wa.fecha_liberacionisnull)and(cfd.fecha_liberacionisnotnull)then'Otro'when(wa.fecha_liberacionisnotnull)then'Nota de Venta'else'Debit Note'endassub_type_cd",
+          "casewhen(wa.fecha_liberacionisnull)and(cfd.fecha_liberacionisnotnull)thencfd.folio_fiscalwhen(wa.fecha_liberacionisnotnull)thenwa.folio_fiscalelsecobza.uuid_ventaendasfolio_fiscal"
+        ]
+      },
+      "scrdetalle": {
+        "line": 716,
+        "count": 20,
+        "columns": [
+          "rfd.num_lineaasnumlinea",
+          "rfd.cantidad_vtaascantidad",
+          "caserf.tipo_doctowhen'Z024'then'DCTO'when'Z022'then'DCTO'when'Z019'then'UA'when'Z0FX'then'UA'when'C025'then'DCTO'when'C024'then'DCTO'when'C022'then'DCTO'when'C019'then'DCTO'when'C0FX'then'UA'elseprod.unidad_med_vtaendasunidad",
+          "fn_sap_sku(rfd.material)asnoidentificacion",
+          "fn_cfdi_sku_name(prod.nombre_material)asdescripcion",
+          "caserf.tipo_ventawhen'VD'thencast(round((rfd.valor_subt+isnull(rfd.bonif_subt,0))/nullif(rfd.cantidad_vta,0),2)asdecimal(22,2))elsecast(rfd.precio_unitasdecimal(22,2))endasvalorunitario",
+          "caserf.tipo_ventawhen'VD'thencast((rfd.valor_subt+isnull(rfd.bonif_subt,0))asdecimal(22,2))elsecast(rfd.precio_unit*rfd.cantidad_vtaasdecimal(22,2))endasimporte",
+          "cast(isnull(rfd.bonif_subt,0)asdecimal(22,2))asdescuento",
+          "isnull(rfd.valor_subt,0)asrfd_valor_subt",
+          "isnull(rfd.valor_iva,0)asrfd_valor_iva",
+          "cast(round(rfd.valor_iva*100/nullif(rfd.valor_subt,0),0)asdecimal(22,2))asrfd_tasa_iva",
+          "cast(isnull(rfd.valor_subt,0)asdecimal(22,2))aspdf_valor_subt",
+          "cast(isnull(rfd.valor_iva,0)asdecimal(22,2))aspdf_valor_iva",
+          "cast(round(rfd.valor_iva*100/nullif(rfd.valor_subt,0),2)asdecimal(22,0))aspdf_tasa_iva",
+          "isnull(rfd.envio_subt,0)asenvio_subt",
+          "isnull(rfd.envio_iva,0)asenvio_iva",
+          "isnull(rfd.credito_subt,0)ascredito_subt",
+          "isnull(rfd.credito_iva,0)ascredito_iva",
+          "isnull(usoc.desglose_ieps,0)*(isnull(rfd.valor_subt,0)-isnull(rfd.valor_ieps,0))assubt_sin_ieps",
+          "isnull(rfd.valor_ieps,0)*isnull(usoc.desglose_ieps,0)asvalor_ieps"
+        ]
+      },
+      "scrpedimento": {
+        "line": 1028,
+        "count": 3,
+        "columns": [
+          "sat.aduana_numero",
+          "sat.pedimento",
+          "casewhensat.fecha_pedimentoisnullthen''elsereplace(convert(varchar(10),sat.fecha_pedimento,103),'/','')endasfecpedimento"
+        ]
+      },
+      "scritemaddenda": {
+        "line": 909,
+        "count": 31,
+        "columns": [
+          "'LINADD'aslabel",
+          "rfd.num_lineaasnumlin",
+          "fn_sap_sku(rfd.material)asrefcliente",
+          "prod.codigo_barras_pres_2asrefprovee",
+          "''asrefserieart",
+          "'ES'asidiomadesc",
+          "rfd.cantidad_vtaascantidad_vta",
+          "rfd.unidad_med_vtaasunidad_med_vta",
+          "'1'ascantconsum",
+          "''ascantfree",
+          "''ascantcomer",
+          "sordencompraasnordenc",
+          "'SRV'ascalifidentity",
+          "''asseriecontenedor",
+          "''asnumpaq",
+          "'PCE'astippaq",
+          "''asdescrippaq",
+          "''aspaqmetodopago",
+          "convert(varchar(41),cast(isnull(rfd.valor_subt,0)-caserf.tipo_ventawhen'VD'then0elseisnull(rfd.bonif_subt,0)endasdecimal(38,2)))asmontobrulin",
+          "convert(varchar(41),cast(isnull(rfd.precio_unit,0)asdecimal(38,2)))aspreciobruto",
+          "''asfechaentrega",
+          "''ascrtienda",
+          "''astienda",
+          "''asfacturainterna",
+          "''aslineainterna",
+          "''asplantareceptora",
+          "''asnrecipiente",
+          "''asrelease",
+          "''asremision",
+          "rfd.valor_subt+rfd.valor_ivaaslinea_con_iva",
+          "round((rfd.valor_subt+rfd.valor_iva)/nullif(rfd.cantidad_vta,0),2)asprecio_con_iva"
+        ]
+      },
+      "scrheadaddenda": {
+        "line": 1548,
+        "count": 56,
+        "columns": [
+          "'7504015884004'asgln_bat",
+          "fn_trim_cfdi(ctex.x_em_field_5)assucursal_edi",
+          "fn_trim_cfdi(ctex.x_route_ref_1)assucursalname",
+          "fn_trim_cfdi(cfd.pedido)asref_pedido",
+          "fn_trim_cfdi(cfd.entrada)asref_entrada",
+          "fn_trim_cfdi(ctex.x_em_field_5)asref_tienda",
+          "fn_trim_cfdi(ctex.x_em_field_5)asref_sucursal",
+          "'CABADD'aslabel",
+          "'OR'asfuncion",
+          "''asdoc_reemplazo",
+          "fn_trim_cfdi(cfd.pedido)aspedido",
+          "concat(replace(convert(varchar(10),rf.fecha_factura,103),'/',''),replace(comp.hora_factura,':',''))asfepedido",
+          "trim(cfd.entrada)asnotaent",
+          "replace(convert(varchar(10),rf.fecha_factura,103),'/','')asfenotaent",
+          "'7504015884004'asvendedorgln",
+          "isnull(addenda.num_proveedor,'')asvendornint",
+          "''asvendorieps",
+          "isnull(addenda.gln_comprador,'')ascompradorgln",
+          "''ascompradorconti",
+          "''ascompradornref",
+          "ctex.x_em_field_5asreceptorgln",
+          "fn_trim_cfdi(ctex.x_route_ref_1)asreceptornombre",
+          "fn_trim_cfdi(cte.direccion_1)asreceptorcalle",
+          "fn_trim_cfdi(cte.colonia_1)asreceptorcolonia",
+          "''asreceptorlocal",
+          "fn_trim_cfdi(cte.ciudad_1)asreceptormunicip",
+          "fn_trim_cfdi(eai_owner.getconv('CFDI Estado',cte.estado_1))asreceptorestado",
+          "fn_trim_cfdi(cte.pais_1)asreceptorpais",
+          "fn_trim_cfdi(concat(replicate('0',5-len(cte.codigo_postal_1)),cast(cte.codigo_postal_1asvarchar)))asreceptorcp",
+          "'MXN'asmonedaprecio",
+          "'1.00'astcambiompr",
+          "'MXN'asmonedapago",
+          "'1.00'astcambiompy",
+          "'FE'asrefpago",
+          "'BT'ascondpago",
+          "isnull(cte.dias_cdto,'0')asdpago",
+          "''asncheque",
+          "convert(varchar(41),cast(rf.valor_subtotalasdecimal(38,2)))astotneto",
+          "''ascpredial",
+          "replace(pr_num_a_letras.dintex(rf.valor_subtotal+rf.valor_iva),'M.N.','M. N.')astotalconletra",
+          "''asfolio_aviso_pago",
+          "''asplaza",
+          "''astipoprov",
+          "''astipoloc",
+          "'1'astipobulto",
+          "'true'ascumplereqfiscales",
+          "'1'ascantbulto",
+          "'1'ascantpedido",
+          "'SI'aspedemiprov",
+          "''aspedido_vend",
+          "''asfactura_nota",
+          "rf.facturaasremision",
+          "''asdestinobm",
+          "''ascorreoproveedor",
+          "'PD'astipopedido",
+          "''ascomplementoce"
+        ]
+      },
+      "scrtextoadicional": {
+        "line": 1958,
+        "count": 2,
+        "columns": [
+          "1000+lineaaslinea",
+          "texto"
+        ]
+      }
+    }
+  }
+}

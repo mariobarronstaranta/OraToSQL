@@ -1,5 +1,11 @@
 # Performance de T3.PROC_CFDI_PROCESA_PAGO_AGR
 
+**Referencia historica:** este analisis y sus mediciones corresponden a la
+version por conjuntos. El fuente fue reemplazado por la version original de
+tres cursores; consultar su [revision actual](../../T3/Procedures/PROC_CFDI_PROCESA_PAGO_AGR.md).
+No extrapolar los tiempos, planes ni filtros de estos diagnosticos a esa version.
+No se han rehecho mediciones ni modificado indices en la revision documental.
+
 Revision estatica inicial del 03/11/2026, incluyendo liberador, CHECK y generador
 llamados. Las prioridades de esa revision son hipotesis; los resultados recibidos
 posteriormente de T3QA se analizan en los documentos enlazados a continuacion.

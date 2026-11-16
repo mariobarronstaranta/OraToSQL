@@ -184,6 +184,11 @@ INSERT @Origen(Tabla,NombrePK,Posicion,Columna) VALUES
 (N'W_REGISTRO_FISCAL_DETALLE2',N'W_REGFEDDET2_PK',1,N'FACTURA'),
 (N'W_REGISTRO_FISCAL_DETALLE2',N'W_REGFEDDET2_PK',2,N'NUM_LINEA');
 
+-- Suspension posterior al incidente del 2026-11-06: tambien bloquea vista previa.
+IF EXISTS(SELECT 1 FROM @Origen WHERE Tabla=N'REGISTRO_FISCAL_DETALLE'
+          AND (@SoloTabla IS NULL OR @SoloTabla=Tabla))
+    THROW 56992,'REGISTRO_FISCAL_DETALLE suspendida. Ejecutar 17_RFD_REVISION_POST_RECOVERY_20261107/01_ESTADO_Y_CAPACIDADES.sql. No reutilizar lote 17.',1;
+
 IF @SoloTabla IS NOT NULL AND NOT EXISTS(SELECT 1 FROM @Origen WHERE Tabla=@SoloTabla)
     THROW 56800,'@SoloTabla no pertenece al listado Oracle proporcionado.',1;
 IF @Aplicar=1 AND (@@TRANCOUNT<>0 OR (@@OPTIONS & 2)=2)

@@ -1,0 +1,26 @@
+﻿CORRECCION DE CAPTURA DE VARIABLES DE ScrDetalle APLICADA EN ARCHIVO.
+TSql160Parser: cero errores antes y despues.
+Comparacion de tokens contra cambio esperado: solo DECLARE del detalle dentro del grupo y DEALLOCATE por iteracion; se retira el final fuera del bucle.
+Tokens antes/despues: 1952/1952. SELECT/INSERT/UPDATE comparados sin cambios: 11.
+DECLARE ScrDetalle en linea 332, despues de asignar las seis claves del grupo; DEALLOCATE por grupo en linea 383.
+Se conservan LOCAL/FORWARD_ONLY, ambos FETCH de tres destinos, PRINT y ausencia de transacciones propias.
+BKP y Oracle sin cambios, verificados mediante SHA256.
+SHA256 principal: 56EA9202E8781EF658DCC0E1D8EB3BDB1EE6E452A3EDD430C2E48FFBBA17F5B4
+
+
+PRUEBAS FUNCIONALES LOCALES: CINCO APROBADAS.
+exito_reconcilia_detalle_historico_cliente_y_bitacora_con_prints_y_repeticion
+fallo_controlado_conserva_autocommit_parcial_registra_error_y_permite_reintento
+exito_no_confirma_transaccion_externa_y_llamador_puede_revertir
+catch_no_revierte_transaccion_externa_y_llamador_conserva_control
+dos_grupos_en_un_exec_redeclara_detalle_y_aisla_claves_relaciones_totales_clientes_y_marcas
+
+El caso que antes devolvia cero detalles ahora completa dos pagos (incluido historico), importe150 y cliente fiscal.
+Dos grupos con seis claves distintas en un EXEC: cuatro pagos/marcas, dos controles con importes124/341 y clientes fiscales propios.
+Se validaron cero grupos en repeticion, error y reintento en la misma conexion, y control de transaccion externa del llamador.
+Base temporal propia LocalDB con tablas ficticias, folios unicos y liberador stub. Base eliminada al terminar.
+No se certifica la cadena fiscal real, performance sobre56millones, ni la equivalencia pendiente FOLIO_ID/ROWID.
+Oracle/BKP sin modificaciones. UTF16LE/BOM/CRLF conservados.
+SHA256 actual: 56EA9202E8781EF658DCC0E1D8EB3BDB1EE6E452A3EDD430C2E48FFBBA17F5B4
+Evidencia: C:\Users\85233588\Documents\MigracionORA\OraToSQL\tmp\procesa_pago_agr_fix_cursor_20261103\ejecuciones\CodexAGRAdoptaBKP_0b387b50fb0d
+No se conecto ni desplego el procedimiento en T3QA.

@@ -1,5 +1,17 @@
 # Analisis de performance de PROCESA_PAGO_AGR
 
+**Cambio de version del fuente:** el usuario restauro la implementacion original
+de tres cursores. Su [revision actual](../../T3/Procedures/PROC_CFDI_PROCESA_PAGO_AGR.md)
+documenta diferencias con Oracle. El FETCH del detalle ya se corrigio segun BKP;
+El manejo sin transacciones propias, los cursores y los PRINT de BKP se
+adoptaron por decision del usuario. Sigue pendiente la identidad del marcado.
+Este paquete conserva evidencia de la version anterior por conjuntos.
+Los 107.03 s y el plan 8889 no miden la version restaurada. Los scripts 04/05/07
+buscan UPDATE Cobza, un patron que ya no representa su asignacion por cursor;
+no utilizarlos para certificar rendimiento de la nueva definicion. No se han
+adaptado los scripts en esta revision documental ni se consulto la base instalada.
+Las indicaciones de medicion que siguen pertenecen a la version anterior.
+
 El resultado de la revision esta en **ANALISIS.md**. No hay porcentajes de mejora
 medidos en T3QA ni cambios al procedimiento instalado.
 

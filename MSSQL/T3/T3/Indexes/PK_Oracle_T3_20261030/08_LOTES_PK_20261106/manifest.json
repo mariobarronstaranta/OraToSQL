@@ -1,0 +1,208 @@
+{
+  "base_sha256": "b6fe0b1fb0d4ad8b56b5d354b3b3f594532bf9ac814a8c1f24e66adc8ca59b75",
+  "lotes": [
+    {
+      "archivo": "01_VACIAS.sql",
+      "tablas": [
+        "ASIGNA_AGR_T3",
+        "ASIGNA_T3",
+        "BITACORA_EDI",
+        "BITACORA_PROCESO",
+        "CADENA_CLIENTE",
+        "CADENAS_SAP_PASO",
+        "CARTERA_T3",
+        "CC_PANTALLA",
+        "CLASE_CLIENTE"
+      ],
+      "filas": 0,
+      "mb": 0.0,
+      "sha256": "47625444779e8a4f7ef78f5d85604871b886da6d0e0274de9ac8ee344c036432"
+    },
+    {
+      "archivo": "02_VACIAS.sql",
+      "tablas": [
+        "COMPRA_T3",
+        "CREDITO_EXPRESS",
+        "DEVCOMPRA_T3",
+        "ENTREGA_T3",
+        "FACT_T3",
+        "FACTD_AGR_T3",
+        "FACTD_T3",
+        "IFC_FORMATOS",
+        "MONITOR_CHART_CATALOG"
+      ],
+      "filas": 0,
+      "mb": 0.0,
+      "sha256": "99d5a373599a7a71d4c7816384e65dc0cd52266986ae26c18b9cdceb9b5106e3"
+    },
+    {
+      "archivo": "03_VACIAS.sql",
+      "tablas": [
+        "MOV_CLIENTE_TERR",
+        "NOTA_AGR_T3",
+        "NOTA_POR_APLICAR",
+        "NOTA_T3",
+        "NOTAD_AGR_T3",
+        "NOTAD_T3",
+        "PAGO_T3",
+        "PEDD_T3",
+        "REGISTRO_FISCAL_DETALLE_HIST"
+      ],
+      "filas": 0,
+      "mb": 0.0,
+      "sha256": "023da03b0cb998537f7c3730cb6c73fdb05b2fef4014db8795312fcde7c7e3db"
+    },
+    {
+      "archivo": "04_VACIAS.sql",
+      "tablas": [
+        "REGISTRO_FISCAL_HIST",
+        "W_IMPRIME_DOCUMENTO",
+        "W_MATERIAL_MAQUILA",
+        "W_MOV_CENTRAL_ADC",
+        "W_REGISTRO_FISCAL_DETALLE2",
+        "W_REGISTRO_FISCAL2",
+        "WH_PEDIDO_DETALLE",
+        "WH_REGISTRO_FISCAL",
+        "WH_REGISTRO_FISCAL_DETALLE"
+      ],
+      "filas": 0,
+      "mb": 0.0,
+      "sha256": "55dccc8e57dbee3341ba0e345eacb56639011b290b281396b420dd712532c260"
+    },
+    {
+      "archivo": "05_PEQUENAS.sql",
+      "tablas": [
+        "CONFIG_EMPRESA",
+        "IFC_CONFIG",
+        "W_REGISTRO_FISCAL",
+        "W_REGISTRO_FISCAL_DETALLE",
+        "ESTADO_FISCAL",
+        "TIPO_DOCUMENTO",
+        "REPC_FAMILIA",
+        "PASO_MATERIALES_FAM",
+        "REPC_CLIENTE_VENTA_HIST"
+      ],
+      "filas": 283,
+      "mb": 0.18,
+      "sha256": "6d1e038ec7ae85e62dc95ac1d1a723b473c17347b2402e21fceb6222f6bc9f4c"
+    },
+    {
+      "archivo": "06_PEQUENAS.sql",
+      "tablas": [
+        "IMPRESORAS",
+        "VENTA_PLANEADA",
+        "CADENA_UPC",
+        "REPC_MATERIAL_FAMILIA",
+        "REPC_CLIENTE_VENTA",
+        "PASO_MATERIALES",
+        "DISTRIBUIDOR_FISCAL",
+        "IFC_FORMATO_HIST",
+        "MATERIAL"
+      ],
+      "filas": 13554,
+      "mb": 1.99,
+      "sha256": "c3e7444049b7d9ada8ec8ce25293dd3e48fbd07346903b0caa2072ecc00bd26c"
+    },
+    {
+      "archivo": "07_BITACORA_CARGA_T3.sql",
+      "tablas": [
+        "BITACORA_CARGA_T3"
+      ],
+      "filas": 1073396,
+      "mb": 72.59,
+      "sha256": "0601730db3fd5e8cce14290bb253dc10b154aef2bf4adca72d4c11b42886c653"
+    },
+    {
+      "archivo": "08_ENTREGA.sql",
+      "tablas": [
+        "ENTREGA"
+      ],
+      "filas": 839960,
+      "mb": 84.21,
+      "sha256": "f5fc29874e82bd9ec90c285619e07881c377b3de3a3ed558e22b327e6565cf13"
+    },
+    {
+      "archivo": "09_W_BUZON_CLIENTE.sql",
+      "tablas": [
+        "W_BUZON_CLIENTE"
+      ],
+      "filas": 2854500,
+      "mb": 846.02,
+      "sha256": "c718a6d80b38d84e5a44fbd17c7d3a319afde3a38ef2f0b06def4eb77235f02b"
+    },
+    {
+      "archivo": "10_PREVENTA_GENERAL.sql",
+      "tablas": [
+        "PREVENTA_GENERAL"
+      ],
+      "filas": 3880039,
+      "mb": 944.01,
+      "sha256": "50722374f91fde81b3768944d60054d07eed905fc9fe1f5ef6256869f4e33e57"
+    },
+    {
+      "archivo": "11_PAGO.sql",
+      "tablas": [
+        "PAGO"
+      ],
+      "filas": 27966067,
+      "mb": 2996.29,
+      "sha256": "a0f7a481c75dea0bbc1a56bedac8738cfda6ab8aabc21911550eaecfc937206f"
+    },
+    {
+      "archivo": "12_ASIGNACION_PAGO.sql",
+      "tablas": [
+        "ASIGNACION_PAGO"
+      ],
+      "filas": 31397173,
+      "mb": 3995.57,
+      "sha256": "882022bd9fb1a2a1c94c0134056c933c5b8a6755c0bd93b3a49bfdb892dadefa"
+    },
+    {
+      "archivo": "13_CLIENTE.sql",
+      "tablas": [
+        "CLIENTE"
+      ],
+      "filas": 11600468,
+      "mb": 6901.26,
+      "sha256": "e35aad0812dada8e0ab4cc033c76bbc90079ae0dc46a8e76566108ebb55734f2"
+    },
+    {
+      "archivo": "14_FACTURA_GENERAL.sql",
+      "tablas": [
+        "FACTURA_GENERAL"
+      ],
+      "filas": 25103302,
+      "mb": 7014.58,
+      "sha256": "f674c4dc7c3e059e0c60d0a666da1bdee8f8315d5fd3d46971c9ab809142b3f4"
+    },
+    {
+      "archivo": "15_FACTURA_DETALLE.sql",
+      "tablas": [
+        "FACTURA_DETALLE"
+      ],
+      "filas": 91844687,
+      "mb": 16309.73,
+      "sha256": "8eaace93718e34731b1b4755f5184d1a9603c032890cd0f0843475d455271905"
+    },
+    {
+      "archivo": "16_REGISTRO_FISCAL.sql",
+      "tablas": [
+        "REGISTRO_FISCAL"
+      ],
+      "filas": 154794153,
+      "mb": 35425.71,
+      "sha256": "298ca7e32008bf1ce88cff23dcb9f860f3a4517d7596863305660ee8cd0197b3"
+    },
+    {
+      "archivo": "17_REGISTRO_FISCAL_DETALLE.sql",
+      "tablas": [
+        "REGISTRO_FISCAL_DETALLE"
+      ],
+      "filas": 489138865,
+      "mb": 92066.51,
+      "sha256": "f1ce694ac365c982e9b9679370b170711bb201ac65a533d94221057e4716ad92",
+      "estado": "SUSPENDIDO_POST_RECOVERY"
+    }
+  ],
+  "suspension_20261107": "Lote 17 suspendido; base05 modificada con guardia. base_sha256 conserva procedencia de la generacion original; no describe la base actual."
+}

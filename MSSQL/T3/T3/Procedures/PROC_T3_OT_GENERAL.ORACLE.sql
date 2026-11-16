@@ -1,4 +1,4 @@
-/*
+﻿/*
     Objeto      : T3.PROC_T3_OT_GENERAL
     Version     : Alineacion del coordinador con Oracle, 29/10/2026.
     Referencia  : ORA/T3/T3/Procedures/PROC_T3_OT_GENERAL.SQL.
@@ -33,7 +33,7 @@
     externa, el apartado y marcado persisten al terminar cada sentencia.
     No es una equivalencia transaccional integral del flujo Oracle: los
     COMMIT/ROLLBACK de los hijos dependen de sus versiones MSSQL actuales.
-    Ver PROC_T3_OT_GENERAL.ORACLE.md. No modifica los procedimientos hijos
+    Ver Analisis/PROC_T3_OT_GENERAL.ORACLE.md. No modifica los procedimientos hijos
     ni revierte la correccion numerica de PROC_V40_GENERAR_OTROS.
 */
 USE [T3QA]

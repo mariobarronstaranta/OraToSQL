@@ -1,0 +1,457 @@
+[
+  {
+    "orden": 1,
+    "tabla": "ASIGNA_AGR_T3",
+    "pk": "ASIGRT3_PK",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 2,
+    "tabla": "ASIGNA_T3",
+    "pk": "ASIGT3_PK",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 3,
+    "tabla": "BITACORA_EDI",
+    "pk": "PK_BITACORA_EDI",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 4,
+    "tabla": "BITACORA_PROCESO",
+    "pk": "BIT_PROC_PK",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 5,
+    "tabla": "CADENA_CLIENTE",
+    "pk": "PK_CADENA_CLIENTE",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 6,
+    "tabla": "CADENAS_SAP_PASO",
+    "pk": "CADENAS_SAP_PASO_PK",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 7,
+    "tabla": "CARTERA_T3",
+    "pk": "CART3_PK",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 8,
+    "tabla": "CC_PANTALLA",
+    "pk": "CC_PANTALLA_PK",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 9,
+    "tabla": "CLASE_CLIENTE",
+    "pk": "CLACLI_PK",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 10,
+    "tabla": "COMPRA_T3",
+    "pk": "COMPT_T3",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 11,
+    "tabla": "CREDITO_EXPRESS",
+    "pk": "PK_CE",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 12,
+    "tabla": "DEVCOMPRA_T3",
+    "pk": "DEVCOMPT3",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 13,
+    "tabla": "ENTREGA_T3",
+    "pk": "ENTT3_PK",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 14,
+    "tabla": "FACT_T3",
+    "pk": "FACT3_PK",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 15,
+    "tabla": "FACTD_AGR_T3",
+    "pk": "FAGRDT3_PK",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 16,
+    "tabla": "FACTD_T3",
+    "pk": "FACDT3_PK",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 17,
+    "tabla": "IFC_FORMATOS",
+    "pk": "PK_FORMATO",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 18,
+    "tabla": "MONITOR_CHART_CATALOG",
+    "pk": "MONITOR_CHART_CATALOG_PK",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 19,
+    "tabla": "MOV_CLIENTE_TERR",
+    "pk": "MCLTETERR_PK",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 20,
+    "tabla": "NOTA_AGR_T3",
+    "pk": "NAGRT3_PK",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 21,
+    "tabla": "NOTA_POR_APLICAR",
+    "pk": "NOTA_POR_APL_PK",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 22,
+    "tabla": "NOTA_T3",
+    "pk": "NOTAT3_PK",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 23,
+    "tabla": "NOTAD_AGR_T3",
+    "pk": "NAGRDT3_PK",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 24,
+    "tabla": "NOTAD_T3",
+    "pk": "NOTADT3_PK",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 25,
+    "tabla": "PAGO_T3",
+    "pk": "PAGOT3_PK",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 26,
+    "tabla": "PEDD_T3",
+    "pk": "PEDDT3_PK",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 27,
+    "tabla": "REGISTRO_FISCAL_DETALLE_HIST",
+    "pk": "REGFEDDETHIST_PK",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 28,
+    "tabla": "REGISTRO_FISCAL_HIST",
+    "pk": "REGFISHIST_PK",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 29,
+    "tabla": "W_IMPRIME_DOCUMENTO",
+    "pk": "W_IMP_DOC_PK",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 30,
+    "tabla": "W_MATERIAL_MAQUILA",
+    "pk": "W_MATERIAL_MAQUILA_PK",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 31,
+    "tabla": "W_MOV_CENTRAL_ADC",
+    "pk": "W_MOV_CEN_PK",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 32,
+    "tabla": "W_REGISTRO_FISCAL_DETALLE2",
+    "pk": "W_REGFEDDET2_PK",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 33,
+    "tabla": "W_REGISTRO_FISCAL2",
+    "pk": "W_REGFIS2_PK",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 34,
+    "tabla": "WH_PEDIDO_DETALLE",
+    "pk": "WH_PED_DET_IDX",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 35,
+    "tabla": "WH_REGISTRO_FISCAL",
+    "pk": "WH_REGFIS_PK",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 36,
+    "tabla": "WH_REGISTRO_FISCAL_DETALLE",
+    "pk": "WH_REGFEDDET_PK",
+    "filas": 0,
+    "mb": 0.0
+  },
+  {
+    "orden": 37,
+    "tabla": "CONFIG_EMPRESA",
+    "pk": "EMPRESA_PK",
+    "filas": 3,
+    "mb": 0.02
+  },
+  {
+    "orden": 38,
+    "tabla": "IFC_CONFIG",
+    "pk": "PK_CONFIG",
+    "filas": 4,
+    "mb": 0.02
+  },
+  {
+    "orden": 39,
+    "tabla": "W_REGISTRO_FISCAL",
+    "pk": "W_REGFIS_PK",
+    "filas": 8,
+    "mb": 0.02
+  },
+  {
+    "orden": 40,
+    "tabla": "W_REGISTRO_FISCAL_DETALLE",
+    "pk": "W_REGFEDDET_PK",
+    "filas": 20,
+    "mb": 0.02
+  },
+  {
+    "orden": 41,
+    "tabla": "ESTADO_FISCAL",
+    "pk": "ESTADO_PK",
+    "filas": 33,
+    "mb": 0.02
+  },
+  {
+    "orden": 42,
+    "tabla": "TIPO_DOCUMENTO",
+    "pk": "TIPODOC_PK",
+    "filas": 39,
+    "mb": 0.02
+  },
+  {
+    "orden": 43,
+    "tabla": "REPC_FAMILIA",
+    "pk": "REPC_FAMILIA_PK",
+    "filas": 45,
+    "mb": 0.02
+  },
+  {
+    "orden": 44,
+    "tabla": "PASO_MATERIALES_FAM",
+    "pk": "PASO_MATERIALES_FAM_PK",
+    "filas": 56,
+    "mb": 0.02
+  },
+  {
+    "orden": 45,
+    "tabla": "REPC_CLIENTE_VENTA_HIST",
+    "pk": "REPC_CLIENTE_VENTA_HIST_PK",
+    "filas": 75,
+    "mb": 0.02
+  },
+  {
+    "orden": 46,
+    "tabla": "IMPRESORAS",
+    "pk": "IMPRESORAS_PK",
+    "filas": 76,
+    "mb": 0.02
+  },
+  {
+    "orden": 47,
+    "tabla": "VENTA_PLANEADA",
+    "pk": "PK_VP",
+    "filas": 97,
+    "mb": 0.02
+  },
+  {
+    "orden": 48,
+    "tabla": "CADENA_UPC",
+    "pk": "PK_CADENA_UPC",
+    "filas": 150,
+    "mb": 0.02
+  },
+  {
+    "orden": 49,
+    "tabla": "REPC_MATERIAL_FAMILIA",
+    "pk": "REPC_MATERIAL_FAMILIA_PK",
+    "filas": 613,
+    "mb": 0.02
+  },
+  {
+    "orden": 50,
+    "tabla": "REPC_CLIENTE_VENTA",
+    "pk": "PK_REPC_CLIENTE_VENTA",
+    "filas": 379,
+    "mb": 0.04
+  },
+  {
+    "orden": 51,
+    "tabla": "PASO_MATERIALES",
+    "pk": "PASO_MATERIALES_PK",
+    "filas": 781,
+    "mb": 0.04
+  },
+  {
+    "orden": 52,
+    "tabla": "DISTRIBUIDOR_FISCAL",
+    "pk": "DISTRIBUIDOR_PK",
+    "filas": 214,
+    "mb": 0.07
+  },
+  {
+    "orden": 53,
+    "tabla": "IFC_FORMATO_HIST",
+    "pk": "PK_FORMATO_HIST",
+    "filas": 2432,
+    "mb": 0.24
+  },
+  {
+    "orden": 54,
+    "tabla": "MATERIAL",
+    "pk": "PRODUCTO_PK",
+    "filas": 8812,
+    "mb": 1.52
+  },
+  {
+    "orden": 55,
+    "tabla": "BITACORA_CARGA_T3",
+    "pk": "BIT_CARGA_PK",
+    "filas": 1073396,
+    "mb": 72.59
+  },
+  {
+    "orden": 56,
+    "tabla": "ENTREGA",
+    "pk": "ENT_PK",
+    "filas": 839960,
+    "mb": 84.21
+  },
+  {
+    "orden": 57,
+    "tabla": "W_BUZON_CLIENTE",
+    "pk": "W_BUZ_CLTE_PK",
+    "filas": 2854500,
+    "mb": 846.02
+  },
+  {
+    "orden": 58,
+    "tabla": "PREVENTA_GENERAL",
+    "pk": "PREVG_PK",
+    "filas": 3880039,
+    "mb": 944.01
+  },
+  {
+    "orden": 59,
+    "tabla": "PAGO",
+    "pk": "PAGO_PK",
+    "filas": 27966067,
+    "mb": 2996.29
+  },
+  {
+    "orden": 60,
+    "tabla": "ASIGNACION_PAGO",
+    "pk": "ASPAGO_PK",
+    "filas": 31397173,
+    "mb": 3995.57
+  },
+  {
+    "orden": 61,
+    "tabla": "CLIENTE",
+    "pk": "CLIENTE_PK",
+    "filas": 11600468,
+    "mb": 6901.26
+  },
+  {
+    "orden": 62,
+    "tabla": "FACTURA_GENERAL",
+    "pk": "FACTURA_PK",
+    "filas": 25103302,
+    "mb": 7014.58
+  },
+  {
+    "orden": 63,
+    "tabla": "FACTURA_DETALLE",
+    "pk": "FACTDET_PK",
+    "filas": 91844687,
+    "mb": 16309.73
+  },
+  {
+    "orden": 64,
+    "tabla": "REGISTRO_FISCAL",
+    "pk": "REGFIS_PK",
+    "filas": 154794153,
+    "mb": 35425.71
+  },
+  {
+    "orden": 65,
+    "tabla": "REGISTRO_FISCAL_DETALLE",
+    "pk": "REGFEDDET_PK",
+    "filas": 489138865,
+    "mb": 92066.51
+  }
+]

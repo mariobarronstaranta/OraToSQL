@@ -6,7 +6,7 @@ corroboran las marcas de ambos procedimientos en T3QA; pendiente validar una cor
 GETCONV y FN_TOTAL_FACT compartidas se mantienen sin cambios. PAGOS usa suma
 fiscal local con NULL sin detalle y la regla SAT restaurada.
 No ejecuta motor Oracle ni certifica paridad completa. Ver
-[cambios actuales](../../PROC_CFDI_PROCESAR_PAGOS.CAMBIOS_ORACLE.md).
+[cambios actuales](../../Analisis/PROC_CFDI_PROCESAR_PAGOS.CAMBIOS_ORACLE.md).
 La corrida real anterior de 326 inserciones solo acredita DATE/cursores.
 
 Despues de estas pruebas se ampliaron solo los comentarios del control para

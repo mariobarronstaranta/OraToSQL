@@ -1,4 +1,4 @@
-/*
+﻿/*
   Migracion de PK Oracle -> SQL Server, esquema T3. Fuente: PKS_ORACLE_T3.txt.
   Conserva nombre y orden de columnas; no infiere PK para otras tablas.
   @Aplicar=0: SOLO diagnostico y propuesta de DDL, sin cambios permanentes.
@@ -37,6 +37,11 @@ DECLARE @Origen table(
     Columna sysname COLLATE DATABASE_DEFAULT NOT NULL,
     PRIMARY KEY(Tabla,Posicion));
 --__SEED__
+
+-- Suspension posterior al incidente del 2026-11-06: tambien bloquea vista previa.
+IF EXISTS(SELECT 1 FROM @Origen WHERE Tabla=N'REGISTRO_FISCAL_DETALLE'
+          AND (@SoloTabla IS NULL OR @SoloTabla=Tabla))
+    THROW 56992,'REGISTRO_FISCAL_DETALLE suspendida. Ejecutar 17_RFD_REVISION_POST_RECOVERY_20261107/01_ESTADO_Y_CAPACIDADES.sql. No reutilizar lote 17.',1;
 
 IF @SoloTabla IS NOT NULL AND NOT EXISTS(SELECT 1 FROM @Origen WHERE Tabla=@SoloTabla)
     THROW 56800,'@SoloTabla no pertenece al listado Oracle proporcionado.',1;

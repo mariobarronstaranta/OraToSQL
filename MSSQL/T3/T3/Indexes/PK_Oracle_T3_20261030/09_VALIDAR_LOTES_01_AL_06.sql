@@ -1,0 +1,115 @@
+﻿/* Solo lectura de metadatos. Alcance fijo: 54 tablas de lotes 01 a 06.
+   No escanea datos ni revisa las tablas grandes de lotes 07 a 17.
+   Verifica restricciones PK reales, indice activo/unico, columnas/orden y NOT NULL.
+   Una PK equivalente con otro nombre es valida, pero se informa por separado.
+   Certifica el estado actual del esquema, no la historia de ejecucion ni los datos
+   anteriores. Sin visibilidad de objetos, el resultado sera NO VERIFICABLE.
+*/
+USE [T3QA];
+SET NOCOUNT ON;
+SELECT @@SERVERNAME Servidor,DB_NAME() BaseDatos,SYSDATETIMEOFFSET() Captura,
+ HAS_PERMS_BY_NAME(DB_NAME(),'DATABASE','VIEW DEFINITION') PuedeVerDefinicionBase;
+DECLARE @Esperadas table(Lote int,Tabla sysname COLLATE DATABASE_DEFAULT PRIMARY KEY,
+ NombreOracle sysname COLLATE DATABASE_DEFAULT,ColumnasOracle nvarchar(2000) COLLATE DATABASE_DEFAULT,
+ NumeroColumnas int);
+INSERT @Esperadas VALUES
+(1,N'ASIGNA_AGR_T3',N'ASIGRT3_PK',N'[NUM_ID]',1),
+(1,N'ASIGNA_T3',N'ASIGT3_PK',N'[NUM_ID]',1),
+(1,N'BITACORA_EDI',N'PK_BITACORA_EDI',N'[DISTRIBUIDOR],[FECHA]',2),
+(1,N'BITACORA_PROCESO',N'BIT_PROC_PK',N'[SECUENCIA]',1),
+(1,N'CADENA_CLIENTE',N'PK_CADENA_CLIENTE',N'[CADENA],[CLIENTE]',2),
+(1,N'CADENAS_SAP_PASO',N'CADENAS_SAP_PASO_PK',N'[CADENA]',1),
+(1,N'CARTERA_T3',N'CART3_PK',N'[NUM_ID]',1),
+(1,N'CC_PANTALLA',N'CC_PANTALLA_PK',N'[PANTALLA]',1),
+(1,N'CLASE_CLIENTE',N'CLACLI_PK',N'[CLASE_CLIENTE]',1),
+(2,N'COMPRA_T3',N'COMPT_T3',N'[NUM_MOVTO],[DISTRIBUIDOR]',2),
+(2,N'CREDITO_EXPRESS',N'PK_CE',N'[DISTRIBUIDOR],[INICIO],[FIN]',3),
+(2,N'DEVCOMPRA_T3',N'DEVCOMPT3',N'[NUM_MOVTO],[DISTRIBUIDOR]',2),
+(2,N'ENTREGA_T3',N'ENTT3_PK',N'[ENTREGA]',1),
+(2,N'FACT_T3',N'FACT3_PK',N'[FACTURA]',1),
+(2,N'FACTD_AGR_T3',N'FAGRDT3_PK',N'[FACTURA],[NUM_LINEA]',2),
+(2,N'FACTD_T3',N'FACDT3_PK',N'[FACTURA],[NUM_LINEA]',2),
+(2,N'IFC_FORMATOS',N'PK_FORMATO',N'[NUM_FORMA]',1),
+(2,N'MONITOR_CHART_CATALOG',N'MONITOR_CHART_CATALOG_PK',N'[ID]',1),
+(3,N'MOV_CLIENTE_TERR',N'MCLTETERR_PK',N'[CLIENTE_V3]',1),
+(3,N'NOTA_AGR_T3',N'NAGRT3_PK',N'[FACTURA]',1),
+(3,N'NOTA_POR_APLICAR',N'NOTA_POR_APL_PK',N'[SECUENCIA_ADC]',1),
+(3,N'NOTA_T3',N'NOTAT3_PK',N'[FACTURA]',1),
+(3,N'NOTAD_AGR_T3',N'NAGRDT3_PK',N'[FACTURA],[NUM_LINEA]',2),
+(3,N'NOTAD_T3',N'NOTADT3_PK',N'[FACTURA],[NUM_LINEA]',2),
+(3,N'PAGO_T3',N'PAGOT3_PK',N'[REFERENCIA]',1),
+(3,N'PEDD_T3',N'PEDDT3_PK',N'[DISTRIBUIDOR],[NUM_LINEA],[PEDIDO],[MATERIAL]',4),
+(3,N'REGISTRO_FISCAL_DETALLE_HIST',N'REGFEDDETHIST_PK',N'[FACTURA],[NUM_LINEA]',2),
+(4,N'REGISTRO_FISCAL_HIST',N'REGFISHIST_PK',N'[FACTURA]',1),
+(4,N'W_IMPRIME_DOCUMENTO',N'W_IMP_DOC_PK',N'[TIPO_IMPRESION],[SECUENCIA]',2),
+(4,N'W_MATERIAL_MAQUILA',N'W_MATERIAL_MAQUILA_PK',N'[MATERIAL]',1),
+(4,N'W_MOV_CENTRAL_ADC',N'W_MOV_CEN_PK',N'[SECUENCIA_ADC]',1),
+(4,N'W_REGISTRO_FISCAL_DETALLE2',N'W_REGFEDDET2_PK',N'[FACTURA],[NUM_LINEA]',2),
+(4,N'W_REGISTRO_FISCAL2',N'W_REGFIS2_PK',N'[FACTURA]',1),
+(4,N'WH_PEDIDO_DETALLE',N'WH_PED_DET_IDX',N'[COMPANIA],[UNIDAD_ORG],[FOLIO_PED],[FECHA_PED],[PRODUCTO]',5),
+(4,N'WH_REGISTRO_FISCAL',N'WH_REGFIS_PK',N'[FACTURA]',1),
+(4,N'WH_REGISTRO_FISCAL_DETALLE',N'WH_REGFEDDET_PK',N'[FACTURA],[NUM_LINEA]',2),
+(5,N'CONFIG_EMPRESA',N'EMPRESA_PK',N'[EMPRESA]',1),
+(5,N'IFC_CONFIG',N'PK_CONFIG',N'[NUM_CONFIG]',1),
+(5,N'W_REGISTRO_FISCAL',N'W_REGFIS_PK',N'[FACTURA]',1),
+(5,N'W_REGISTRO_FISCAL_DETALLE',N'W_REGFEDDET_PK',N'[FACTURA],[NUM_LINEA]',2),
+(5,N'ESTADO_FISCAL',N'ESTADO_PK',N'[ESTADO]',1),
+(5,N'TIPO_DOCUMENTO',N'TIPODOC_PK',N'[TIPO_DOCUMENTO]',1),
+(5,N'REPC_FAMILIA',N'REPC_FAMILIA_PK',N'[FAMILIA]',1),
+(5,N'PASO_MATERIALES_FAM',N'PASO_MATERIALES_FAM_PK',N'[FAMILIA]',1),
+(5,N'REPC_CLIENTE_VENTA_HIST',N'REPC_CLIENTE_VENTA_HIST_PK',N'[CLIENTE_SAP],[FACTURA],[NOMBRE]',3),
+(6,N'IMPRESORAS',N'IMPRESORAS_PK',N'[NUMERO_IMPRESORA]',1),
+(6,N'VENTA_PLANEADA',N'PK_VP',N'[DISTRIBUIDOR],[INICIO],[FIN]',3),
+(6,N'CADENA_UPC',N'PK_CADENA_UPC',N'[CADENA],[UPC_CTE],[UPC_SAP]',3),
+(6,N'REPC_MATERIAL_FAMILIA',N'REPC_MATERIAL_FAMILIA_PK',N'[MATERIAL]',1),
+(6,N'REPC_CLIENTE_VENTA',N'PK_REPC_CLIENTE_VENTA',N'[CLIENTE_SAP],[FACTURA],[MATERIAL]',3),
+(6,N'PASO_MATERIALES',N'PASO_MATERIALES_PK',N'[FAMILIA],[MATERIAL]',2),
+(6,N'DISTRIBUIDOR_FISCAL',N'DISTRIBUIDOR_PK',N'[DISTRIBUIDOR]',1),
+(6,N'IFC_FORMATO_HIST',N'PK_FORMATO_HIST',N'[DISTRIBUIDOR],[TIPO_VENTA],[TIPO_FORMA],[FECHA_INI]',4),
+(6,N'MATERIAL',N'PRODUCTO_PK',N'[MATERIAL]',1);
+DECLARE @Resultado table(Lote int,Tabla sysname,Resultado varchar(50),NombreOracle sysname,
+ PKActual sysname NULL,ColumnasOracle nvarchar(2000),ColumnasActuales nvarchar(2000),
+ ColumnasNullable int,NombreIgualAOracle bit,TipoIndice nvarchar(60),IndiceDeshabilitado bit);
+INSERT @Resultado
+SELECT E.Lote,E.Tabla,
+ CASE WHEN T.object_id IS NULL THEN 'TABLA_AUSENTE_O_NO_VISIBLE'
+      WHEN K.object_id IS NULL THEN 'FALTA_RESTRICCION_PK'
+      WHEN I.index_id IS NULL THEN 'INDICE_PK_NO_VISIBLE'
+      WHEN I.is_disabled=1 THEN 'PK_DESHABILITADA'
+      WHEN I.is_hypothetical=1 OR I.is_unique<>1 OR I.is_primary_key<>1 OR I.has_filter<>0 THEN 'INDICE_PK_NO_VALIDO'
+      WHEN A.ColumnasActuales IS NULL OR A.ColumnasActuales COLLATE DATABASE_DEFAULT<>E.ColumnasOracle
+        OR N.NumeroColumnas<>E.NumeroColumnas THEN 'COLUMNAS_U_ORDEN_DIFERENTES'
+      WHEN N.ColumnasNullable<>0 THEN 'COLUMNAS_PERMITEN_NULL'
+      WHEN K.name COLLATE DATABASE_DEFAULT<>E.NombreOracle THEN 'OK_EQUIVALENTE_OTRO_NOMBRE'
+      ELSE 'OK' END,
+ E.NombreOracle,K.name,E.ColumnasOracle,A.ColumnasActuales,N.ColumnasNullable,
+ CASE WHEN K.name COLLATE DATABASE_DEFAULT=E.NombreOracle THEN 1 ELSE 0 END,
+ I.type_desc,I.is_disabled
+FROM @Esperadas E
+LEFT JOIN sys.tables T ON T.schema_id=SCHEMA_ID(N'T3') AND T.name COLLATE DATABASE_DEFAULT=E.Tabla
+LEFT JOIN sys.key_constraints K ON K.parent_object_id=T.object_id AND K.type='PK'
+LEFT JOIN sys.indexes I ON I.object_id=T.object_id AND I.index_id=K.unique_index_id
+OUTER APPLY(SELECT STUFF((SELECT N','+QUOTENAME(C.name)
+ FROM sys.index_columns IC JOIN sys.columns C ON C.object_id=IC.object_id AND C.column_id=IC.column_id
+ WHERE IC.object_id=T.object_id AND IC.index_id=K.unique_index_id AND IC.key_ordinal>0
+ ORDER BY IC.key_ordinal FOR XML PATH(''),TYPE).value('.','nvarchar(max)'),1,1,N'') ColumnasActuales) A
+OUTER APPLY(SELECT COUNT(*) NumeroColumnas,COALESCE(SUM(CONVERT(int,C.is_nullable)),0) ColumnasNullable
+ FROM sys.index_columns IC JOIN sys.columns C ON C.object_id=IC.object_id AND C.column_id=IC.column_id
+ WHERE IC.object_id=T.object_id AND IC.index_id=K.unique_index_id AND IC.key_ordinal>0) N;
+
+-- Resultado global: deben ser 54 correctas y cero por revisar.
+SELECT '01_RESUMEN_GLOBAL' Seccion,COUNT(*) TablasEsperadas,
+ SUM(CASE WHEN Resultado IN('OK','OK_EQUIVALENTE_OTRO_NOMBRE') THEN 1 ELSE 0 END) PKCorrectas,
+ SUM(CASE WHEN Resultado NOT IN('OK','OK_EQUIVALENTE_OTRO_NOMBRE') THEN 1 ELSE 0 END) PorRevisar,
+ SUM(CASE WHEN Resultado='OK_EQUIVALENTE_OTRO_NOMBRE' THEN 1 ELSE 0 END) EquivalentesConOtroNombre,
+ CASE WHEN COUNT(*)=54 AND SUM(CASE WHEN Resultado NOT IN('OK','OK_EQUIVALENTE_OTRO_NOMBRE') THEN 1 ELSE 0 END)=0
+ THEN 'EXITOSO: 54 PK activas equivalentes a Oracle y columnas NOT NULL'
+ ELSE 'REVISAR: existen tablas sin PK valida o no verificables' END Conclusion
+FROM @Resultado;
+SELECT '02_RESUMEN_POR_LOTE' Seccion,Lote,COUNT(*) TablasEsperadas,
+ SUM(CASE WHEN Resultado IN('OK','OK_EQUIVALENTE_OTRO_NOMBRE') THEN 1 ELSE 0 END) PKCorrectas,
+ SUM(CASE WHEN Resultado NOT IN('OK','OK_EQUIVALENTE_OTRO_NOMBRE') THEN 1 ELSE 0 END) PorRevisar
+FROM @Resultado GROUP BY Lote ORDER BY Lote;
+SELECT '03_DETALLE' Seccion,* FROM @Resultado ORDER BY Lote,Tabla;
+SELECT '04_DIFERENCIAS' Seccion,* FROM @Resultado
+WHERE Resultado<>'OK' ORDER BY Lote,Tabla;

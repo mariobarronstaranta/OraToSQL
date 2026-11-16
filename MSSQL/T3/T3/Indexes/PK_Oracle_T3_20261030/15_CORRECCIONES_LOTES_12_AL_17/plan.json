@@ -1,0 +1,556 @@
+{
+  "ASIGNACION_PAGO": {
+    "lote": 12,
+    "indices": {
+      "ASPAGO_PK": {
+        "name": "ASPAGO_PK",
+        "type": "NONCLUSTERED",
+        "unique": 1,
+        "disabled": 0,
+        "filter": null,
+        "keys": [
+          "PAGO_ID",
+          "ASIGNACION_ID",
+          "FECHA_TRN",
+          "FACTURA"
+        ],
+        "include": []
+      },
+      "ASIGNACION_IDX1": {
+        "name": "ASIGNACION_IDX1",
+        "type": "NONCLUSTERED",
+        "unique": 0,
+        "disabled": 0,
+        "filter": null,
+        "keys": [
+          "FECHA_TRN"
+        ],
+        "include": []
+      },
+      "ASIGNACION_IDX3": {
+        "name": "ASIGNACION_IDX3",
+        "type": "NONCLUSTERED",
+        "unique": 0,
+        "disabled": 0,
+        "filter": null,
+        "keys": [
+          "FECHA_ASIGNACION"
+        ],
+        "include": []
+      },
+      "REP_AP": {
+        "name": "REP_AP",
+        "type": "NONCLUSTERED",
+        "unique": 0,
+        "disabled": 0,
+        "filter": null,
+        "keys": [
+          "REP_ID"
+        ],
+        "include": []
+      },
+      "ASIGNACION_PAGO_IDX": {
+        "name": "ASIGNACION_PAGO_IDX",
+        "type": "NONCLUSTERED",
+        "unique": 0,
+        "disabled": 0,
+        "filter": null,
+        "keys": [
+          "ASIGNACION_ID",
+          "FACTURA"
+        ],
+        "include": []
+      },
+      "PK_FACT_ASIGNA_FECHA_PROC": {
+        "name": "PK_FACT_ASIGNA_FECHA_PROC",
+        "type": "NONCLUSTERED",
+        "unique": 0,
+        "disabled": 0,
+        "filter": null,
+        "keys": [
+          "FACTURA",
+          "FECHA_PROC_BATMD"
+        ],
+        "include": []
+      },
+      "ASIGNACION_IDX2": {
+        "name": "ASIGNACION_IDX2",
+        "type": "NONCLUSTERED",
+        "unique": 0,
+        "disabled": 0,
+        "filter": null,
+        "keys": [
+          "ASIGNACION_ID"
+        ],
+        "include": []
+      },
+      "PK_ASIGNA_FECHA_PROC": {
+        "name": "PK_ASIGNA_FECHA_PROC",
+        "type": "NONCLUSTERED",
+        "unique": 0,
+        "disabled": 0,
+        "filter": null,
+        "keys": [
+          "DISTRIBUIDOR",
+          "FECHA_PROC_BATMD"
+        ],
+        "include": []
+      },
+      "IDX_T3_ASIGNACION_PAGO_FECHA_PROC_BATMD": {
+        "name": "IDX_T3_ASIGNACION_PAGO_FECHA_PROC_BATMD",
+        "type": "NONCLUSTERED",
+        "unique": 0,
+        "disabled": 0,
+        "filter": null,
+        "keys": [
+          "FECHA_PROC_BATMD"
+        ],
+        "include": [
+          "PAGO_ID",
+          "ASIGNACION_ID",
+          "FECHA_TRN",
+          "FACTURA",
+          "NOTA_CREDITO",
+          "CLIENTE_SAP",
+          "REP_ID",
+          "FECHA_ASIGNACION",
+          "VALOR_PAGO",
+          "CTRO"
+        ]
+      }
+    },
+    "auxiliares": [
+      "ASIGNACION_IDX1",
+      "ASIGNACION_PAGO_IDX",
+      "PK_FACT_ASIGNA_FECHA_PROC",
+      "ASIGNACION_IDX2",
+      "IDX_T3_ASIGNACION_PAGO_FECHA_PROC_BATMD"
+    ]
+  },
+  "CLIENTE": {
+    "lote": 13,
+    "indices": {
+      "ClusteredIndex-20260825-125244": {
+        "name": "ClusteredIndex-20260825-125244",
+        "type": "CLUSTERED",
+        "unique": 0,
+        "disabled": 0,
+        "filter": null,
+        "keys": [
+          "RFC"
+        ],
+        "include": []
+      },
+      "CLIENTE_PK": {
+        "name": "CLIENTE_PK",
+        "type": "NONCLUSTERED",
+        "unique": 1,
+        "disabled": 1,
+        "filter": null,
+        "keys": [
+          "CLIENTE_V3",
+          "FECHA_INI_VIG"
+        ],
+        "include": []
+      },
+      "IX_Cliente_SAP_Vigencia": {
+        "name": "IX_Cliente_SAP_Vigencia",
+        "type": "NONCLUSTERED",
+        "unique": 0,
+        "disabled": 1,
+        "filter": null,
+        "keys": [
+          "CLIENTE_SAP",
+          "FECHA_INI_VIG",
+          "FECHA_FIN_VIG"
+        ],
+        "include": [
+          "CLIENTE_V3",
+          "RFC"
+        ]
+      },
+      "CLIENTE_IDX4": {
+        "name": "CLIENTE_IDX4",
+        "type": "NONCLUSTERED",
+        "unique": 0,
+        "disabled": 0,
+        "filter": null,
+        "keys": [
+          "CLASE_CLTE",
+          "DIST_VENTA"
+        ],
+        "include": []
+      },
+      "CLIENTE_IDX1": {
+        "name": "CLIENTE_IDX1",
+        "type": "NONCLUSTERED",
+        "unique": 1,
+        "disabled": 0,
+        "filter": null,
+        "keys": [
+          "CLIENTE_SAP",
+          "FECHA_INI_VIG",
+          "FECHA_FIN_VIG"
+        ],
+        "include": []
+      },
+      "CLIENTE_IDX2": {
+        "name": "CLIENTE_IDX2",
+        "type": "NONCLUSTERED",
+        "unique": 0,
+        "disabled": 0,
+        "filter": null,
+        "keys": [
+          "CLASE_CLTE",
+          "FECHA_FIN_VIG"
+        ],
+        "include": []
+      },
+      "IX_Ventas_Cliente_SAP_Vigencia": {
+        "name": "IX_Ventas_Cliente_SAP_Vigencia",
+        "type": "NONCLUSTERED",
+        "unique": 0,
+        "disabled": 1,
+        "filter": null,
+        "keys": [
+          "CLIENTE_SAP",
+          "FECHA_INI_VIG"
+        ],
+        "include": [
+          "FECHA_FIN_VIG",
+          "NOMBRE",
+          "RFC"
+        ]
+      },
+      "IX_RECV_INVOICE_CLIENTE_V3_VIGENCIA": {
+        "name": "IX_RECV_INVOICE_CLIENTE_V3_VIGENCIA",
+        "type": "NONCLUSTERED",
+        "unique": 0,
+        "disabled": 0,
+        "filter": null,
+        "keys": [
+          "CLIENTE_V3",
+          "FECHA_INI_VIG",
+          "FECHA_FIN_VIG"
+        ],
+        "include": []
+      }
+    },
+    "auxiliares": [
+      "IX_Cliente_SAP_Vigencia",
+      "CLIENTE_IDX1",
+      "IX_Ventas_Cliente_SAP_Vigencia",
+      "IX_RECV_INVOICE_CLIENTE_V3_VIGENCIA"
+    ]
+  },
+  "FACTURA_GENERAL": {
+    "lote": 14,
+    "indices": {
+      "FACTURA_PK": {
+        "name": "FACTURA_PK",
+        "type": "NONCLUSTERED",
+        "unique": 1,
+        "disabled": 0,
+        "filter": null,
+        "keys": [
+          "FACTURA"
+        ],
+        "include": []
+      },
+      "PK_FACTURA_FECHA_PROC": {
+        "name": "PK_FACTURA_FECHA_PROC",
+        "type": "NONCLUSTERED",
+        "unique": 0,
+        "disabled": 1,
+        "filter": null,
+        "keys": [
+          "FACTURA",
+          "FECHA_PROC_BATMD"
+        ],
+        "include": []
+      },
+      "FACTURA_IDX1": {
+        "name": "FACTURA_IDX1",
+        "type": "NONCLUSTERED",
+        "unique": 0,
+        "disabled": 0,
+        "filter": null,
+        "keys": [
+          "FECHA_TRN"
+        ],
+        "include": []
+      },
+      "FG_INDX": {
+        "name": "FG_INDX",
+        "type": "NONCLUSTERED",
+        "unique": 0,
+        "disabled": 1,
+        "filter": null,
+        "keys": [
+          "DISTRIBUIDOR",
+          "FECHA_PROC_BATMD"
+        ],
+        "include": []
+      },
+      "REP_FG": {
+        "name": "REP_FG",
+        "type": "NONCLUSTERED",
+        "unique": 0,
+        "disabled": 1,
+        "filter": null,
+        "keys": [
+          "REP_ID"
+        ],
+        "include": []
+      },
+      "FG_IDX_2": {
+        "name": "FG_IDX_2",
+        "type": "NONCLUSTERED",
+        "unique": 0,
+        "disabled": 0,
+        "filter": null,
+        "keys": [
+          "FECHA_FACTURA"
+        ],
+        "include": []
+      },
+      "IX_FACTURA_ENT": {
+        "name": "IX_FACTURA_ENT",
+        "type": "NONCLUSTERED",
+        "unique": 0,
+        "disabled": 1,
+        "filter": null,
+        "keys": [
+          "ENTREGA"
+        ],
+        "include": []
+      },
+      "IDX_FACTURA_GENERAL_FECHA": {
+        "name": "IDX_FACTURA_GENERAL_FECHA",
+        "type": "NONCLUSTERED",
+        "unique": 0,
+        "disabled": 0,
+        "filter": null,
+        "keys": [
+          "TIPO_DOCTO",
+          "FECHA_PROC_BATMD"
+        ],
+        "include": [
+          "FACTURA",
+          "FECHA_FACTURA",
+          "CLIENTE_SAP",
+          "UBICACION",
+          "CTRO"
+        ]
+      }
+    },
+    "auxiliares": [
+      "PK_FACTURA_FECHA_PROC",
+      "IDX_FACTURA_GENERAL_FECHA"
+    ]
+  },
+  "FACTURA_DETALLE": {
+    "lote": 15,
+    "indices": {
+      "FACTDET_PK": {
+        "name": "FACTDET_PK",
+        "type": "NONCLUSTERED",
+        "unique": 1,
+        "disabled": 0,
+        "filter": null,
+        "keys": [
+          "FACTURA",
+          "NUM_LINEA"
+        ],
+        "include": []
+      },
+      "FACTURA_INDX": {
+        "name": "FACTURA_INDX",
+        "type": "NONCLUSTERED",
+        "unique": 0,
+        "disabled": 0,
+        "filter": null,
+        "keys": [
+          "FACTURA"
+        ],
+        "include": []
+      }
+    },
+    "auxiliares": [
+      "FACTURA_INDX"
+    ]
+  },
+  "REGISTRO_FISCAL": {
+    "lote": 16,
+    "indices": {
+      "REGFIS_PK": {
+        "name": "REGFIS_PK",
+        "type": "NONCLUSTERED",
+        "unique": 1,
+        "disabled": 0,
+        "filter": null,
+        "keys": [
+          "FACTURA"
+        ],
+        "include": []
+      },
+      "REGFIS_ENTREGA": {
+        "name": "REGFIS_ENTREGA",
+        "type": "NONCLUSTERED",
+        "unique": 0,
+        "disabled": 0,
+        "filter": null,
+        "keys": [
+          "ENTREGA"
+        ],
+        "include": []
+      },
+      "REGFIS_IDX1": {
+        "name": "REGFIS_IDX1",
+        "type": "NONCLUSTERED",
+        "unique": 0,
+        "disabled": 0,
+        "filter": null,
+        "keys": [
+          "FECHA_FACTURA"
+        ],
+        "include": []
+      },
+      "IX_REGISTRO_FISCAL_MX16_LOAD": {
+        "name": "IX_REGISTRO_FISCAL_MX16_LOAD",
+        "type": "NONCLUSTERED",
+        "unique": 0,
+        "disabled": 0,
+        "filter": "([STATUS]<>'Cancelled')",
+        "keys": [
+          "TIPO_DOCTO",
+          "FECHA_DOCUMENTO",
+          "FACTURA"
+        ],
+        "include": [
+          "ENTREGA",
+          "REFERENCIA",
+          "CLIENTE_SAP",
+          "FECHA_FACTURA"
+        ]
+      },
+      "IX_Ventas_RF_FechaFactura_Tipo": {
+        "name": "IX_Ventas_RF_FechaFactura_Tipo",
+        "type": "NONCLUSTERED",
+        "unique": 0,
+        "disabled": 0,
+        "filter": null,
+        "keys": [
+          "FECHA_FACTURA",
+          "TIPO_DOCTO"
+        ],
+        "include": [
+          "FACTURA",
+          "ENTREGA",
+          "STATUS",
+          "CLIENTE_SAP"
+        ]
+      },
+      "IX_Ventas_RF_FechaDocumento_Tipo": {
+        "name": "IX_Ventas_RF_FechaDocumento_Tipo",
+        "type": "NONCLUSTERED",
+        "unique": 0,
+        "disabled": 0,
+        "filter": null,
+        "keys": [
+          "FECHA_DOCUMENTO",
+          "TIPO_DOCTO"
+        ],
+        "include": [
+          "FACTURA",
+          "ENTREGA",
+          "STATUS"
+        ]
+      }
+    },
+    "auxiliares": [
+      "IX_REGISTRO_FISCAL_MX16_LOAD",
+      "IX_Ventas_RF_FechaFactura_Tipo",
+      "IX_Ventas_RF_FechaDocumento_Tipo"
+    ]
+  },
+  "REGISTRO_FISCAL_DETALLE": {
+    "lote": 17,
+    "indices": {
+      "REGFEDDET_PK": {
+        "name": "REGFEDDET_PK",
+        "type": "NONCLUSTERED",
+        "unique": 1,
+        "disabled": 0,
+        "filter": null,
+        "keys": [
+          "FACTURA",
+          "NUM_LINEA"
+        ],
+        "include": []
+      },
+      "IDX_FACTURA_MATERIAL": {
+        "name": "IDX_FACTURA_MATERIAL",
+        "type": "NONCLUSTERED",
+        "unique": 0,
+        "disabled": 0,
+        "filter": null,
+        "keys": [
+          "FACTURA",
+          "MATERIAL"
+        ],
+        "include": []
+      },
+      "IX_REGISTRO_FISCAL_DETALLE_FACTURA_MATERIAL": {
+        "name": "IX_REGISTRO_FISCAL_DETALLE_FACTURA_MATERIAL",
+        "type": "NONCLUSTERED",
+        "unique": 0,
+        "disabled": 0,
+        "filter": null,
+        "keys": [
+          "FACTURA",
+          "MATERIAL"
+        ],
+        "include": [
+          "NUM_LINEA",
+          "CANTIDAD_VTA",
+          "BONIF_SUBT",
+          "BONIF_IVA",
+          "VALOR_SUBT",
+          "VALOR_IEPS",
+          "ENVIO_SUBT",
+          "ENVIO_IVA",
+          "VALOR_IVA",
+          "VALOR_TOT",
+          "CREDITO_SUBT",
+          "CREDITO_IVA"
+        ]
+      },
+      "IX_Ventas_RFD_Factura": {
+        "name": "IX_Ventas_RFD_Factura",
+        "type": "NONCLUSTERED",
+        "unique": 0,
+        "disabled": 0,
+        "filter": null,
+        "keys": [
+          "FACTURA"
+        ],
+        "include": [
+          "VALOR_SUBT",
+          "VALOR_IVA",
+          "ENVIO_SUBT",
+          "ENVIO_IVA",
+          "CREDITO_SUBT",
+          "CREDITO_IVA",
+          "BONIF_SUBT",
+          "BONIF_IVA"
+        ]
+      }
+    },
+    "auxiliares": [
+      "IDX_FACTURA_MATERIAL",
+      "IX_REGISTRO_FISCAL_DETALLE_FACTURA_MATERIAL",
+      "IX_Ventas_RFD_Factura"
+    ]
+  }
+}

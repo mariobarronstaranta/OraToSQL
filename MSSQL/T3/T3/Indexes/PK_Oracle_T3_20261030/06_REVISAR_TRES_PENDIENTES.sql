@@ -1,0 +1,21 @@
+/* Solo lectura: no elimina duplicados ni asigna IDs.
+   Las claves duplicadas son grupos, no cantidad de filas a borrar. */
+USE [T3QA];
+SET NOCOUNT ON;
+SELECT @@SERVERNAME Servidor,DB_NAME() BaseDatos,SYSDATETIMEOFFSET() Captura;
+
+SELECT 'CFDI_CATALOGOS_SAT_ID_NULL' Seccion,COUNT_BIG(*) Filas
+FROM T3.CFDI_CATALOGOS_SAT WHERE ID IS NULL;
+SELECT TOP(20) * FROM T3.CFDI_CATALOGOS_SAT WHERE ID IS NULL;
+
+SELECT 'MOV_CLIENTE_DUPLICADOS' Seccion,COUNT_BIG(*) ClavesDuplicadas,
+       SUM(N) FilasEnGruposDuplicados,SUM(N-1) FilasExcedentesRespectoClave
+FROM (SELECT COUNT_BIG(*) N FROM T3.MOV_CLIENTE GROUP BY CLIENTE_V3 HAVING COUNT_BIG(*)>1) D;
+SELECT TOP(20) CLIENTE_V3,COUNT_BIG(*) Repeticiones
+FROM T3.MOV_CLIENTE GROUP BY CLIENTE_V3 HAVING COUNT_BIG(*)>1
+ORDER BY Repeticiones DESC,CLIENTE_V3;
+
+SELECT 'USUARIOS_DUPLICADOS' Seccion,USUARIO,COUNT_BIG(*) Repeticiones
+FROM T3.USUARIOS GROUP BY USUARIO HAVING COUNT_BIG(*)>1
+ORDER BY Repeticiones DESC,USUARIO;
+-- Se evita SELECT * de USUARIOS: puede contener datos de autenticacion.
